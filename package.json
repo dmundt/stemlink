@@ -81,7 +81,7 @@
         "command": "stemlink.addFleetingNote",
         "title": "Add Fleeting Note",
         "category": "Stemlink",
-        "icon": "$(new-file)"
+        "icon": "$(add)"
       },
       {
         "command": "stemlink.addNote",
