@@ -22,5 +22,6 @@ Stemlink is a VS Code extension for plain Markdown vaults. It uses native views,
 - The in-memory index is authoritative for live note/reference state. Generated vault `INDEX.md` files are navigation aids, not an authoritative index.
 - References in the sidebar use the active note only when it belongs to the selected vault. Language providers resolve a document against its own discovered vault.
 - View titles and reference groups show counts by default. `stemlink.showCounts` hides counts and pending placeholders; errors remain visible. Changing the setting refreshes the views.
+- The Vaults view supplies the native Activity Bar badge with the number of discovered vaults across workspace folders. It is absent for zero vaults and remains visible when view counts are hidden.
 
 See [storage](./storage.md) for file ownership and [verification](./verification.md) for test coverage and limitations.

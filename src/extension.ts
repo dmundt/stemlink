@@ -99,6 +99,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }),
     );
   const updateTreeViewMessages = (): void => {
+    if (vaultView) {
+      const count = vaults.size;
+      vaultView.badge = count
+        ? { value: count, tooltip: `${count} ${count === 1 ? "vault" : "vaults"}` }
+        : undefined;
+    }
     for (const [section, view] of treeViews) {
       view.message =
         section === "Vaults"
