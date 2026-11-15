@@ -339,6 +339,7 @@ async function testDiscovery(folder: vscode.WorkspaceFolder): Promise<void> {
       assert.notEqual(item.description, "Selected", "vault row still has Selected text");
     }
     assert.equal(vaultItems[1].command?.command, "stemlink.selectVault");
+    assert.equal(vaultItems[1].command?.title, "Select Vault");
     await firstVault.ensure();
     sections = await tree.getChildren();
     assert.equal(sections[3].label, "References (2)");
@@ -565,7 +566,10 @@ async function testOpenVault(folder: vscode.WorkspaceFolder, extensionUri: vscod
         return { get: (key: string, fallback: unknown) => key === "templates" ? "examples" : config.get(key, fallback) };
       },
     });
-    api.showOpenDialog = async () => chosen ? [chosen] : undefined;
+    api.showOpenDialog = async options => {
+      assert.equal(options?.title, "Open Vault");
+      return chosen ? [chosen] : undefined;
+    };
     api.showWarningMessage = new Proxy(original.showWarningMessage, {
       apply: (_target, _thisArg, args: unknown[]) => {
         const message = String(args[0]);
@@ -1100,6 +1104,8 @@ export async function run(): Promise<void> {
   }
   const settings = extension.packageJSON.contributes.configuration.properties as
     Record<string, { default: string | boolean; scope: string }>;
+  const commands = extension.packageJSON.contributes.commands as { command: string; title: string }[];
+  assert.equal(commands.find(command => command.command === "stemlink.createVault")?.title, "Create Vault");
   for (const [key, value] of [
     ["stemlink.root", "notes"], ["stemlink.inbox", "inbox"], ["stemlink.notes", "permanent"],
     ["stemlink.templates", "templates"],
@@ -1358,9 +1364,11 @@ export async function run(): Promise<void> {
     const originalInput = windowApi.showInputBox;
     const answers: (string | undefined)[] = [];
     const defaults: (string | undefined)[] = [];
+    const titles: (string | undefined)[] = [];
     windowApi.showInputBox = async options => {
       assert.ok(answers.length, "unexpected input prompt");
       defaults.push(options?.value);
+      titles.push(options?.title);
       return answers.shift();
     };
     try {
@@ -1383,6 +1391,8 @@ export async function run(): Promise<void> {
         instructionWarningApi.showWarningMessage = originalInstructionWarning;
       }
       assert.deepEqual(defaults, ["notes", "inbox", "permanent"]);
+      assert.deepEqual(titles, ["Create Vault: root folder", "Create Vault: inbox folder",
+        "Create Vault: permanent-note folder"]);
       assert.equal(createInstructionPrompts, 1, "Create did not offer optional agent instructions");
       const inbox = vscode.Uri.joinPath(folder.uri, "custom-vault", "captures");
       const permanent = vscode.Uri.joinPath(folder.uri, "custom-vault", "permanent");

@@ -5,7 +5,7 @@ Build a Zettelkasten in VS Code with plain Markdown files. Capture ideas, connec
 ## Get started
 
 1. Open a workspace folder and the **Stemlink** activity bar view.
-2. Run **Stemlink: Create Zettelkasten**. Accept `notes/` containing `templates/`, `inbox/`, and `permanent/`, or choose your own names.
+2. Run **Stemlink: Create Vault**. Accept `notes/` containing `templates/`, `inbox/`, and `permanent/`, or choose your own names.
 3. Stemlink restores the last available vault or selects the first listed vault. Choose another under **Vaults** when needed. Use **Add Fleeting Note**, **Add Note**, or **Promote Capture to Note**.
 
 The default root holds the collection; `inbox/` holds captures, `permanent/` holds permanent notes, and `templates/` holds editable examples. The bundled manual lists alternatives: `zk/inbox/notes`, `Zettelkasten/Fleeting/Permanent`, `vault/capture/notes`, and `vault/inbox/permanent`. Use Open Vault or settings for these layouts; Stemlink does not infer a layout from its folder names.
@@ -14,7 +14,7 @@ Vault creation copies the bundled manual to the vault root and personalizes its 
 
 Add Fleeting Note reads `_fleeting.md` from the mapped templates folder first and falls back to the configured notes folder for existing vaults.
 
-Create Zettelkasten and Open Vault also ask before adding minimal `AGENTS.md` instructions to the vault root, inbox, and notes folders. Existing files are preserved.
+Create Vault and Open Vault also ask before adding minimal `AGENTS.md` instructions to the vault root, inbox, and notes folders. Existing files are preserved.
 
 ## Extension settings
 
@@ -40,7 +40,7 @@ Configure all four names in VS Code settings, for example:
 }
 ```
 
-Create Zettelkasten prefills its three editable folder prompts from settings and uses the configured templates name without another prompt. Names must be single folder names; capture, permanent-note, and template folders must be distinct ignoring case. Creation saves the chosen settings and writes a new marker without overwriting an existing one.
+Create Vault prefills its three editable folder prompts from settings and uses the configured templates name without another prompt. Names must be single folder names; capture, permanent-note, and template folders must be distinct ignoring case. Creation saves the chosen settings and writes a new marker without overwriting an existing one.
 
 Existing vaults can be recognized by a `.stemlink.json` file in the workspace root or an immediate child folder:
 

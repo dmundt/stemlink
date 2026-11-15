@@ -27,7 +27,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const requireActiveVault = (): Vault => {
     if (selectedVault) return selectedVault;
     if (!vscode.workspace.workspaceFolders?.length) throw new Error("Open a workspace folder first.");
-    throw new Error("Select a Zettelkasten under Vaults first.");
+    throw new Error("Select a vault under Vaults first.");
   };
   const vaultFor = (uri?: vscode.Uri): Vault | undefined => {
     if (!uri) return selectedVault;
@@ -74,7 +74,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const updateTreeViewMessages = (): void => {
     for (const [section, view] of treeViews) {
       view.message = section === "Vaults"
-        ? vaults.size ? undefined : "Use Open Vault or Create Zettelkasten."
+        ? vaults.size ? undefined : "Use Open Vault or Create Vault."
         : selectedVault ? undefined : "Select a vault in Vaults.";
     }
   };
@@ -183,7 +183,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   command("stemlink.selectVault", async (root: vscode.Uri) => {
     const vault = vaults.get(root.toString());
-    if (!vault) throw new Error("The selected Zettelkasten is no longer available.");
+    if (!vault) throw new Error("The selected vault is no longer available.");
     await selectVault(vault);
   });
 
@@ -214,15 +214,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   }
 
   command("stemlink.openVault", async () => {
-    if (!vscode.workspace.isTrusted) throw new Error("Trust the workspace before opening a Zettelkasten.");
+    if (!vscode.workspace.isTrusted) throw new Error("Trust the workspace before opening a vault.");
     const roots = await vscode.window.showOpenDialog({
-      title: "Open Zettelkasten", openLabel: "Open Vault",
+      title: "Open Vault", openLabel: "Open Vault",
       canSelectFiles: false, canSelectFolders: true, canSelectMany: false,
     });
     const root = roots?.[0];
     if (!root) return;
     if (!((await vscode.workspace.fs.stat(root)).type & vscode.FileType.Directory)) {
-      throw new Error("Choose a Zettelkasten folder.");
+      throw new Error("Choose a vault folder.");
     }
     const marker = await readVaultMarker(root);
     if (!marker) {
@@ -249,7 +249,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const templates = vscode.workspace.getConfiguration("stemlink", root).get<string>("templates", "templates");
       await writeMarker(root, inbox.label, notes.label, templates);
     }
-    if (!vscode.workspace.isTrusted) throw new Error("Trust the workspace before opening a Zettelkasten.");
+    if (!vscode.workspace.isTrusted) throw new Error("Trust the workspace before opening a vault.");
     const folders = vscode.workspace.workspaceFolders ?? [];
     if (folders.some(folder => sameUri(root, folder.uri) || directChild(root, folder.uri))) {
       await queueDiscovery(root);
@@ -304,14 +304,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   });
 
   command("stemlink.createVault", async () => {
-    if (!vscode.workspace.isTrusted) throw new Error("Trust the workspace before creating a Zettelkasten.");
+    if (!vscode.workspace.isTrusted) throw new Error("Trust the workspace before creating a vault.");
     const folders = vscode.workspace.workspaceFolders ?? [];
     if (!folders.length) throw new Error("Open a workspace folder first.");
-    const selected = folders.length === 1 ? folders[0] : await vscode.window.showWorkspaceFolderPick({ placeHolder: "Choose a workspace for the Zettelkasten" });
+    const selected = folders.length === 1 ? folders[0] : await vscode.window.showWorkspaceFolderPick({ placeHolder: "Choose a workspace for the vault" });
     if (!selected) return;
     const config = vscode.workspace.getConfiguration("stemlink", selected.uri);
     const prompt = async (label: string, value: string) => vscode.window.showInputBox({
-      title: `Create Zettelkasten: ${label}`, value,
+      title: `Create Vault: ${label}`, value,
       validateInput: input => validFolderName(input) ? undefined : "Enter a single valid folder name.",
     });
     const root = await prompt("root folder", config.get<string>("root", "notes"));
@@ -437,8 +437,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const vault = vaults.get(rootUri.toString());
     if (vault && agentInstructionsEnabled(vault.paths)) await agentInstructions.offer(vault.paths);
     tree.refresh();
-    if (preserved.length) void vscode.window.showWarningMessage(`Stemlink: Zettelkasten ready; existing ${preserved.join(", ")} ${preserved.length === 1 ? "was" : "were"} preserved.`);
-    else void vscode.window.showInformationMessage("Stemlink: Zettelkasten ready.");
+    if (preserved.length) void vscode.window.showWarningMessage(`Stemlink: Vault ready; existing ${preserved.join(", ")} ${preserved.length === 1 ? "was" : "were"} preserved.`);
+    else void vscode.window.showInformationMessage("Stemlink: Vault ready.");
   });
 
   async function askMetadata(defaultTitle = ""): Promise<{ title: string; tags: string[] } | undefined> {

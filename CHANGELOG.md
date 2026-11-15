@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Rename the **Create Zettelkasten** action to **Create Vault** and use consistent vault terminology in prompts and messages.
 - Show the active vault with native row selection instead of a checkmark or Selected label. Restore the last available vault or select the first listed vault automatically; keep selection across editor changes and refreshes.
 - Configure every vault folder through resource-scoped settings, including `stemlink.templates`. Creation prefills folder prompts from settings; explicit template-setting conflicts use the marker/settings chooser without rewriting existing markers.
 - Change default vault layout to `notes/` containing `templates/`, `inbox/`, and `permanent/`. Existing markers and explicit settings are preserved; use Open Vault or explicit paths for vaults relying on the previous implicit `zk/inbox/notes` defaults.

@@ -82,7 +82,7 @@ export async function resolveVaultPaths(folder: vscode.WorkspaceFolder, state: S
     exists = false;
   }
   if (!exists) {
-    if (hasSettings) reportError(new Error(`Configured Zettelkasten folder does not exist: ${legacy.root.path}`));
+    if (hasSettings) reportError(new Error(`Configured vault folder does not exist: ${legacy.root.path}`));
     return markers;
   }
   if (markers.length && !hasSettings) {
