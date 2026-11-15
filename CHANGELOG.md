@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add a settings action to the Vaults view.
 - Show the discovered vault count on the Activity Bar icon when at least one vault is available.
 - Add `stemlink.showCounts` to hide sidebar and reference-group counts; counts remain visible by default.
 - Show zero counts instead of dashes when no vault is selected.

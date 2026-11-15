@@ -37,6 +37,8 @@ These are folder names, not note IDs. Stemlink's permanent-note filenames still 
 
 Set `stemlink.showCounts` to `false` to hide sidebar and reference-group counts. It defaults to `true`; errors remain visible. The Activity Bar badge still shows the number of discovered vaults when there is at least one.
 
+Use the gear in the **Vaults** view or **Stemlink: Settings** to open Stemlink settings.
+
 VS Code Settings Sync can share user-level Stemlink settings between devices when enabled with **Settings** selected. Workspace and workspace-folder overrides, vault files, and the selected vault are not synced by Stemlink.
 
 All four names can be set in VS Code settings:

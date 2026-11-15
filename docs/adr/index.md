@@ -24,6 +24,7 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [032: Vault UI terminology](adr-032-vault-ui-terminology.md) — consistent Vault and Notes labels without changing command identifiers.
 - [033: Configurable count display](adr-033-configurable-count-display.md) — optional sidebar counts, shown by default.
 - [035: Vault count badge](adr-035-vault-count-badge.md) — native Activity Bar badge for discovered vaults.
+- [036: Settings action](adr-036-settings-action.md) — open extension settings from the Vaults view.
 
 ## Creating and processing notes
 
