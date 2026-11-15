@@ -82,14 +82,34 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     treeViews.set(section, view);
     context.subscriptions.push(provider, view);
   }
-  const syncVaultSelection = async (): Promise<void> => {
-    const view = treeViews.get("Vaults");
-    const vault = selectedVault;
-    if (!view?.visible || !vault || view.selection[0]?.vault === vault) return;
-    const rows = await tree.getChildren(new Item("Vaults", "Vaults"));
-    if (selectedVault !== vault || !view.visible) return;
-    const item = rows.find((row) => row.vault === vault);
-    if (item) await view.reveal(item, { select: true, focus: false, expand: false });
+  let selectionSync = Promise.resolve();
+  let revealingVault: Vault | undefined;
+  const syncVaultSelection = (): Promise<void> => {
+    const operation = selectionSync.then(async () => {
+      const view = treeViews.get("Vaults");
+      // Tree refreshes can invalidate an item while VS Code is resolving a reveal.
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const vault = selectedVault;
+        if (!view?.visible || !vault || view.selection[0]?.vault === vault) return;
+        const rows = await tree.getChildren(new Item("Vaults", "Vaults"));
+        if (selectedVault !== vault || !view.visible) continue;
+        const item = rows.find((row) => row.vault === vault);
+        if (!item) return;
+        revealingVault = vault;
+        try {
+          await view.reveal(item, { select: true, focus: false, expand: false });
+          return;
+        } catch (error) {
+          if (selectedVault !== vault || !allVaults().includes(vault) || !view.visible) continue;
+          if (attempt === 2) throw error;
+        } finally {
+          revealingVault = undefined;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+    });
+    selectionSync = operation.catch(() => {});
+    return operation;
   };
   const vaultView = treeViews.get("Vaults");
   if (vaultView)
@@ -159,6 +179,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     context.subscriptions.push(
       vaultView.onDidChangeSelection((event) => {
         const vault = event.selection[0]?.vault;
+        if (vault && vault === revealingVault) return;
         if (vault && vaults.get(vault.paths.root.toString()) === vault && vault !== selectedVault) {
           void selectVault(vault).catch(reportError);
         } else if (!vault) {
