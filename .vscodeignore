@@ -6,6 +6,9 @@ AGENTS.md
 .gitignore
 .vscode/**
 .vscode-test/**
+.prettierignore
+.prettierrc.json
+eslint.config.mjs
 zk/**
 example/**
 dist/**/*.map

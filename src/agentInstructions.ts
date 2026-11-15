@@ -12,7 +12,8 @@ export class VaultAgentInstructions {
   constructor(private readonly extensionUri: vscode.Uri) {}
 
   async offer(paths: VaultPaths): Promise<void> {
-    if (!vscode.workspace.isTrusted) throw new Error("Trust the workspace before writing vault instructions.");
+    if (!vscode.workspace.isTrusted)
+      throw new Error("Trust the workspace before writing vault instructions.");
     const targets: AgentInstructionTarget[] = [
       { directory: paths.root, label: "vault root", template: "vault.md" },
       { directory: paths.inbox, label: this.folderName(paths.inbox), template: "inbox.md" },
@@ -21,28 +22,37 @@ export class VaultAgentInstructions {
     const missing: { target: AgentInstructionTarget; uri: vscode.Uri }[] = [];
     const missingFolders: string[] = [];
     for (const target of targets) {
-      if (!await this.isDirectory(target.directory)) {
+      if (!(await this.isDirectory(target.directory))) {
         missingFolders.push(target.label);
         continue;
       }
       const uri = vscode.Uri.joinPath(target.directory, agentInstructionsName);
-      if (!await this.isFile(uri)) missing.push({ target, uri });
+      if (!(await this.isFile(uri))) missing.push({ target, uri });
     }
     if (!missing.length) return;
 
-    const files = missing.map(({ target }) => `${target.label}/${agentInstructionsName}`).join(", ");
+    const files = missing
+      .map(({ target }) => `${target.label}/${agentInstructionsName}`)
+      .join(", ");
     const unavailable = missingFolders.length
       ? ` Missing configured folders will not be created: ${missingFolders.join(", ")}.`
       : "";
     const answer = await vscode.window.showWarningMessage(
       `Add minimal agent instructions to ${files}? Existing AGENTS.md files will be preserved.${unavailable}`,
-      { modal: true }, "Add", "Skip",
+      { modal: true },
+      "Add",
+      "Skip",
     );
     if (answer !== "Add") return;
 
     const created: string[] = [];
     for (const { target, uri } of missing) {
-      const source = vscode.Uri.joinPath(this.extensionUri, "templates", "agent-instructions", target.template);
+      const source = vscode.Uri.joinPath(
+        this.extensionUri,
+        "templates",
+        "agent-instructions",
+        target.template,
+      );
       const template = Buffer.from(await vscode.workspace.fs.readFile(source)).toString("utf8");
       const contents = Buffer.from(this.render(template, paths), "utf8");
       const edit = new vscode.WorkspaceEdit();
@@ -60,7 +70,9 @@ export class VaultAgentInstructions {
       }
     }
     if (created.length) {
-      void vscode.window.showInformationMessage(`Stemlink: added agent instructions to ${created.join(", ")}.`);
+      void vscode.window.showInformationMessage(
+        `Stemlink: added agent instructions to ${created.join(", ")}.`,
+      );
     }
     if (missingFolders.length) {
       void vscode.window.showWarningMessage(
@@ -94,12 +106,17 @@ export class VaultAgentInstructions {
   }
 
   private render(template: string, paths: VaultPaths): string {
-    return template
-      .replace(/\{\{(vaultRoot|inbox|notes|templates)\}\}/g, (_match, key: string) => {
-        const directory = key === "vaultRoot" ? paths.root
-          : key === "inbox" ? paths.inbox : key === "notes" ? paths.notes : paths.templates;
-        return markdownCodeSpan(`${this.folderName(directory)}/`);
-      });
+    return template.replace(/\{\{(vaultRoot|inbox|notes|templates)\}\}/g, (_match, key: string) => {
+      const directory =
+        key === "vaultRoot"
+          ? paths.root
+          : key === "inbox"
+            ? paths.inbox
+            : key === "notes"
+              ? paths.notes
+              : paths.templates;
+      return markdownCodeSpan(`${this.folderName(directory)}/`);
+    });
   }
 
   private folderName(uri: vscode.Uri): string {

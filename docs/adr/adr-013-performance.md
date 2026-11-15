@@ -5,12 +5,15 @@ status: Accepted
 # ADR 013: Performance at 10,000 notes
 
 ## Context
+
 The extension should remain practical with 10,000 notes, without refusing larger vaults.
 
 ## Decision
+
 Benchmark a representative 10,000-note fixture. Measure initial indexing, tree rendering/refresh, completion, backlinks, and manual audit; record fixture assumptions, environment, and observed timings. Optimize measured bottlenecks.
 
 ## Consequences
+
 No hard capacity cap or unapproved latency threshold. Use targeted, incremental, or lazy work where appropriate, while keeping state accurate and errors visible.
 
 ## Benchmark observation

@@ -12,11 +12,11 @@ Root, capture, and permanent-note folders have VS Code settings, but creation pr
 
 Provide four resource-scoped folder settings:
 
-| Setting | Default |
-|---|---|
-| `stemlink.root` | `notes` |
-| `stemlink.inbox` | `inbox` |
-| `stemlink.notes` | `permanent` |
+| Setting              | Default     |
+| -------------------- | ----------- |
+| `stemlink.root`      | `notes`     |
+| `stemlink.inbox`     | `inbox`     |
+| `stemlink.notes`     | `permanent` |
 | `stemlink.templates` | `templates` |
 
 Keep the three creation prompts for root, capture, and permanent notes. Prefill them from the effective settings. Read the templates name from settings without adding another prompt. Save all four chosen values at the existing workspace or workspace-folder scope and include the templates name in new markers.

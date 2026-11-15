@@ -2,15 +2,15 @@
 
 The [manifest](../package.json) contributes these user-facing commands:
 
-| Command ID | Action |
-|---|---|
-| `stemlink.openVault` | Select an existing vault; offer marker creation for an unmarked folder. |
-| `stemlink.createVault` | Create or reuse configured vault folders and files. |
-| `stemlink.addFleetingNote` | Create a capture from the fleeting template. |
-| `stemlink.addNote` | Create a permanent note from entered title and tags. |
-| `stemlink.promote` | Create a note from a selected inbox capture. |
-| `stemlink.checkReferences` | Refresh the selected vault and report findings in Problems. |
-| `stemlink.refresh` | Refresh the selected vault index and tree. |
+| Command ID                 | Action                                                                  |
+| -------------------------- | ----------------------------------------------------------------------- |
+| `stemlink.openVault`       | Select an existing vault; offer marker creation for an unmarked folder. |
+| `stemlink.createVault`     | Create or reuse configured vault folders and files.                     |
+| `stemlink.addFleetingNote` | Create a capture from the fleeting template.                            |
+| `stemlink.addNote`         | Create a permanent note from entered title and tags.                    |
+| `stemlink.promote`         | Create a note from a selected inbox capture.                            |
+| `stemlink.checkReferences` | Refresh the selected vault and report findings in Problems.             |
+| `stemlink.refresh`         | Refresh the selected vault index and tree.                              |
 
 `stemlink.selectVault` and `stemlink.openAt` are internal tree commands. Command failures are reported through native error notifications. Cancellation of a prompt stops its operation.
 

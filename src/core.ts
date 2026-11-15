@@ -35,7 +35,11 @@ export function markdownCodeSpan(value: string): string {
 }
 
 export function renderVaultReadme(
-  template: string, rootName: string, inboxName: string, notesName: string, templatesName = "templates",
+  template: string,
+  rootName: string,
+  inboxName: string,
+  notesName: string,
+  templatesName = "templates",
 ): string {
   const marker = "<!-- stemlink:configured-folders -->";
   const markerIndex = template.indexOf(marker);
@@ -62,12 +66,7 @@ export function renderRouterIndexes(
   templatesName = "templates",
 ): RouterIndexContent {
   const path = (name: string) => encodeURIComponent(name);
-  const section = (lines: string[]) => [
-    routerIndexStart,
-    ...lines,
-    routerIndexEnd,
-    "",
-  ].join("\n");
+  const section = (lines: string[]) => [routerIndexStart, ...lines, routerIndexEnd, ""].join("\n");
   const authorityRule =
     "Navigation only, not authoritative. Stemlink's in-memory note/reference index is authoritative for live vault state.";
   return {
@@ -114,8 +113,12 @@ export function replaceRouterIndexSection(current: string, generated: string): s
   const start = current.indexOf(routerIndexStart);
   const end = current.indexOf(routerIndexEnd);
   if (start < 0 && end < 0) return undefined;
-  if (start < 0 || end < start || current.indexOf(routerIndexStart, start + routerIndexStart.length) >= 0 ||
-      current.indexOf(routerIndexEnd, end + routerIndexEnd.length) >= 0) {
+  if (
+    start < 0 ||
+    end < start ||
+    current.indexOf(routerIndexStart, start + routerIndexStart.length) >= 0 ||
+    current.indexOf(routerIndexEnd, end + routerIndexEnd.length) >= 0
+  ) {
     throw new Error("Malformed Stemlink-generated section in INDEX.md.");
   }
   const lineEnding = current.includes("\r\n") ? "\r\n" : "\n";
@@ -123,8 +126,7 @@ export function replaceRouterIndexSection(current: string, generated: string): s
   let suffixStart = end + routerIndexEnd.length;
   if (current.startsWith("\r\n", suffixStart)) suffixStart += 2;
   else if (current.startsWith("\n", suffixStart)) suffixStart++;
-  return current.slice(0, start) + normalized +
-    current.slice(suffixStart);
+  return current.slice(0, start) + normalized + current.slice(suffixStart);
 }
 
 export function frontMatter(text: string): { yaml: string; end: number } | undefined {
@@ -142,8 +144,12 @@ export function metadataProblem(text: string): string | undefined {
     return "Front matter must contain title and tags.";
   }
   const fields = value as Record<string, unknown>;
-  if (typeof fields.title !== "string" || !fields.title.trim() ||
-      !Array.isArray(fields.tags) || !fields.tags.every(tag => typeof tag === "string")) {
+  if (
+    typeof fields.title !== "string" ||
+    !fields.title.trim() ||
+    !Array.isArray(fields.tags) ||
+    !fields.tags.every((tag) => typeof tag === "string")
+  ) {
     return "Front matter must contain a non-empty title and a list of tags.";
   }
   return undefined;
@@ -164,7 +170,8 @@ function noteMetadata(document: Document, title: string, tags: string[]): string
 export function promoteNote(text: string, title: string, tags: string[]): string {
   const matter = frontMatter(text);
   if (!matter) {
-    if (/^(?:\uFEFF)?---[ \t]*\r?\n/.test(text)) throw new Error("Capture has unclosed YAML front matter.");
+    if (/^(?:\uFEFF)?---[ \t]*\r?\n/.test(text))
+      throw new Error("Capture has unclosed YAML front matter.");
     return makeNote(title, tags, text);
   }
   const document = parseDocument(matter.yaml, { uniqueKeys: true });
@@ -179,9 +186,16 @@ export function promoteNote(text: string, title: string, tags: string[]): string
 }
 
 export function slug(title: string): string {
-  return title.normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
-    .slice(0, 80).replace(/-+$/g, "") || "note";
+  return (
+    title
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 80)
+      .replace(/-+$/g, "") || "note"
+  );
 }
 
 export function timestamp(date: Date): string {
@@ -202,8 +216,12 @@ export function linksIn(text: string): Link[] {
     if (fenceMatch) {
       const marker = fenceMatch[1];
       if (!fence) fence = { character: marker[0], length: marker.length };
-      else if (marker[0] === fence.character && marker.length >= fence.length &&
-          /^[ \t]*(?:\r?\n)?$/.test(line.slice(fenceMatch[0].length))) fence = undefined;
+      else if (
+        marker[0] === fence.character &&
+        marker.length >= fence.length &&
+        /^[ \t]*(?:\r?\n)?$/.test(line.slice(fenceMatch[0].length))
+      )
+        fence = undefined;
       position += line.length;
       continue;
     }
@@ -215,18 +233,27 @@ export function linksIn(text: string): Link[] {
           const count = end - i;
           if (!inlineTicks) {
             if ((lastTickRun.get(count) ?? -1) > position + i) inlineTicks = count;
-          }
-          else if (count === inlineTicks) inlineTicks = 0;
+          } else if (count === inlineTicks) inlineTicks = 0;
           i = end;
         } else if (!inlineTicks && line.startsWith("[[", i) && (i === 0 || line[i - 1] !== "\\")) {
           const end = line.indexOf("]]", i + 2);
           if (end < 0) {
             const stop = line.replace(/[\r\n]+$/, "").length;
-            links.push({ stem: line.slice(i + 2, stop), start: position + i, end: position + stop, valid: false });
+            links.push({
+              stem: line.slice(i + 2, stop),
+              start: position + i,
+              end: position + stop,
+              valid: false,
+            });
             break;
           }
           const stem = line.slice(i + 2, end);
-          links.push({ stem, start: position + i, end: position + end + 2, valid: stemPattern.test(stem) });
+          links.push({
+            stem,
+            start: position + i,
+            end: position + end + 2,
+            valid: stemPattern.test(stem),
+          });
           i = end + 2;
         } else {
           i++;
@@ -254,8 +281,8 @@ export interface Finding<T extends NoteData = NoteData> {
 }
 
 export function auditNotes<T extends NoteData>(notes: T[]): Finding<T>[] {
-  notes = notes.filter(note => !isVaultInstructionFile(note.name));
-  const stems = new Set(notes.map(note => note.stem));
+  notes = notes.filter((note) => !isVaultInstructionFile(note.name));
+  const stems = new Set(notes.map((note) => note.stem));
   const incoming = new Set<string>();
   const findings: Finding<T>[] = [];
   const add = (note: T, severity: Finding["severity"], message: string, start = 0, end = 0) =>
@@ -269,7 +296,8 @@ export function auditNotes<T extends NoteData>(notes: T[]): Finding<T>[] {
       if (!link.valid) add(note, "warning", "Malformed reference.", link.start, link.end);
       else {
         outgoing++;
-        if (!stems.has(link.stem)) add(note, "error", `Note not found: ${link.stem}`, link.start, link.end);
+        if (!stems.has(link.stem))
+          add(note, "error", `Note not found: ${link.stem}`, link.start, link.end);
         else if (note.stem !== link.stem) incoming.add(link.stem);
       }
     }
