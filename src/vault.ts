@@ -19,13 +19,15 @@ export function pathsFor(folder: vscode.WorkspaceFolder): VaultPaths {
   const rootName = config.get<string>("root", "notes");
   const inboxName = config.get<string>("inbox", "inbox");
   const notesName = config.get<string>("notes", "permanent");
-  if (![rootName, inboxName, notesName].every(validFolderName) || inboxName.toLowerCase() === notesName.toLowerCase()) {
+  const templatesName = config.get<string>("templates", "templates");
+  if (![rootName, inboxName, notesName, templatesName].every(validFolderName) ||
+      new Set([inboxName, notesName, templatesName].map(name => name.toLowerCase())).size !== 3) {
     throw new Error("Stemlink folder settings must be distinct valid folder names.");
   }
   const root = vscode.Uri.joinPath(folder.uri, rootName);
   return {
     root, inbox: vscode.Uri.joinPath(root, inboxName), notes: vscode.Uri.joinPath(root, notesName),
-    templates: vscode.Uri.joinPath(root, "templates"),
+    templates: vscode.Uri.joinPath(root, templatesName),
   };
 }
 

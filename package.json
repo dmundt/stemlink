@@ -44,6 +44,12 @@
           "scope": "resource",
           "description": "Permanent notes folder name inside the Zettelkasten root."
         },
+        "stemlink.templates": {
+          "type": "string",
+          "default": "templates",
+          "scope": "resource",
+          "description": "Editable templates folder name inside the Zettelkasten root."
+        },
         "stemlink.enableRouterIndexes": {
           "type": "boolean",
           "default": true,

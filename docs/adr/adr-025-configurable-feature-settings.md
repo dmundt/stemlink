@@ -1,10 +1,12 @@
 ---
-status: Accepted; superseded in part by ADR 029
+status: Accepted; superseded in part by ADRs 029 and 030
 ---
 
 # ADR 025: Configurable feature settings
 
 [ADR 029](adr-029-default-vault-layout.md) replaces only the path defaults with `stemlink.root=notes`, `stemlink.inbox=inbox`, and `stemlink.notes=permanent`.
+
+[ADR 030](adr-030-configurable-folder-settings.md) adds `stemlink.templates` and defines configured creation defaults and template mapping precedence.
 
 ## Context
 

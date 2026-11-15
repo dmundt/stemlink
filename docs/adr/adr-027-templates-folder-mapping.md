@@ -1,8 +1,10 @@
 ---
-status: Accepted
+status: Accepted; superseded in part by ADR 030
 ---
 
 # ADR 027: Templates folder mapping
+
+[ADR 030](adr-030-configurable-folder-settings.md) replaces the settings/template precedence below by adding `stemlink.templates` and including explicit template-setting conflicts in the configuration chooser.
 
 ## Context
 

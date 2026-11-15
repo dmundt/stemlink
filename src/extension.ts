@@ -173,14 +173,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   });
 
-  async function writeMarker(root: vscode.Uri, inbox: string, notes: string): Promise<void> {
+  async function writeMarker(root: vscode.Uri, inbox: string, notes: string, templates: string): Promise<void> {
     if (!vscode.workspace.isTrusted) throw new Error("Trust the workspace before adding a vault marker.");
     const marker = vscode.Uri.joinPath(root, ".stemlink.json");
     const edit = new vscode.WorkspaceEdit();
     edit.createFile(marker, { overwrite: false, ignoreIfExists: false });
-    const mapping = { version: 1, inbox, notes, templates: "templates" };
-    if ([inbox, notes].some(name => name.toLowerCase() === mapping.templates)) {
-      throw new Error("The templates folder must be distinct from inbox and notes. Configure an existing marker to use another templates folder.");
+    const mapping = { version: 1, inbox, notes, templates };
+    if (!validFolderName(templates)) throw new Error("The templates folder must be a valid folder name.");
+    if ([inbox, notes].some(name => name.toLowerCase() === templates.toLowerCase())) {
+      throw new Error("The templates folder must be distinct from inbox and notes.");
     }
     edit.insert(marker, new vscode.Position(0, 0), `${JSON.stringify(mapping, null, 2)}\n`);
     if (!await vscode.workspace.applyEdit(edit)) throw new Error(`Could not create ${marker.path}; no existing file was overwritten.`);
@@ -221,7 +222,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           throw new Error(`The selected ${name} is no longer a directory.`);
         }
       }
-      await writeMarker(root, inbox.label, notes.label);
+      const templates = vscode.workspace.getConfiguration("stemlink", root).get<string>("templates", "templates");
+      await writeMarker(root, inbox.label, notes.label, templates);
     }
     if (!vscode.workspace.isTrusted) throw new Error("Trust the workspace before opening a Zettelkasten.");
     const folders = vscode.workspace.workspaceFolders ?? [];
@@ -288,18 +290,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       title: `Create Zettelkasten: ${label}`, value,
       validateInput: input => validFolderName(input) ? undefined : "Enter a single valid folder name.",
     });
-    const root = await prompt("root folder", "notes");
+    const root = await prompt("root folder", config.get<string>("root", "notes"));
     if (root === undefined) return;
-    const inbox = await prompt("inbox folder", "inbox");
+    const inbox = await prompt("inbox folder", config.get<string>("inbox", "inbox"));
     if (inbox === undefined) return;
-    const notes = await prompt("permanent-note folder", "permanent");
+    const notes = await prompt("permanent-note folder", config.get<string>("notes", "permanent"));
     if (notes === undefined) return;
     if (inbox.toLowerCase() === notes.toLowerCase()) throw new Error("Inbox and notes must be different folders.");
-    if ([inbox, notes].some(name => name.toLowerCase() === "templates")) {
-      throw new Error("The vault-level templates folder is reserved; choose different inbox and notes names.");
-    }
     const rootUri = vscode.Uri.joinPath(selected.uri, root);
-    const configured = ["root", "inbox", "notes"].some(key => {
+    const existingMarker = await readVaultMarker(rootUri);
+    const templateSetting = config.inspect<string>("templates");
+    const templatesExplicit = [templateSetting?.globalValue, templateSetting?.workspaceValue,
+      templateSetting?.workspaceFolderValue].some(value => value !== undefined);
+    const templatesName = existingMarker && !templatesExplicit
+      ? existingMarker.templates.path.slice(existingMarker.templates.path.lastIndexOf("/") + 1)
+      : config.get<string>("templates", "templates");
+    if (!validFolderName(templatesName)) throw new Error("The templates folder must be a valid folder name.");
+    if ([inbox, notes].some(name => name.toLowerCase() === templatesName.toLowerCase())) {
+      throw new Error("The templates folder must be distinct from inbox and notes.");
+    }
+    const configured = ["root", "inbox", "notes", "templates"].some(key => {
       const info = config.inspect(key);
       return info?.workspaceValue !== undefined || info?.workspaceFolderValue !== undefined;
     });
@@ -315,10 +325,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       );
       if (answer !== "Continue") return;
     }
-    const existingMarker = await readVaultMarker(rootUri);
     const desiredPaths: VaultPaths = {
       root: rootUri, inbox: vscode.Uri.joinPath(rootUri, inbox), notes: vscode.Uri.joinPath(rootUri, notes),
-      templates: existingMarker?.templates ?? vscode.Uri.joinPath(rootUri, "templates"),
+      templates: vscode.Uri.joinPath(rootUri, templatesName),
     };
     if (existingMarker && !samePaths(existingMarker, desiredPaths)) {
       throw new Error(`The existing ${rootUri.path}/.stemlink.json specifies different folders. Update it before reusing this vault.`);
@@ -326,7 +335,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(rootUri, inbox));
     await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(rootUri, notes));
     const templateDirectory = desiredPaths.templates;
-    const templatesName = templateDirectory.path.slice(templateDirectory.path.lastIndexOf("/") + 1);
     await vscode.workspace.fs.createDirectory(templateDirectory);
     const preserved: string[] = [];
     if (existingMarker) preserved.push(".stemlink.json");
@@ -379,8 +387,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
     if (routerIndexesEnabled(desiredPaths)) preserved.push(...await routerIndexes.initialize(desiredPaths));
     const target = folders.length > 1 ? vscode.ConfigurationTarget.WorkspaceFolder : vscode.ConfigurationTarget.Workspace;
-    const keys = ["root", "inbox", "notes"] as const;
-    const values = [root, inbox, notes];
+    const keys = ["root", "inbox", "notes", "templates"] as const;
+    const values = [root, inbox, notes, templatesName];
     const previous = keys.map(key => {
       const inspected = config.inspect<string>(key);
       return target === vscode.ConfigurationTarget.WorkspaceFolder ? inspected?.workspaceFolderValue : inspected?.workspaceValue;
@@ -389,7 +397,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     try {
       for (let i = 0; i < keys.length; i++) await config.update(keys[i], values[i], target);
       if (!existingMarker) {
-        await writeMarker(rootUri, inbox, notes);
+        await writeMarker(rootUri, inbox, notes, templatesName);
       }
     } catch (error) {
       try {

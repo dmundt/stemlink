@@ -67,10 +67,11 @@ export interface SelectionState {
 export async function resolveVaultPaths(folder: vscode.WorkspaceFolder, state: SelectionState): Promise<VaultPaths[]> {
   const markers = await discoverVaults(folder);
   const config = vscode.workspace.getConfiguration("stemlink", folder.uri);
-  const hasSettings = ["root", "inbox", "notes"].some(key => {
+  const explicitlyConfigured = (key: string): boolean => {
     const info = config.inspect(key);
     return info?.globalValue !== undefined || info?.workspaceValue !== undefined || info?.workspaceFolderValue !== undefined;
-  });
+  };
+  const hasSettings = ["root", "inbox", "notes", "templates"].some(explicitlyConfigured);
   const legacy = pathsFor(folder);
   if (!hasSettings && markers.some(marker => sameUri(marker.root, legacy.root))) return markers;
   let exists: boolean;
@@ -97,8 +98,7 @@ export async function resolveVaultPaths(folder: vscode.WorkspaceFolder, state: S
   }
   const sameRoot = markers.findIndex(marker => sameUri(marker.root, legacy.root));
   if (sameRoot < 0) return [...markers, legacy];
-  // Settings do not configure templates; retain the marker's mapping with either choice.
-  legacy.templates = markers[sameRoot].templates;
+  if (!explicitlyConfigured("templates")) legacy.templates = markers[sameRoot].templates;
   if (samePaths(markers[sameRoot], legacy)) return markers;
 
   const choices = [markers[sameRoot], legacy];
@@ -111,7 +111,7 @@ export async function resolveVaultPaths(folder: vscode.WorkspaceFolder, state: S
   if (selected === undefined) {
     const items = choices.map((choice, index) => ({
       label: index === 0 ? ".stemlink.json" : "VS Code settings",
-      detail: `Inbox: ${choice.inbox.path} | Notes: ${choice.notes.path}`,
+      detail: `Inbox: ${choice.inbox.path} | Notes: ${choice.notes.path} | Templates: ${choice.templates.path}`,
       index,
     }));
     const choice = await vscode.window.showQuickPick(items,
