@@ -26,3 +26,4 @@ The [manifest](../package.json) contributes these user-facing commands:
 - `linksIn`, `makeNote`, `promoteNote`, and `auditNotes` in [core.ts](../src/core.ts) do not depend on VS Code.
 - `VaultTree` supplies a shared tree model; `VaultTreeSection` adapts it to separate native views. `stemlink.showCounts` changes labels, not index or reference results.
 - See the [README settings table](../README.md#extension-settings) for the public setting names, defaults, and resource scope.
+- VS Code Settings Sync handles eligible user-level configuration. Do not copy settings into extension global state: `setKeysForSync` is for extension state, not contributed settings. Workspace overrides and vault files are outside native settings sync.

@@ -18,6 +18,8 @@ Host tests and coverage require Node.js 22 or newer. Host runners use `STEMLINK_
 
 Core tests exercise metadata, promotion, references, audits, routing, and manual rendering. Host tests exercise commands, providers, custom paths, generated files, native selection, concurrent edits, error handling, and mocked filesystem behavior. Host runners launch with Workspace Trust disabled; they do not establish Restricted Mode behavior.
 
+The host test checks each contributed Stemlink setting's resource scope and default. This confirms manifest eligibility for user-level VS Code Settings Sync, not an actual cross-device sync; the test hosts do not sign in or enable Settings Sync.
+
 The [quality workflow](../.github/workflows/quality.yml) runs coverage on Windows, Linux, and macOS against VS Code 1.90.0 and stable, and runs the host benchmark on Linux stable. Benchmark timings are observations, not enforced latency guarantees. Tests do not establish correctness for every filesystem, theme, platform configuration, or concurrent race.
 
 Before a release, follow the validation and authorization requirements in [project rules](../AGENTS.md#github-flow-and-releases). The [publish workflow](../.github/workflows/publish.yml) validates the release tag and reuses the quality workflow before attaching and publishing its verified package.
