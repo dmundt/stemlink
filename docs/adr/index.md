@@ -12,23 +12,18 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [019: Multiple vaults](adr-019-multiple-vaults.md) — vault selection, counts, and background indexing.
 - [020: Open an existing vault](adr-020-open-existing-vault.md) — folder picker, confirmed marker creation, and workspace integration.
 - [021: Vault-local .stemlink.json](adr-021-vault-configuration-marker.md) — usage, format, rationale, alternatives, and compatibility.
-
-- [028: Inline YAML tags](adr-028-inline-yaml-tags.md) — single-line tag lists for generated metadata and vault authoring.
-
-- [023: Separate native tree views](adr-023-separated-tree-views.md) — native view separators and section-specific commands.
-
 - [022: AI routing indexes](adr-022-ai-routing-indexes.md) — generated `INDEX.md` routers and observed state counts.
-
+- [023: Separate native tree views](adr-023-separated-tree-views.md) — native view separators and section-specific commands.
 - [024: Opt-in vault agent instructions](adr-024-vault-agent-instructions.md) — scope-specific `AGENTS.md` files, consent, and preservation.
-
 - [025: Configurable feature settings](adr-025-configurable-feature-settings.md) — resource-scoped router and agent-instruction settings with behavior-preserving defaults.
-
 - [026: Vault template folder](adr-026-vault-template-folder.md) — create editable examples in `templates/` and preserve legacy fleeting-template lookup.
+- [027: Templates folder mapping](adr-027-templates-folder-mapping.md) — optional portable template location and version 1 compatibility.
 
 ## Creating and processing notes
 
 - [005: Add Note](adr-005-add-note.md) — permanent-note creation.
 - [006: Promote Capture](adr-006-promote-capture.md) — moving captures into permanent notes.
+- [028: Inline YAML tags](adr-028-inline-yaml-tags.md) — single-line tag lists for generated metadata and vault authoring.
 - [015: Note templates](adr-015-note-templates.md) — bundled examples and audit exclusion.
 - [016: Fleeting note command](adr-016-fleeting-note-command.md) — creating captures from the vault template.
 

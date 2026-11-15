@@ -12,7 +12,7 @@ The defaults use short, neutral folder names. The bundled manual lists configura
 
 Vault creation copies this manual to the vault root and personalizes its folder summary with your chosen names. Editable Markdown examples go into vault-level `templates/`. `INDEX.md` routers and accepted `AGENTS.md` instructions also include configured folder names; existing files are preserved. Routers are navigation-only, not authoritative; Stemlink's in-memory note/reference index is authoritative for live state. Stemlink updates only generated index sections with current Markdown counts as files change. Promotion preserves the capture's content; rewrite it as needed.
 
-Add Fleeting Note reads `templates/_fleeting.md` first and falls back to `notes/_fleeting.md` for existing vaults.
+Add Fleeting Note reads `_fleeting.md` from the mapped templates folder first and falls back to the configured notes folder for existing vaults.
 
 Create Zettelkasten and Open Vault also ask before adding minimal `AGENTS.md` instructions to the vault root, inbox, and notes folders. Existing files are preserved.
 
@@ -31,10 +31,10 @@ Settings are resource-scoped and apply to the workspace folder containing each v
 Existing vaults can be recognized by a `.stemlink.json` file in the workspace root or an immediate child folder:
 
 ```json
-{ "version": 1, "inbox": "fleeting", "notes": "stable" }
+{ "version": 1, "inbox": "fleeting", "notes": "stable", "templates": "templates" }
 ```
 
-Folder names are relative to the file. Vaults in all workspace folders appear in the tree. Select one to use its Fleeting and Notes sections; selection stays fixed until changed. Existing settings continue to work without a marker. If settings conflict with a marker for the same vault, choose its configuration.
+Folder names are relative to the file. Optional `templates` defaults to `templates`; set it to another distinct child folder such as `examples` to use your own template location. Existing markers need no migration and are not rewritten. Vaults in all workspace folders appear in the tree. Select one to use its Fleeting and Notes sections; selection stays fixed until changed. Existing settings continue to work without a marker. If settings conflict with a marker for the same vault, choose its configuration.
 
 Use **Stemlink: Open Vault** to select an existing folder. If no marker exists, confirm adding one and choose two existing child folders for captures and permanent notes. Cancellation leaves the folder unchanged. Folders outside discovery scope are added to the current workspace; with no workspace, the vault opens as one. Opening selects the vault without replacing settings, notes, or templates. Workspace Trust is required.
 

@@ -2,22 +2,15 @@
 
 ## Unreleased
 
-- Include selected vault, capture, and permanent-note folder names in generated manuals, routers, and agent instructions.
-
-- Put bundled editable note, capture, and promotion examples in vault-level `templates/`; retain legacy fleeting-template lookup.
-
-- Add resource-scoped settings for router automation and agent-instruction prompts; both default to enabled.
-
-- Offer optional, scope-specific vault `AGENTS.md` instructions during creation and opening without overwriting existing files.
-
-- Add AI routing `INDEX.md` files to created and opened vaults with live counts and user-index preservation; routers are non-authoritative, while Stemlink's in-memory note/reference index is authoritative.
-
-- Separate Vaults, Fleeting, Notes, and References into native views with workbench dividers.
-
 - Write tags as single-line YAML lists when creating or promoting notes, including long tag lists.
-
+- Map the templates folder through optional `.stemlink.json` `templates`; old markers default to `templates` without migration.
+- Separate Vaults, Fleeting, Notes, and References into native views with workbench dividers.
 - Document configurable vault folder naming schemes and clarify that permanent-note identity comes from timestamped filenames.
-
+- Offer optional, scope-specific vault `AGENTS.md` instructions during creation and opening without overwriting existing files.
+- Add resource-scoped settings for router automation and agent-instruction prompts; both default to enabled.
+- Put bundled editable note, capture, and promotion examples in vault-level `templates/`; retain legacy fleeting-template lookup.
+- Include selected vault, capture, and permanent-note folder names in generated manuals, routers, and agent instructions.
+- Add AI routing `INDEX.md` files to created and opened vaults with live counts and user-index preservation; routers are non-authoritative, while Stemlink's in-memory note/reference index is authoritative.
 - Discover vaults from `.stemlink.json` markers while retaining settings-only vaults.
 - Select among workspace vaults in the Stemlink pane, with note and reference counts and background indexing.
 - Open existing vault folders from the command palette or Stemlink pane. Confirm marker creation for unmarked folders and choose existing capture and note directories.

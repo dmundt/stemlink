@@ -1,8 +1,10 @@
 ---
-status: Accepted
+status: Accepted; superseded in part by ADR 027
 ---
 
 # ADR 026: Vault template folder
+
+[ADR 027](adr-027-templates-folder-mapping.md) adds an optional templates-folder mapping while retaining the default layout and legacy fallback.
 
 ## Context
 

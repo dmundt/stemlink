@@ -12,7 +12,7 @@ AI agents opening a vault need a small, predictable starting point that directs 
 
 Create `INDEX.md` at the vault root and in its configured inbox and notes folders when creating or explicitly opening a vault. Do not initialize indexes merely because a vault is discovered. Require Workspace Trust for all writes.
 
-The generated sections provide concise, folder-specific instructions, include the configured folder names, and use relative links between the three indexes. The root and folder indexes report counts of direct-child Markdown files, excluding `INDEX.md` and `AGENTS.md`. Underscore-prefixed templates in the notes folder remain visible and included in its count. Do not list every note or record an action history.
+The generated sections provide concise, folder-specific instructions, include the configured folder names, and use relative links between the three indexes. The root and folder indexes report counts of direct-child Markdown files, excluding `INDEX.md` and `AGENTS.md`. New templates live outside the notes folder and are not counted. Legacy underscore-prefixed templates left in the notes folder remain visible and included in its count. Do not list every note or record an action history.
 
 Create missing indexes without overwriting existing files. An unmarked, user-authored `INDEX.md` remains unchanged. Put Stemlink-owned content between generated-section markers and update only that section; preserve text outside it. User edits inside a marked section may be replaced during refresh.
 

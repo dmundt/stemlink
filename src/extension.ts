@@ -178,7 +178,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const marker = vscode.Uri.joinPath(root, ".stemlink.json");
     const edit = new vscode.WorkspaceEdit();
     edit.createFile(marker, { overwrite: false, ignoreIfExists: false });
-    edit.insert(marker, new vscode.Position(0, 0), `${JSON.stringify({ version: 1, inbox, notes }, null, 2)}\n`);
+    const mapping = { version: 1, inbox, notes, templates: "templates" };
+    if ([inbox, notes].some(name => name.toLowerCase() === mapping.templates)) {
+      throw new Error("The templates folder must be distinct from inbox and notes. Configure an existing marker to use another templates folder.");
+    }
+    edit.insert(marker, new vscode.Position(0, 0), `${JSON.stringify(mapping, null, 2)}\n`);
     if (!await vscode.workspace.applyEdit(edit)) throw new Error(`Could not create ${marker.path}; no existing file was overwritten.`);
     const document = await vscode.workspace.openTextDocument(marker);
     if (!await document.save()) throw new Error(`Created ${marker.path} but could not save it.`);
@@ -312,13 +316,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       if (answer !== "Continue") return;
     }
     const existingMarker = await readVaultMarker(rootUri);
-    const desiredPaths = { root: rootUri, inbox: vscode.Uri.joinPath(rootUri, inbox), notes: vscode.Uri.joinPath(rootUri, notes) };
+    const desiredPaths: VaultPaths = {
+      root: rootUri, inbox: vscode.Uri.joinPath(rootUri, inbox), notes: vscode.Uri.joinPath(rootUri, notes),
+      templates: existingMarker?.templates ?? vscode.Uri.joinPath(rootUri, "templates"),
+    };
     if (existingMarker && !samePaths(existingMarker, desiredPaths)) {
       throw new Error(`The existing ${rootUri.path}/.stemlink.json specifies different folders. Update it before reusing this vault.`);
     }
     await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(rootUri, inbox));
     await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(rootUri, notes));
-    const templateDirectory = vscode.Uri.joinPath(rootUri, "templates");
+    const templateDirectory = desiredPaths.templates;
     const templatesName = templateDirectory.path.slice(templateDirectory.path.lastIndexOf("/") + 1);
     await vscode.workspace.fs.createDirectory(templateDirectory);
     const preserved: string[] = [];
@@ -341,7 +348,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         overwrite: false,
         ignoreIfExists: false,
         contents: Buffer.from(
-          renderVaultReadme(manualText, rootUri.path.slice(rootUri.path.lastIndexOf("/") + 1), inbox, notes),
+          renderVaultReadme(manualText, rootUri.path.slice(rootUri.path.lastIndexOf("/") + 1), inbox, notes, templatesName),
           "utf8",
         ),
       });
@@ -435,7 +442,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   command("stemlink.addFleetingNote", async () => {
     const vault = requireActiveVault();
-    const template = vscode.Uri.joinPath(vault.paths.root, "templates", "_fleeting.md");
+    const template = vscode.Uri.joinPath(vault.paths.templates, "_fleeting.md");
     const legacyTemplate = vscode.Uri.joinPath(vault.paths.notes, "_fleeting.md");
     let text: string;
     try {
