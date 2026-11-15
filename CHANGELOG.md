@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Change default vault layout to `notes/` containing `templates/`, `inbox/`, and `permanent/`. Existing markers and explicit settings are preserved; use Open Vault or explicit paths for vaults relying on the previous implicit `zk/inbox/notes` defaults.
 - Write tags as single-line YAML lists when creating or promoting notes, including long tag lists.
 - Map the templates folder through optional `.stemlink.json` `templates`; old markers default to `templates` without migration.
 - Separate Vaults, Fleeting, Notes, and References into native views with workbench dividers.

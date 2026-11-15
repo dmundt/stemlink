@@ -204,7 +204,7 @@ async function testMultiRoot(): Promise<void> {
       "declining agent instructions created a file");
     assert.equal(skippedInstructionPrompts, 1, "Create did not offer optional agent instructions");
     assert.equal(vscode.workspace.getConfiguration("stemlink", folders[1].uri).get("root"), "second-vault");
-    assert.equal(vscode.workspace.getConfiguration("stemlink", folders[0].uri).get("root"), "zk",
+    assert.equal(vscode.workspace.getConfiguration("stemlink", folders[0].uri).get("root"), "notes",
       "creating a second vault changed the first workspace's settings");
     const secondInboxIndex = vscode.Uri.joinPath(folders[1].uri, "second-vault", "captures", routerIndexName);
     assert.match(Buffer.from(await vscode.workspace.fs.readFile(secondInboxIndex)).toString("utf8"),
@@ -784,6 +784,7 @@ async function testFeatureSettings(folder: vscode.WorkspaceFolder): Promise<void
 
 async function testDynamicVaultFiles(folder: vscode.WorkspaceFolder, extensionUri: vscode.Uri): Promise<void> {
   const cases = [
+    { root: "notes", inbox: "inbox", notes: "permanent" },
     { root: "zk", inbox: "inbox", notes: "notes" },
     { root: "Zettelkasten", inbox: "Fleeting", notes: "Permanent" },
     { root: "vault", inbox: "Inbox", notes: "Knowledge" },
@@ -830,9 +831,14 @@ async function testDynamicVaultFiles(folder: vscode.WorkspaceFolder, extensionUr
 
     for (const scenario of cases) {
       const answers = [scenario.root, scenario.inbox, scenario.notes];
-      api.showInputBox = async () => {
+      api.showInputBox = async options => {
         assert.ok(answers.length, "unexpected input prompt during synthetic vault creation");
-        return answers.shift();
+        const answer = answers.shift();
+        if (scenario.root === "notes") {
+          assert.equal(options?.value, answer, "new-vault prompt did not offer the default layout");
+          return options?.value;
+        }
+        return answer;
       };
       await vscode.commands.executeCommand("stemlink.createVault");
       assert.equal(answers.length, 0, `${scenario.root} creation did not request every folder name`);
@@ -961,7 +967,7 @@ export async function run(): Promise<void> {
   const settings = extension.packageJSON.contributes.configuration.properties as
     Record<string, { default: string | boolean; scope: string }>;
   for (const [key, value] of [
-    ["stemlink.root", "zk"], ["stemlink.inbox", "inbox"], ["stemlink.notes", "notes"],
+    ["stemlink.root", "notes"], ["stemlink.inbox", "inbox"], ["stemlink.notes", "permanent"],
     ["stemlink.enableRouterIndexes", true], ["stemlink.offerAgentInstructions", true],
   ] as const) {
     assert.equal(settings[key]?.default, value, `${key} default changed`);
@@ -978,7 +984,7 @@ export async function run(): Promise<void> {
     await testMultiRoot();
     return;
   }
-  const notes = vscode.Uri.joinPath(folder.uri, "zk", "notes");
+  const notes = vscode.Uri.joinPath(folder.uri, "notes", "permanent");
   const first = vscode.Uri.joinPath(notes, "202601011200-note-0.md");
   const second = vscode.Uri.joinPath(notes, "202601011200-note-1.md");
   if (process.env.STEMLINK_BENCHMARK !== "1") {
@@ -991,6 +997,33 @@ export async function run(): Promise<void> {
     assert.equal(directChild(vscode.Uri.joinPath(notes, "nested", "note.md"), notes), false);
     const configApi = vscode.workspace as { getConfiguration: typeof vscode.workspace.getConfiguration };
     const originalConfig = configApi.getConfiguration;
+    let configuredNames: Record<string, string> = {};
+    configApi.getConfiguration = new Proxy(originalConfig, {
+      apply: (target, thisArg, args: Parameters<typeof vscode.workspace.getConfiguration>) => {
+        if (args[0] !== "stemlink") return Reflect.apply(target, thisArg, args);
+        return { get: (key: string, fallback: unknown) => configuredNames[key] ?? fallback };
+      },
+    });
+    try {
+      const schemes = [
+        { root: "notes", inbox: "inbox", notes: "permanent" },
+        { root: "zk", inbox: "inbox", notes: "notes" },
+        { root: "Zettelkasten", inbox: "Fleeting", notes: "Permanent" },
+        { root: "vault", inbox: "capture", notes: "notes" },
+        { root: "vault", inbox: "inbox", notes: "permanent" },
+      ];
+      for (const [index, scheme] of schemes.entries()) {
+        configuredNames = index === 0 ? {} : scheme;
+        const paths = pathsFor(folder);
+        const root = vscode.Uri.joinPath(folder.uri, scheme.root);
+        assert.equal(paths.root.toString(), root.toString(), "vault root ignored configured/default name");
+        assert.equal(paths.inbox.toString(), vscode.Uri.joinPath(root, scheme.inbox).toString());
+        assert.equal(paths.notes.toString(), vscode.Uri.joinPath(root, scheme.notes).toString());
+        assert.equal(paths.templates.toString(), vscode.Uri.joinPath(root, "templates").toString());
+      }
+    } finally {
+      configApi.getConfiguration = originalConfig;
+    }
     let badNames: Record<string, string> = { root: "../outside" };
     configApi.getConfiguration = new Proxy(originalConfig, {
       apply: (target, thisArg, args: Parameters<typeof vscode.workspace.getConfiguration>) => {
@@ -1207,7 +1240,7 @@ export async function run(): Promise<void> {
       } finally {
         instructionWarningApi.showWarningMessage = originalInstructionWarning;
       }
-      assert.deepEqual(defaults, ["zk", "inbox", "notes"]);
+      assert.deepEqual(defaults, ["notes", "inbox", "permanent"]);
       assert.equal(createInstructionPrompts, 1, "Create did not offer optional agent instructions");
       const inbox = vscode.Uri.joinPath(folder.uri, "custom-vault", "captures");
       const permanent = vscode.Uri.joinPath(folder.uri, "custom-vault", "permanent");

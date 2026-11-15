@@ -5,12 +5,12 @@ Build a Zettelkasten in VS Code with plain Markdown files. Capture ideas, connec
 ## Get started
 
 1. Open a workspace folder and the **Stemlink** activity bar view.
-2. Run **Stemlink: Create Zettelkasten**. Choose folder names or accept `zk/inbox` and `zk/notes`.
+2. Run **Stemlink: Create Zettelkasten**. Accept `notes/` containing `templates/`, `inbox/`, and `permanent/`, or choose your own names.
 3. If several vaults are found, select one under **Vaults**. Use **Add Fleeting Note**, **Add Note**, or **Promote Capture to Note**.
 
-The defaults use short, neutral folder names. The bundled manual lists configurable alternatives, including `Fleeting/Permanent` and `Inbox/Knowledge`.
+The default root holds the collection; `inbox/` holds captures, `permanent/` holds permanent notes, and `templates/` holds editable examples. The bundled manual lists alternatives: `zk/inbox/notes`, `Zettelkasten/Fleeting/Permanent`, `vault/capture/notes`, and `vault/inbox/permanent`. Use Open Vault or settings for these layouts; Stemlink does not infer a layout from its folder names.
 
-Vault creation copies this manual to the vault root and personalizes its folder summary with your chosen names. Editable Markdown examples go into vault-level `templates/`. `INDEX.md` routers and accepted `AGENTS.md` instructions also include configured folder names; existing files are preserved. Routers are navigation-only, not authoritative; Stemlink's in-memory note/reference index is authoritative for live state. Stemlink updates only generated index sections with current Markdown counts as files change. Promotion preserves the capture's content; rewrite it as needed.
+Vault creation copies the bundled manual to the vault root and personalizes its folder summary with your chosen names. Editable Markdown examples go into vault-level `templates/`. `INDEX.md` routers and accepted `AGENTS.md` instructions also include configured folder names; existing files are preserved. Routers are navigation-only, not authoritative; Stemlink's in-memory note/reference index is authoritative for live state. Stemlink updates only generated index sections with current Markdown counts as files change. Promotion preserves the capture's content; rewrite it as needed.
 
 Add Fleeting Note reads `_fleeting.md` from the mapped templates folder first and falls back to the configured notes folder for existing vaults.
 
@@ -22,19 +22,21 @@ Settings are resource-scoped and apply to the workspace folder containing each v
 
 | Setting | Default | Purpose |
 |---|---:|---|
-| `stemlink.root` | `zk` | Workspace-relative vault root for settings-based discovery. |
+| `stemlink.root` | `notes` | Workspace-relative vault root for settings-based discovery. |
 | `stemlink.inbox` | `inbox` | Capture folder name inside the vault. |
-| `stemlink.notes` | `notes` | Permanent-note folder name inside the vault. |
+| `stemlink.notes` | `permanent` | Permanent-note folder name inside the vault. |
 | `stemlink.enableRouterIndexes` | `true` | Create routers on explicit Create/Open and refresh their generated counts after observed Markdown changes. Disabled leaves existing `INDEX.md` files untouched. |
 | `stemlink.offerAgentInstructions` | `true` | Ask before adding missing vault `AGENTS.md` files during Create/Open. Disabled skips prompts and installation. |
 
 Existing vaults can be recognized by a `.stemlink.json` file in the workspace root or an immediate child folder:
 
 ```json
-{ "version": 1, "inbox": "fleeting", "notes": "stable", "templates": "templates" }
+{ "version": 1, "inbox": "inbox", "notes": "permanent", "templates": "templates" }
 ```
 
 Folder names are relative to the file. Optional `templates` defaults to `templates`; set it to another distinct child folder such as `examples` to use your own template location. Existing markers need no migration and are not rewritten. Vaults in all workspace folders appear in the tree. Select one to use its Fleeting and Notes sections; selection stays fixed until changed. Existing settings continue to work without a marker. If settings conflict with a marker for the same vault, choose its configuration.
+
+The new defaults do not move or rename existing vaults. Existing markers and explicit folder settings retain their values. If an old vault relied on implicit defaults, use **Open Vault** or set all three path settings to its existing names, for example `root=zk`, `inbox=inbox`, `notes=notes`.
 
 Use **Stemlink: Open Vault** to select an existing folder. If no marker exists, confirm adding one and choose two existing child folders for captures and permanent notes. Cancellation leaves the folder unchanged. Folders outside discovery scope are added to the current workspace; with no workspace, the vault opens as one. Opening selects the vault without replacing settings, notes, or templates. Workspace Trust is required.
 

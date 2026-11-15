@@ -16,9 +16,9 @@ export function validFolderName(value: string): boolean {
 
 export function pathsFor(folder: vscode.WorkspaceFolder): VaultPaths {
   const config = vscode.workspace.getConfiguration("stemlink", folder.uri);
-  const rootName = config.get<string>("root", "zk");
+  const rootName = config.get<string>("root", "notes");
   const inboxName = config.get<string>("inbox", "inbox");
-  const notesName = config.get<string>("notes", "notes");
+  const notesName = config.get<string>("notes", "permanent");
   if (![rootName, inboxName, notesName].every(validFolderName) || inboxName.toLowerCase() === notesName.toLowerCase()) {
     throw new Error("Stemlink folder settings must be distinct valid folder names.");
   }

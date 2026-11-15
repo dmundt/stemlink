@@ -9,8 +9,8 @@ export async function runIntegration(multiRoot = false, discovery = false): Prom
   const temp = await mkdtemp(path.join(os.tmpdir(), "stemlink-test-"));
   try {
     const workspace = path.join(temp, "workspace");
-    const root = path.join(workspace, discovery ? "existing-vault" : "zk");
-    const notes = path.join(root, discovery ? "stable" : "notes");
+    const root = path.join(workspace, discovery ? "existing-vault" : "notes");
+    const notes = path.join(root, discovery ? "stable" : "permanent");
     await mkdir(notes, { recursive: true });
     await mkdir(path.join(root, discovery ? "fleeting" : "inbox"), { recursive: true });
     if (discovery) {
