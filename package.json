@@ -2,7 +2,7 @@
   "name": "stemlink",
   "displayName": "Stemlink",
   "description": "Plain Markdown vault navigation and note management for Stemlink.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "dmundt",
   "license": "MIT",
   "icon": "media/icon.png",

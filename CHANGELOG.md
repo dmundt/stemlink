@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.1.1 - 2026-11-16
+
+- Republish 0.1.0 without functional changes.
+
 ## 0.1.0 - 2026-11-16
 
 - Preserve active-vault selection while tree refreshes are in progress.
