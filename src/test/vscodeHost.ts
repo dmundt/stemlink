@@ -3,7 +3,7 @@ import { performance } from "node:perf_hooks";
 import * as os from "node:os";
 import * as vscode from "vscode";
 import { discoverVaults, readVaultMarker, resolveVaultPaths } from "../discovery";
-import { isVaultInstructionFile, renderRouterIndexes, routerIndexName } from "../core";
+import { isVaultInstructionFile, renderRouterIndexes, renderVaultReadme, routerIndexName } from "../core";
 import { Vault, directChild, pathsFor, sameUri, validFolderName } from "../vault";
 import { VaultTree, VaultTreeSection } from "../tree";
 
@@ -774,6 +774,133 @@ async function testFeatureSettings(folder: vscode.WorkspaceFolder): Promise<void
   }
 }
 
+async function testDynamicVaultFiles(folder: vscode.WorkspaceFolder, extensionUri: vscode.Uri): Promise<void> {
+  const cases = [
+    { root: "zk", inbox: "inbox", notes: "notes" },
+    { root: "Zettelkasten", inbox: "Fleeting", notes: "Permanent" },
+    { root: "vault", inbox: "Inbox", notes: "Knowledge" },
+  ] as const;
+  const config = vscode.workspace.getConfiguration("stemlink", folder.uri);
+  const previous = {
+    root: config.inspect<string>("root")?.workspaceValue,
+    inbox: config.inspect<string>("inbox")?.workspaceValue,
+    notes: config.inspect<string>("notes")?.workspaceValue,
+    enableRouterIndexes: config.inspect<boolean>("enableRouterIndexes")?.workspaceValue,
+    offerAgentInstructions: config.inspect<boolean>("offerAgentInstructions")?.workspaceValue,
+  };
+  const api = vscode.window as {
+    showInputBox: typeof vscode.window.showInputBox;
+    showWorkspaceFolderPick: typeof vscode.window.showWorkspaceFolderPick;
+    showWarningMessage: typeof vscode.window.showWarningMessage;
+    showErrorMessage: typeof vscode.window.showErrorMessage;
+  };
+  const original = {
+    showInputBox: api.showInputBox,
+    showWorkspaceFolderPick: api.showWorkspaceFolderPick,
+    showWarningMessage: api.showWarningMessage,
+    showErrorMessage: api.showErrorMessage,
+  };
+  const errors: string[] = [];
+  try {
+    await config.update("enableRouterIndexes", true, vscode.ConfigurationTarget.Workspace);
+    await config.update("offerAgentInstructions", true, vscode.ConfigurationTarget.Workspace);
+    api.showWorkspaceFolderPick = async () => folder;
+    api.showWarningMessage = new Proxy(original.showWarningMessage, {
+      apply: (_target, _thisArg, args: unknown[]) => {
+        const message = String(args[0]);
+        if (message.includes("AGENTS.md")) return Promise.resolve("Add");
+        if (message.includes("Stemlink workspace settings already exist")) return Promise.resolve("Continue");
+        return Promise.resolve(undefined);
+      },
+    });
+    api.showErrorMessage = new Proxy(original.showErrorMessage, {
+      apply: (_target, _thisArg, args: unknown[]) => {
+        errors.push(String(args[0]));
+        return Promise.resolve(undefined);
+      },
+    });
+
+    for (const scenario of cases) {
+      const answers = [scenario.root, scenario.inbox, scenario.notes];
+      api.showInputBox = async () => {
+        assert.ok(answers.length, "unexpected input prompt during synthetic vault creation");
+        return answers.shift();
+      };
+      await vscode.commands.executeCommand("stemlink.createVault");
+      assert.equal(answers.length, 0, `${scenario.root} creation did not request every folder name`);
+      assert.equal(errors.length, 0, `${scenario.root} creation failed: ${errors.join("; ")}`);
+
+      const root = vscode.Uri.joinPath(folder.uri, scenario.root);
+      const inbox = vscode.Uri.joinPath(root, scenario.inbox);
+      const notes = vscode.Uri.joinPath(root, scenario.notes);
+      const templates = vscode.Uri.joinPath(root, "templates");
+      const readText = async (uri: vscode.Uri) =>
+        Buffer.from(await vscode.workspace.fs.readFile(uri)).toString("utf8");
+      const marker = JSON.parse(await readText(vscode.Uri.joinPath(root, ".stemlink.json")));
+      assert.deepEqual(marker, { version: 1, inbox: scenario.inbox, notes: scenario.notes });
+      for (const directory of [inbox, notes, templates]) {
+        assert.ok((await vscode.workspace.fs.stat(directory)).type & vscode.FileType.Directory,
+          `${directory.path} was not created`);
+      }
+
+      const manual = await readText(vscode.Uri.joinPath(root, "README.md"));
+      for (const expected of [
+        `Vault root: \`${scenario.root}/\``,
+        `Captures: \`${scenario.inbox}/\``,
+        `Permanent notes: \`${scenario.notes}/\``,
+        "Editable examples: `templates/`",
+      ]) assert.ok(manual.includes(expected), `${scenario.root} manual omitted ${expected}`);
+      assert.ok(!manual.includes("<!-- stemlink:configured-folders -->"),
+        `${scenario.root} manual retained its render marker`);
+
+      const rootInstructions = await readText(vscode.Uri.joinPath(root, "AGENTS.md"));
+      const inboxInstructions = await readText(vscode.Uri.joinPath(inbox, "AGENTS.md"));
+      const notesInstructions = await readText(vscode.Uri.joinPath(notes, "AGENTS.md"));
+      for (const expected of [`Vault root: \`${scenario.root}/\``, `Capture folder: \`${scenario.inbox}/\``,
+        `Permanent-note folder: \`${scenario.notes}/\``]) {
+        assert.ok(rootInstructions.includes(expected), `${scenario.root} root instructions omitted ${expected}`);
+      }
+      assert.ok(inboxInstructions.includes(`\`${scenario.inbox}/\``),
+        `${scenario.root} inbox instructions omitted configured capture folder`);
+      assert.ok(notesInstructions.includes(`\`${scenario.notes}/\``),
+        `${scenario.root} notes instructions omitted configured permanent-note folder`);
+
+      const rootIndex = await readText(vscode.Uri.joinPath(root, routerIndexName));
+      const inboxIndex = await readText(vscode.Uri.joinPath(inbox, routerIndexName));
+      const notesIndex = await readText(vscode.Uri.joinPath(notes, routerIndexName));
+      for (const expected of [`${scenario.root}/`, `${scenario.inbox}/`, `${scenario.notes}/`]) {
+        assert.ok(rootIndex.includes(expected), `${scenario.root} root index omitted ${expected}`);
+      }
+      assert.ok(inboxIndex.includes(`${scenario.inbox}/`) && inboxIndex.includes(`${scenario.notes}/`),
+        `${scenario.root} inbox index omitted configured folder names`);
+      assert.ok(notesIndex.includes(`${scenario.notes}/`) && notesIndex.includes(`${scenario.inbox}/`),
+        `${scenario.root} notes index omitted configured folder names`);
+
+      const templateNames = (await vscode.workspace.fs.readDirectory(templates))
+        .map(([name]) => name).sort();
+      assert.deepEqual(templateNames, ["_fleeting.md", "_promotion.md", "_template.md"],
+        `${scenario.root} did not receive editable examples`);
+      for (const name of templateNames) {
+        assert.deepEqual(
+          await vscode.workspace.fs.readFile(vscode.Uri.joinPath(templates, name)),
+          await vscode.workspace.fs.readFile(vscode.Uri.joinPath(extensionUri, "templates", name)),
+          `${scenario.root} changed bundled example ${name}`,
+        );
+      }
+    }
+  } finally {
+    api.showInputBox = original.showInputBox;
+    api.showWorkspaceFolderPick = original.showWorkspaceFolderPick;
+    api.showWarningMessage = original.showWarningMessage;
+    api.showErrorMessage = original.showErrorMessage;
+    await config.update("root", previous.root, vscode.ConfigurationTarget.Workspace);
+    await config.update("inbox", previous.inbox, vscode.ConfigurationTarget.Workspace);
+    await config.update("notes", previous.notes, vscode.ConfigurationTarget.Workspace);
+    await config.update("enableRouterIndexes", previous.enableRouterIndexes, vscode.ConfigurationTarget.Workspace);
+    await config.update("offerAgentInstructions", previous.offerAgentInstructions, vscode.ConfigurationTarget.Workspace);
+  }
+}
+
 export async function run(): Promise<void> {
   const folder = vscode.workspace.workspaceFolders?.[0];
   assert.ok(folder, "test workspace missing");
@@ -793,6 +920,7 @@ export async function run(): Promise<void> {
     await testDiscovery(folder);
     await testOpenVault(folder, extension.extensionUri);
     await testFeatureSettings(folder);
+    await testDynamicVaultFiles(folder, extension.extensionUri);
     return;
   }
   if (process.env.STEMLINK_MULTI_ROOT === "1") {
@@ -1061,10 +1189,13 @@ export async function run(): Promise<void> {
           `${template} instructions were not personalized and installed`,
         );
       }
+      const manualTemplate = Buffer.from(
+        await vscode.workspace.fs.readFile(vscode.Uri.joinPath(extension.extensionUri, "templates", "README.md")),
+      ).toString("utf8");
       assert.deepEqual(
         await vscode.workspace.fs.readFile(manual),
-        await vscode.workspace.fs.readFile(vscode.Uri.joinPath(extension.extensionUri, "templates", "README.md")),
-        "vault manual does not match the template",
+        Buffer.from(renderVaultReadme(manualTemplate, "custom-vault", "captures", "permanent")),
+        "vault manual does not include its configured folder names",
       );
       const templateNames = ["_template.md", "_fleeting.md", "_promotion.md"];
       for (const name of templateNames) {

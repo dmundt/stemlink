@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Include selected vault, capture, and permanent-note folder names in generated manuals, routers, and agent instructions.
+
 - Put bundled editable note, capture, and promotion examples in vault-level `templates/`; retain legacy fleeting-template lookup.
 
 - Add resource-scoped settings for router automation and agent-instruction prompts; both default to enabled.

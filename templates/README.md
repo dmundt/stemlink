@@ -2,6 +2,8 @@
 
 This is a collection of plain Markdown files: one idea per permanent note, connected by filename. There is no database or required application. Stemlink is optional.
 
+<!-- stemlink:configured-folders -->
+
 ## 1. Folder layout
 
 ```text
@@ -32,7 +34,7 @@ These are folder names, not note IDs. Stemlink's permanent-note filenames still 
 
 ## 2. Setup
 
-Create the root, inbox, notes, and `templates/` folders; put this manual in the root and open the folder in a text editor. Put the vault somewhere your normal backups cover. With Stemlink, **Create Zettelkasten** creates the folders and copies the bundled manual and editable examples.
+Create the root, inbox, notes, and `templates/` folders; put this manual in the root and open the folder in a text editor. Put the vault somewhere your normal backups cover. With Stemlink, **Create Zettelkasten** creates the folders and copies the bundled manual and editable examples. The copied manual starts with a summary of your chosen folder names.
 
 Stemlink recognizes `.stemlink.json` in the workspace root or an immediate child folder. Its `inbox` and `notes` values are folder names relative to the file:
 

@@ -10,11 +10,11 @@ Build a Zettelkasten in VS Code with plain Markdown files. Capture ideas, connec
 
 The defaults use short, neutral folder names. The bundled manual lists configurable alternatives, including `Fleeting/Permanent` and `Inbox/Knowledge`.
 
-Vault creation includes a manual and editable templates. Existing files are preserved. Promotion preserves the capture's content; rewrite it as needed.
+Vault creation copies this manual to the vault root and personalizes its folder summary with your chosen names. Editable Markdown examples go into vault-level `templates/`. `INDEX.md` routers and accepted `AGENTS.md` instructions also include configured folder names; existing files are preserved. Routers are navigation-only, not authoritative; Stemlink's in-memory note/reference index is authoritative for live state. Stemlink updates only generated index sections with current Markdown counts as files change. Promotion preserves the capture's content; rewrite it as needed.
 
-`INDEX.md` routers in the vault root and note folders provide navigation and live Markdown counts. Stemlink's in-memory note/reference index is authoritative; routers are not. Existing user indexes are preserved.
+Add Fleeting Note reads `templates/_fleeting.md` first and falls back to `notes/_fleeting.md` for existing vaults.
 
-Create Zettelkasten and Open Vault ask before adding missing vault `AGENTS.md` instructions. Existing files are preserved.
+Create Zettelkasten and Open Vault also ask before adding minimal `AGENTS.md` instructions to the vault root, inbox, and notes folders. Existing files are preserved.
 
 ## Extension settings
 
@@ -27,8 +27,6 @@ Settings are resource-scoped and apply to the workspace folder containing each v
 | `stemlink.notes` | `notes` | Permanent-note folder name inside the vault. |
 | `stemlink.enableRouterIndexes` | `true` | Create routers on explicit Create/Open and refresh their generated counts after observed Markdown changes. Disabled leaves existing `INDEX.md` files untouched. |
 | `stemlink.offerAgentInstructions` | `true` | Ask before adding missing vault `AGENTS.md` files during Create/Open. Disabled skips prompts and installation. |
-
-New vaults keep editable examples in `templates/`. Add Fleeting Note prefers `templates/_fleeting.md` and falls back to the configured notes folder for legacy vaults.
 
 Existing vaults can be recognized by a `.stemlink.json` file in the workspace root or an immediate child folder:
 
