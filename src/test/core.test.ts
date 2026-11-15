@@ -198,7 +198,7 @@ test("router indexes route by folder and replace only their generated section", 
   assert.match(indexes.notes, /Notes router: `stable\/`/);
   assert.match(indexes.root, /Templates live in the vault-level templates folder/);
   assert.match(indexes.notes, /not authoritative.*in-memory note\/reference index/);
-  assert.equal(isRouterIndex("index.md"), true);
+  assert.equal(isRouterIndex("INDEX.md"), true);
   assert.equal(isRouterIndex("_index.md"), false);
   assert.equal(isVaultInstructionFile("agents.md"), true);
   assert.equal(isVaultInstructionFile("_template.md"), false);
