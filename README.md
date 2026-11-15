@@ -24,7 +24,7 @@ Use **Stemlink: Open Vault** to select an existing folder. If no marker exists, 
 
 ## Connect your notes
 
-Permanent notes use timestamped filenames and YAML front matter:
+Permanent notes use timestamped filenames and YAML front matter. Write tags as a single-line list in every vault Markdown file that uses them:
 
 ```markdown
 ---

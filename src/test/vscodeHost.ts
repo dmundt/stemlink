@@ -915,7 +915,7 @@ export async function run(): Promise<void> {
       assert.equal(created.length, 1, "Add Note did not create a file");
       const firstText = Buffer.from(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(permanent, created[0][0]))).toString("utf8");
       assert.match(firstText, /A: title/);
-      assert.match(firstText, /alpha/);
+      assert.match(firstText, /^tags: \[alpha, beta\]\r?$/m);
 
       const createdUri = vscode.Uri.joinPath(permanent, created[0][0]);
       answers.push("A: title", "other");
@@ -1046,6 +1046,7 @@ export async function run(): Promise<void> {
       assert.ok(promoted);
       const promotedText = Buffer.from(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(permanent, promoted[0]))).toString("utf8");
       assert.match(promotedText, /Capture body/);
+      assert.match(promotedText, /^tags: \[ideas\]\r?$/m);
       await assert.rejects(async () => vscode.workspace.fs.stat(capture));
 
       const changing = vscode.Uri.joinPath(inbox, "changing.md");

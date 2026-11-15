@@ -62,7 +62,7 @@ tags: [zettelkasten, conventions]
 ---
 ```
 
-`title` is the editable name. Quote it if it contains a colon. `tags` is an inline list; choose a few useful lowercase tags rather than a hierarchy. Inbox captures need no front matter.
+`title` is the editable name. Quote it if it contains a colon. In every vault Markdown file that uses tags, write them as a single-line inline list, such as `tags: [notes, zk, bug]`, not a multiline block list. Choose a few useful lowercase tags rather than a hierarchy. Inbox captures need no front matter.
 
 ## 5. Writing a permanent note
 
