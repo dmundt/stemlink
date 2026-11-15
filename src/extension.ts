@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { VaultAgentInstructions } from "./agentInstructions";
 import {
   auditNotes, isVaultInstructionFile, linksIn, makeNote, promoteNote, slug, timestamp,
 } from "./core";
@@ -41,6 +42,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   };
   const tree = new VaultTree(activeVault, allVaults);
   const routerIndexes = new VaultRouterIndexes();
+  const agentInstructions = new VaultAgentInstructions(context.extensionUri);
   context.subscriptions.push(tree);
   context.subscriptions.push(routerIndexes);
   const treeSections: VaultSection[] = ["Vaults", "Fleeting", "Notes", "References"];
@@ -141,6 +143,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const vault = vaults.get(pendingOpen);
     if (vault) {
       await routerIndexes.initialize(vault.paths).catch(reportError);
+      await agentInstructions.offer(vault.paths).catch(reportError);
     }
     await context.globalState.update(pendingOpenKey, undefined);
   }
@@ -219,6 +222,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       const vault = vaults.get(root.toString());
       if (vault) {
         await routerIndexes.initialize(vault.paths);
+        await agentInstructions.offer(vault.paths);
       }
       return;
     }
@@ -261,6 +265,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const vault = vaults.get(root.toString());
     if (vault) {
       await routerIndexes.initialize(vault.paths);
+      await agentInstructions.offer(vault.paths);
     }
   });
 
@@ -349,6 +354,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       configuring = false;
     }
     await queueDiscovery(rootUri);
+    const vault = vaults.get(rootUri.toString());
+    if (vault) await agentInstructions.offer(vault.paths);
     tree.refresh();
     if (preserved.length) void vscode.window.showWarningMessage(`Stemlink: Zettelkasten ready; existing ${preserved.join(", ")} ${preserved.length === 1 ? "was" : "were"} preserved.`);
     else void vscode.window.showInformationMessage("Stemlink: Zettelkasten ready.");
@@ -578,6 +585,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           const vault = vaults.get(pending);
           if (vault) {
             await routerIndexes.initialize(vault.paths);
+            await agentInstructions.offer(vault.paths);
           }
         } finally {
           await context.globalState.update(pendingOpenKey, undefined);

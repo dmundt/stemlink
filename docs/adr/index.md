@@ -19,6 +19,8 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 
 - [022: AI routing indexes](adr-022-ai-routing-indexes.md) — generated `INDEX.md` routers and observed state counts.
 
+- [024: Opt-in vault agent instructions](adr-024-vault-agent-instructions.md) — scope-specific `AGENTS.md` files, consent, and preservation.
+
 ## Creating and processing notes
 
 - [005: Add Note](adr-005-add-note.md) — permanent-note creation.
