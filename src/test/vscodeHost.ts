@@ -414,13 +414,17 @@ async function testRouterMappings(folder: vscode.WorkspaceFolder): Promise<void>
 
     const added = vscode.Uri.joinPath(inbox, "new capture.md");
     const renamed = vscode.Uri.joinPath(inbox, "renamed capture.md");
-    await vscode.workspace.fs.writeFile(added, Buffer.from("---\ndescription: New capture\n---\n"));
+    const creation = new vscode.WorkspaceEdit();
+    creation.createFile(added, { contents: Buffer.from("---\ndescription: New capture\n---\n") });
+    assert.equal(await vscode.workspace.applyEdit(creation), true);
     await waitForFileText(
       inboxIndex,
       (text) => text.includes("[new capture.md](./new%20capture.md) | New capture |"),
       "router did not add new file mapping",
     );
-    await vscode.workspace.fs.rename(added, renamed);
+    const rename = new vscode.WorkspaceEdit();
+    rename.renameFile(added, renamed);
+    assert.equal(await vscode.workspace.applyEdit(rename), true);
     await waitForFileText(
       inboxIndex,
       (text) => text.includes("[renamed capture.md]") && !text.includes("[new capture.md]"),
@@ -1920,10 +1924,81 @@ async function testNativeVaultSelection(
     () => view.selection[0]?.vault?.paths.root.toString() === firstRoot.toString(),
     "first vault was not natively selected on open",
   );
+  const originalReveal = view.reveal;
+  let failedReveal = false;
+  view.reveal = async (item, options) => {
+    if (!failedReveal && item.vault?.paths.root.toString() === secondRoot.toString()) {
+      failedReveal = true;
+      throw new Error("Injected tree refresh race");
+    }
+    return originalReveal.call(view, item, options);
+  };
+  try {
+    await vscode.commands.executeCommand("stemlink.selectVault", secondRoot);
+    assert.ok(failedReveal, "tree refresh race was not injected");
+    await waitFor(
+      () => view.selection[0]?.vault?.paths.root.toString() === secondRoot.toString(),
+      "vault selection did not recover from a tree refresh race",
+    );
+    await vscode.commands.executeCommand("stemlink.selectVault", firstRoot);
+  } finally {
+    view.reveal = originalReveal;
+  }
+  let releaseReveal: () => void = () => {};
+  const revealGate = new Promise<void>((resolve) => {
+    releaseReveal = resolve;
+  });
+  let delayedReveal = false;
+  let staleSelection = false;
+  const staleListener = view.onDidChangeSelection((event) => {
+    if (event.selection[0]?.vault?.paths.root.toString() === secondRoot.toString())
+      staleSelection = true;
+  });
+  view.reveal = async (item, options) => {
+    if (!delayedReveal && item.vault?.paths.root.toString() === secondRoot.toString()) {
+      delayedReveal = true;
+      await revealGate;
+    }
+    return originalReveal.call(view, item, options);
+  };
+  try {
+    const selectingSecond = vscode.commands.executeCommand("stemlink.selectVault", secondRoot);
+    await waitFor(() => delayedReveal, "vault reveal did not start");
+    const selectingFirst = vscode.commands.executeCommand("stemlink.selectVault", firstRoot);
+    releaseReveal();
+    await Promise.all([selectingSecond, selectingFirst]);
+    await waitFor(() => staleSelection, "delayed reveal did not deliver selection");
+    await waitFor(
+      () => view.selection[0]?.vault?.paths.root.toString() === firstRoot.toString(),
+      "delayed reveal replaced the newer vault selection",
+    );
+    await vscode.commands.executeCommand("stemlink.addFleetingNote");
+    const capture = vscode.window.activeTextEditor?.document;
+    assert.ok(
+      capture && directChild(capture.uri, vscode.Uri.joinPath(firstRoot, "fleeting")),
+      "delayed reveal changed the active vault",
+    );
+    await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor");
+    await vscode.workspace.fs.delete(capture.uri);
+  } finally {
+    releaseReveal();
+    view.reveal = originalReveal;
+    staleListener.dispose();
+  }
   const rows = await provider.getChildren();
   const second = rows?.find((item) => item.vault?.paths.root.toString() === secondRoot.toString());
   assert.ok(second, "second vault row missing");
-  await view.reveal(second, { select: true, focus: false });
+  let selectionChanged = false;
+  const selectionListener = view.onDidChangeSelection((event) => {
+    if (event.selection[0]?.vault?.paths.root.toString() === secondRoot.toString())
+      selectionChanged = true;
+  });
+  try {
+    await view.reveal(second, { select: true, focus: false });
+    await waitFor(() => selectionChanged, "native selection event was not delivered");
+  } finally {
+    selectionListener.dispose();
+  }
   await vscode.commands.executeCommand("stemlink.addFleetingNote");
   const capture = vscode.window.activeTextEditor?.document;
   assert.ok(
@@ -1983,6 +2058,7 @@ async function testNativeVaultSelection(
     firstRoot.toString(),
     "rediscovery replaced the remaining selected vault",
   );
+  await vscode.commands.executeCommand("stemlink.selectVault", firstRoot);
   await vscode.commands.executeCommand("workbench.action.closeSidebar");
   await waitFor(() => !view.visible, "Vaults view did not close");
   await vscode.commands.executeCommand("stemlink.selectVault", secondRoot);
