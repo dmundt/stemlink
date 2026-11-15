@@ -176,9 +176,9 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
     try {
       const vault = this.activeVault();
       if (!element) {
-        let fleeting: number | string = "-";
-        let notes: number | string = "-";
-        let references: number | string = "-";
+        let fleeting: number | string = 0;
+        let notes: number | string = 0;
+        let references: number | string = 0;
         if (vault) {
           fleeting = this.countCaptures(vault);
           notes = this.countNotes(vault);
