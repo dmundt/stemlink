@@ -58,6 +58,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     treeViews.set(section, view);
     context.subscriptions.push(provider, view);
   }
+  const syncVaultSelection = async (): Promise<void> => {
+    const view = treeViews.get("Vaults");
+    const vault = selectedVault;
+    if (!view?.visible || !vault || view.selection[0]?.vault === vault) return;
+    const rows = await tree.getChildren(new Item("Vaults", "Vaults"));
+    if (selectedVault !== vault || !view.visible) return;
+    const item = rows.find(row => row.vault === vault);
+    if (item) await view.reveal(item, { select: true, focus: false, expand: false });
+  };
+  const vaultView = treeViews.get("Vaults");
+  if (vaultView) context.subscriptions.push(vaultView.onDidChangeVisibility(event => {
+    if (event.visible) void syncVaultSelection().catch(reportError);
+  }));
   const updateTreeViewMessages = (): void => {
     for (const [section, view] of treeViews) {
       view.message = section === "Vaults"
@@ -75,6 +88,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   };
   context.subscriptions.push(tree.onDidChangeTreeData(() => {
     void updateTreeViewTitles().catch(reportError);
+    void syncVaultSelection().catch(reportError);
   }));
   void updateTreeViewTitles().catch(reportError);
   updateTreeViewMessages();
@@ -89,12 +103,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     tree.refresh();
   };
   const selectVault = async (vault: Vault | undefined): Promise<void> => {
-    await context.workspaceState.update(selectionKey, vault?.paths.root.toString());
-    selectedVault = vault;
-    updateTreeViewMessages();
-    if (vault) warmIndex(vault);
-    tree.refresh();
+    if (selectedVault !== vault) {
+      selectedVault = vault;
+      await context.workspaceState.update(selectionKey, vault?.paths.root.toString());
+      updateTreeViewMessages();
+      if (vault) warmIndex(vault);
+      tree.refresh();
+    }
+    await syncVaultSelection();
   };
+  if (vaultView) context.subscriptions.push(vaultView.onDidChangeSelection(event => {
+    const vault = event.selection[0]?.vault;
+    if (vault && vaults.get(vault.paths.root.toString()) === vault && vault !== selectedVault) {
+      void selectVault(vault).catch(reportError);
+    } else if (!vault) {
+      void syncVaultSelection().catch(reportError);
+    }
+  }));
   const syncVaults = async (preferred?: vscode.Uri): Promise<void> => {
     const descriptors = new Map<string, { folder: vscode.WorkspaceFolder; paths: VaultPaths }>();
     const folders = [...(vscode.workspace.workspaceFolders ?? [])].sort((a, b) => b.uri.path.length - a.uri.path.length);
@@ -121,17 +146,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       vault.selectPaths(descriptor.paths);
     }
     routerIndexes.sync(allVaults().filter(vault => routerIndexesEnabled(vault.paths)).map(vault => vault.paths));
-    const wanted = preferred?.toString() ?? selectedVault?.paths.root.toString() ??
-      context.workspaceState.get<string>(selectionKey);
-    selectedVault = wanted ? vaults.get(wanted) : undefined;
-    if (!wanted && vaults.size === 1) {
-      selectedVault = allVaults()[0];
-      await context.workspaceState.update(selectionKey, selectedVault.paths.root.toString());
+    const saved = context.workspaceState.get<string>(selectionKey);
+    const wanted = [preferred?.toString(), selectedVault?.paths.root.toString(), saved]
+      .find(root => root !== undefined && vaults.has(root));
+    selectedVault = (wanted ? vaults.get(wanted) : undefined) ?? allVaults()[0];
+    if (saved !== selectedVault?.paths.root.toString()) {
+      await context.workspaceState.update(selectionKey, selectedVault?.paths.root.toString());
     }
     updateTreeViewMessages();
     tree.syncVaults();
     if (selectedVault && selectedVault.indexState === "pending") warmIndex(selectedVault);
-    if (preferred && selectedVault) await context.workspaceState.update(selectionKey, selectedVault.paths.root.toString());
   };
   let pendingDiscovery = Promise.resolve();
   const queueDiscovery = (preferred?: vscode.Uri): Promise<void> => {

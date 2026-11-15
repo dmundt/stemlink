@@ -20,6 +20,7 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [027: Templates folder mapping](adr-027-templates-folder-mapping.md) — optional portable template location and version 1 compatibility.
 - [029: Default vault layout](adr-029-default-vault-layout.md) — `notes/` containing `templates/`, `inbox/`, and `permanent/`; existing vault compatibility and configurable alternatives.
 - [030: Configurable folder settings](adr-030-configurable-folder-settings.md) — all four folder settings, configured creation defaults, and template mapping conflict resolution.
+- [031: Native vault selection](adr-031-native-vault-selection.md) — persistent row selection without checkmarks or Selected text, restoring the last available vault or selecting the first.
 
 ## Creating and processing notes
 

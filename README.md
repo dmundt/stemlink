@@ -6,7 +6,7 @@ Build a Zettelkasten in VS Code with plain Markdown files. Capture ideas, connec
 
 1. Open a workspace folder and the **Stemlink** activity bar view.
 2. Run **Stemlink: Create Zettelkasten**. Accept `notes/` containing `templates/`, `inbox/`, and `permanent/`, or choose your own names.
-3. If several vaults are found, select one under **Vaults**. Use **Add Fleeting Note**, **Add Note**, or **Promote Capture to Note**.
+3. Stemlink restores the last available vault or selects the first listed vault. Choose another under **Vaults** when needed. Use **Add Fleeting Note**, **Add Note**, or **Promote Capture to Note**.
 
 The default root holds the collection; `inbox/` holds captures, `permanent/` holds permanent notes, and `templates/` holds editable examples. The bundled manual lists alternatives: `zk/inbox/notes`, `Zettelkasten/Fleeting/Permanent`, `vault/capture/notes`, and `vault/inbox/permanent`. Use Open Vault or settings for these layouts; Stemlink does not infer a layout from its folder names.
 
@@ -48,7 +48,7 @@ Existing vaults can be recognized by a `.stemlink.json` file in the workspace ro
 { "version": 1, "inbox": "inbox", "notes": "permanent", "templates": "templates" }
 ```
 
-Folder names are relative to the file. Optional `templates` defaults to `templates`; set it to another distinct child folder such as `examples` to use your own template location. Existing markers need no migration and are not rewritten. Vaults in all workspace folders appear in the tree. Select one to use its Fleeting and Notes sections; selection stays fixed until changed. Existing settings continue to work without a marker. If settings conflict with a marker for the same vault, choose its configuration.
+Folder names are relative to the file. Optional `templates` defaults to `templates`; set it to another distinct child folder such as `examples` to use your own template location. Existing markers need no migration and are not rewritten. Vaults in all workspace folders appear in the tree. Native row highlighting shows the selected vault without a checkmark or Selected label. Selection stays fixed across editor changes and refreshes; if that vault disappears, Stemlink selects the first remaining vault. Existing settings continue to work without a marker. If settings conflict with a marker for the same vault, choose its configuration.
 
 An unset `stemlink.templates` retains the marker's template mapping. An explicit template setting participates in the configuration chooser when it conflicts with the marker. Choosing settings changes the effective paths without rewriting either configuration. Changing names never moves existing files.
 

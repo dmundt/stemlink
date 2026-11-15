@@ -1,8 +1,10 @@
 ---
-status: Accepted
+status: Accepted; superseded in part by ADR 031
 ---
 
 # ADR 023: Separate native tree views
+
+[ADR 031](adr-031-native-vault-selection.md) extends Vaults with native row selection and automatic last-available or first-listed selection.
 
 ## Context
 
