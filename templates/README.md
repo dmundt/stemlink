@@ -7,12 +7,16 @@ This is a collection of plain Markdown files: one idea per permanent note, conne
 ```text
 zk/
 ├── .stemlink.json # Stemlink vault configuration
-├── README.md   # this manual
-├── inbox/      # quick, unprocessed captures
-└── notes/      # permanent notes and templates; keep flat
+├── README.md      # this manual
+├── inbox/         # quick, unprocessed captures
+├── notes/         # permanent notes; keep flat
+└── templates/     # editable Markdown examples
+    ├── _template.md
+    ├── _fleeting.md
+    └── _promotion.md
 ```
 
-These are the default names; use your configured names if they differ. Keep permanent notes in one folder. Use tags and links instead of topic subfolders.
+These are the default names; use your configured names if they differ. The vault-level `templates/` folder name is reserved for examples. Keep permanent notes in one folder. Use tags and links instead of topic subfolders.
 
 ### Folder naming options
 
@@ -28,7 +32,7 @@ These are folder names, not note IDs. Stemlink's permanent-note filenames still 
 
 ## 2. Setup
 
-Create the root, inbox, and notes folders, put this manual in the root, and open the folder in a text editor. Put it somewhere your normal backups cover. With Stemlink, **Create Zettelkasten** creates the folders and copies this manual and the templates.
+Create the root, inbox, notes, and `templates/` folders; put this manual in the root and open the folder in a text editor. Put the vault somewhere your normal backups cover. With Stemlink, **Create Zettelkasten** creates the folders and copies the bundled manual and editable examples.
 
 Stemlink recognizes `.stemlink.json` in the workspace root or an immediate child folder. Its `inbox` and `notes` values are folder names relative to the file:
 
@@ -38,11 +42,11 @@ Stemlink recognizes `.stemlink.json` in the workspace root or an immediate child
 
 Change those names if your folders differ. Select a vault under **Vaults** when several are available. If settings conflict with a marker for the same vault, Stemlink asks which configuration to use. Existing workspace settings also work without this file.
 
-Use **Open Vault** to select an existing folder. Without a marker, confirm adding one and choose existing capture and permanent-note folders. Folders outside discovery scope are added to the workspace. Notes and templates are not replaced or installed; Workspace Trust is required.
+Use **Open Vault** to select an existing folder. Without a marker, confirm adding one and choose existing capture and permanent-note folders. Folders outside discovery scope are added to the workspace. Open Vault does not install or move templates in existing vaults; Workspace Trust is required.
 
 ### AI routing indexes
 
-Stemlink adds `INDEX.md` at the vault root, inbox, and notes folders when creating or opening a vault. Each file routes AI agents to the relevant folder and reports its current Markdown count. These routers are not authoritative; Stemlink's in-memory note/reference index is authoritative for live state. The routers are not notes; counts exclude `INDEX.md` and `AGENTS.md`. Stemlink does not create missing inbox or notes directories.
+Stemlink adds `INDEX.md` at the vault root, inbox, and notes folders when creating or opening a vault. Each file routes AI agents to the relevant folder and reports its current Markdown count. These routers are not authoritative; Stemlink's in-memory note/reference index is authoritative for live state. The routers are not notes; counts exclude `INDEX.md` and `AGENTS.md`. Templates in the separate `templates/` folder are not included in the Notes count. Stemlink does not create missing inbox or notes directories.
 
 Existing user-authored `INDEX.md` files are preserved. Stemlink refreshes only its marked generated section after observed file changes. Text outside that section is yours to edit.
 
@@ -106,7 +110,7 @@ The stem is the filename, not the title. To find backlinks without an extension,
 
 Put ideas in `inbox/` quickly. A capture can be a fragment or question; it needs no front matter or links. Most captures do not need to become permanent notes.
 
-Copy `_fleeting.md` from `notes/` into `inbox/`, rename it, and replace the example. With Stemlink, **Add Fleeting Note** copies the saved template into the inbox and opens it. Edit the template to customize future captures.
+Copy `_fleeting.md` from `templates/` into `inbox/`, rename it, and replace the example. With Stemlink, **Add Fleeting Note** copies the saved template into the inbox and opens it. Edit `templates/_fleeting.md` to customize future captures. Existing vaults with `notes/_fleeting.md` remain supported when no `templates/_fleeting.md` exists.
 
 ## 8. Weekly: process
 
@@ -126,7 +130,7 @@ Search the files for a distinctive word, tag, or filename stem. Browse `notes/` 
 
 ## 10. Templates
 
-Copy and rename a template before editing:
+Stemlink copies these editable examples into the vault-level `templates/` folder during **Create Zettelkasten**. They are starting points, not enforced formats. Copy and rename a template before editing:
 
 - `_template.md`: a complete permanent-note example.
 - `_fleeting.md`: a quick capture without front matter; its copy belongs in `inbox/`.
@@ -140,7 +144,7 @@ Copy and rename a template before editing:
 | `[[link]]` | Replace examples with full stems of real notes, in context. |
 | Filename | Give a permanent note a new timestamp and slug; keep it stable afterward. |
 
-Stemlink's **Check References** ignores Markdown files in `notes/` whose names start with `_`, including templates. Other invalid filenames are reported. Underscore files remain visible in the Notes tree and their outgoing links can appear in backlinks; their names are not valid wiki-link targets.
+Templates in `templates/` are outside the Notes tree and reference audit. Legacy underscore-prefixed Markdown files left in `notes/` are excluded from **Check References**, but remain visible in Notes and their outgoing links can appear in backlinks; their names are not valid wiki-link targets.
 
 ## 11. Maintenance and troubleshooting
 

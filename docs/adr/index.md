@@ -23,6 +23,8 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 
 - [025: Configurable feature settings](adr-025-configurable-feature-settings.md) — resource-scoped router and agent-instruction settings with behavior-preserving defaults.
 
+- [026: Vault template folder](adr-026-vault-template-folder.md) — create editable examples in `templates/` and preserve legacy fleeting-template lookup.
+
 ## Creating and processing notes
 
 - [005: Add Note](adr-005-add-note.md) — permanent-note creation.

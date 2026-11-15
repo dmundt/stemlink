@@ -28,6 +28,8 @@ Settings are resource-scoped and apply to the workspace folder containing each v
 | `stemlink.enableRouterIndexes` | `true` | Create routers on explicit Create/Open and refresh their generated counts after observed Markdown changes. Disabled leaves existing `INDEX.md` files untouched. |
 | `stemlink.offerAgentInstructions` | `true` | Ask before adding missing vault `AGENTS.md` files during Create/Open. Disabled skips prompts and installation. |
 
+New vaults keep editable examples in `templates/`. Add Fleeting Note prefers `templates/_fleeting.md` and falls back to the configured notes folder for legacy vaults.
+
 Existing vaults can be recognized by a `.stemlink.json` file in the workspace root or an immediate child folder:
 
 ```json

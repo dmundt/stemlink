@@ -291,6 +291,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const notes = await prompt("notes folder", "notes");
     if (notes === undefined) return;
     if (inbox.toLowerCase() === notes.toLowerCase()) throw new Error("Inbox and notes must be different folders.");
+    if ([inbox, notes].some(name => name.toLowerCase() === "templates")) {
+      throw new Error("The vault-level templates folder is reserved; choose different inbox and notes names.");
+    }
     const rootUri = vscode.Uri.joinPath(selected.uri, root);
     const configured = ["root", "inbox", "notes"].some(key => {
       const info = config.inspect(key);
@@ -315,11 +318,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
     await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(rootUri, inbox));
     await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(rootUri, notes));
+    const templateDirectory = vscode.Uri.joinPath(rootUri, "templates");
+    const templatesName = templateDirectory.path.slice(templateDirectory.path.lastIndexOf("/") + 1);
+    await vscode.workspace.fs.createDirectory(templateDirectory);
     const preserved: string[] = [];
     if (existingMarker) preserved.push(".stemlink.json");
     for (const [name, directory] of [
       ["README.md", rootUri],
-      ...["_template.md", "_fleeting.md", "_promotion.md"].map(name => [name, vscode.Uri.joinPath(rootUri, notes)] as const),
+      ...["_template.md", "_fleeting.md", "_promotion.md"].map(name => [name, templateDirectory] as const),
     ] as const) {
       const destination = vscode.Uri.joinPath(directory, name);
       const template = vscode.Uri.joinPath(context.extensionUri, "templates", name);
@@ -330,7 +336,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         if (!((await vscode.workspace.fs.stat(destination)).type & vscode.FileType.File)) {
           throw new Error(`The vault's ${name} exists but is not a file.`);
         }
-        preserved.push(name);
+        preserved.push(directory === templateDirectory ? `templates/${name}` : name);
       }
     }
     if (routerIndexesEnabled(desiredPaths)) preserved.push(...await routerIndexes.initialize(desiredPaths));
@@ -398,15 +404,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   command("stemlink.addFleetingNote", async () => {
     const vault = requireActiveVault();
-    const template = vscode.Uri.joinPath(vault.paths.notes, "_fleeting.md");
+    const template = vscode.Uri.joinPath(vault.paths.root, "templates", "_fleeting.md");
+    const legacyTemplate = vscode.Uri.joinPath(vault.paths.notes, "_fleeting.md");
     let text: string;
     try {
       text = Buffer.from(await vscode.workspace.fs.readFile(template)).toString("utf8");
     } catch (error) {
-      if (error instanceof vscode.FileSystemError && error.code === "FileNotFound") {
-        throw new Error(`Fleeting template not found at ${template.path}. Create _fleeting.md in the notes folder.`);
+      if (!(error instanceof vscode.FileSystemError && error.code === "FileNotFound")) throw error;
+      try {
+        text = Buffer.from(await vscode.workspace.fs.readFile(legacyTemplate)).toString("utf8");
+      } catch (legacyError) {
+        if (legacyError instanceof vscode.FileSystemError && legacyError.code === "FileNotFound") {
+          throw new Error(`Fleeting template not found at ${template.path} or ${legacyTemplate.path}.`);
+        }
+        throw legacyError;
       }
-      throw error;
     }
     const uri = await createFile(vault.paths.inbox, "capture", text);
     tree.refresh();

@@ -61,7 +61,7 @@ export function renderRouterIndexes(
       `- [Inbox ${markdownCodeSpan(`${inboxName}/`)} (${inboxCount} captures)](./${path(inboxName)}/${routerIndexName})`,
       `- [Notes ${markdownCodeSpan(`${notesName}/`)} (${notesCount} Markdown files)](./${path(notesName)}/${routerIndexName})`,
       "",
-      "Counts cover direct-child Markdown files and exclude INDEX.md and AGENTS.md. Underscore-prefixed templates in the notes folder are included.",
+      "Counts cover direct-child Markdown files and exclude INDEX.md and AGENTS.md. Templates live in the vault-level templates folder.",
     ]),
     inbox: section([
       `# Inbox router: ${markdownCodeSpan(`${inboxName}/`)}`,
@@ -78,7 +78,7 @@ export function renderRouterIndexes(
     notes: section([
       `# Notes router: ${markdownCodeSpan(`${notesName}/`)}`,
       "",
-      "Read relevant Markdown files directly and follow their wiki-link stems. Treat underscore-prefixed files as templates, not notes.",
+      "Read relevant Markdown files directly and follow their wiki-link stems. New templates live in the vault-level templates folder; treat legacy underscore-prefixed files as templates, not notes.",
       "",
       authorityRule,
       "",
