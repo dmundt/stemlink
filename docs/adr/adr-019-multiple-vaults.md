@@ -8,7 +8,7 @@ status: Superseded in part by ADRs 023 and 031
 
 ## Context
 
-A workspace can contain several Zettelkastens. Choosing only one during discovery prevents users from switching between them in the tree. Users also need reference counts without blocking note navigation on a cold content scan.
+A workspace can contain several Stemlink vaults. Choosing only one during discovery prevents users from switching between them in the tree. Users also need reference counts without blocking note navigation on a cold content scan.
 
 ## Decision
 

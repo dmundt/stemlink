@@ -1,6 +1,6 @@
 # Stemlink development rules
 
-Stemlink is a VS Code extension for a local, plain-Markdown Zettelkasten. Start with [the ADR index](docs/adr/INDEX.md).
+Stemlink is a VS Code extension for local, plain-Markdown vaults. Start with [the ADR index](docs/adr/INDEX.md).
 
 ## Project layout
 

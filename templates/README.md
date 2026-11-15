@@ -1,4 +1,4 @@
-# Zettelkasten Manual
+# Stemlink Vault Manual
 
 This is a collection of plain Markdown files: one idea per permanent note, connected by filename. There is no database or required application. Stemlink is optional.
 
@@ -22,22 +22,24 @@ These are the default names; use your configured names if they differ. Capture, 
 
 ### Folder naming options
 
-Stemlink defaults distinguish the collection from its capture and permanent-note folders. Other Zettelkasten folder schemes can be configured:
+Stemlink defaults distinguish the collection from its capture and permanent-note folders. Other Stemlink vault folder schemes can be configured:
 
-| Scheme           | Vault root      | Inbox/capture | Permanent notes | Rationale                                                     |
-| ---------------- | --------------- | ------------- | --------------- | ------------------------------------------------------------- |
-| Stemlink default | `notes/`        | `inbox/`      | `permanent/`    | Separates the collection, captures, and permanent notes.      |
-| Previous default | `zk/`           | `inbox/`      | `notes/`        | Short, neutral labels; inbox is also common in GTD workflows. |
-| Ahrens-inspired  | `Zettelkasten/` | `Fleeting/`   | `Permanent/`    | Uses fleeting and permanent note terms.                       |
-| Capture labels   | `vault/`        | `capture/`    | `notes/`        | Keeps unprocessed captures separate from permanent notes.     |
-| Lifecycle labels | `vault/`        | `inbox/`      | `permanent/`    | Names the raw-capture and permanent-note stages.              |
-| Knowledge labels | `vault/`        | `Inbox/`      | `Knowledge/`    | An alternative vocabulary for capture and durable knowledge.  |
+| Scheme           | Vault root        | Inbox/capture | Permanent notes | Rationale                                                     |
+| ---------------- | ----------------- | ------------- | --------------- | ------------------------------------------------------------- |
+| Stemlink default | `notes/`          | `inbox/`      | `permanent/`    | Separates the collection, captures, and permanent notes.      |
+| Previous default | `zk/`             | `inbox/`      | `notes/`        | Short, neutral labels; inbox is also common in GTD workflows. |
+| Ahrens-inspired  | `Stemlink vault/` | `Fleeting/`   | `Permanent/`    | Uses fleeting and permanent note terms.                       |
+| Capture labels   | `vault/`          | `capture/`    | `notes/`        | Keeps unprocessed captures separate from permanent notes.     |
+| Lifecycle labels | `vault/`          | `inbox/`      | `permanent/`    | Names the raw-capture and permanent-note stages.              |
+| Knowledge labels | `vault/`          | `Inbox/`      | `Knowledge/`    | An alternative vocabulary for capture and durable knowledge.  |
 
 These are folder names, not note IDs. Stemlink's permanent-note filenames still use timestamps and remain stable after creation; folder names do not provide note identity. Choose folder names during **Create Vault**, use **Open Vault**, or configure paths for an existing vault. Stemlink does not infer alternative layouts from their names.
 
 Set `stemlink.showCounts` to `false` to hide sidebar and reference-group counts. It defaults to `true`; errors remain visible. The Activity Bar badge still shows the number of discovered vaults when there is at least one.
 
 Use the gear in the **Vaults** view or **Stemlink: Settings** to open Stemlink settings.
+
+The capture and permanent-note view headings match the selected vault's configured folder names, including their case. Selecting another vault updates them; without a selected vault, they remain Fleeting and Notes.
 
 VS Code Settings Sync can share user-level Stemlink settings between devices when enabled with **Settings** selected. Workspace and workspace-folder overrides, vault files, and the selected vault are not synced by Stemlink.
 
@@ -74,13 +76,13 @@ Use **Open Vault** to select an existing folder. Without a marker, confirm addin
 
 ### AI routing indexes
 
-Stemlink adds `INDEX.md` at the vault root, inbox, and notes folders when creating or opening a vault. Each file routes AI agents to the relevant folder and reports its current Markdown count. These routers are not authoritative; Stemlink's in-memory note/reference index is authoritative for live state. The routers are not notes; counts exclude `INDEX.md` and `AGENTS.md`. Templates in the separate `templates/` folder are not included in the Notes count. Stemlink does not create missing inbox or notes directories.
+Stemlink adds `INDEX.md` at the vault root, inbox, and notes folders when creating or opening a vault. The root routes readers to folder indexes; each folder index maps local Markdown filenames to YAML `description`, falling back to `title`, and reports its Markdown count. Missing metadata is labeled explicitly. Use these descriptions to choose files to read, not as a replacement for their content. These routers are not authoritative; Stemlink's in-memory note/reference index is authoritative for live state. The routers are not notes; counts exclude `INDEX.md` and `AGENTS.md`. Templates in the separate `templates/` folder are not included in the Notes count. Stemlink does not create missing inbox or notes directories.
 
-Existing user-authored `INDEX.md` files are preserved. Stemlink refreshes only its marked generated section after observed file changes. Text outside that section is yours to edit.
+Existing user-authored `INDEX.md` files are preserved. Stemlink refreshes only its marked generated section on discovery, observed file changes, edits (including unsaved metadata), and **Refresh**. Text outside that section is yours to edit. Malformed YAML is reported and labeled in the mapping. Saved routers may temporarily reflect unsaved note metadata; reverting the note updates its router again.
 
 ### Agent instructions
 
-Create Vault and Open Vault ask before adding minimal `AGENTS.md` files at the vault root and in existing inbox and notes folders. Existing instruction files are preserved, and missing folders are not created.
+`AGENTS.md` files are optional. With `stemlink.offerAgentInstructions` enabled (default: `true`), Create Vault and Open Vault ask before adding missing instructions at the vault root and in existing inbox and permanent-note folders. Set it to `false` to skip both the prompt and installation. Existing instruction files are preserved, not removed when the setting is disabled; missing folders are not created.
 
 ## 3. Naming files
 
@@ -100,7 +102,7 @@ Permanent notes use two YAML fields:
 ```yaml
 ---
 title: Note filenames stay frozen after creation
-tags: [zettelkasten, conventions]
+tags: [stemlink-vault, conventions]
 ---
 ```
 
@@ -113,7 +115,7 @@ Write one idea in your own words, in complete sentences that will make sense lat
 ```markdown
 ---
 title: Note filenames stay frozen after creation
-tags: [zettelkasten, conventions]
+tags: [stemlink-vault, conventions]
 ---
 
 A filename is a stable address; the title can change as the idea develops.

@@ -14,7 +14,7 @@ Users need an inbox and notes directory with a short, neutral default while reta
 
 ## Decision
 
-Offer Create Vault, prompting for root, inbox, and notes names on every new-vault creation. Defaults are `zk`, `inbox`, and `notes`; alternatives such as `Zettelkasten/Fleeting/Permanent` and `vault/Inbox/Knowledge` are configurable folder labels. Folder names do not replace timestamped permanent-note filenames. Copy the bundled manual template to `README.md` in the vault root, personalizing its folder summary with the chosen names while preserving an existing README. Store chosen paths in workspace settings. Create this workspace's initial vault with those defaults.
+Offer Create Vault, prompting for root, inbox, and notes names on every new-vault creation. Defaults are `zk`, `inbox`, and `notes`; alternatives such as `Stemlink vault/Fleeting/Permanent` and `vault/Inbox/Knowledge` are configurable folder labels. Folder names do not replace timestamped permanent-note filenames. Copy the bundled manual template to `README.md` in the vault root, personalizing its folder summary with the chosen names while preserving an existing README. Store chosen paths in workspace settings. Create this workspace's initial vault with those defaults.
 
 ## Consequences
 

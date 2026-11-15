@@ -2,7 +2,7 @@
 
 [![Local Extension Quality](https://github.com/dmundt/stemlink/actions/workflows/quality.yml/badge.svg)](https://github.com/dmundt/stemlink/actions/workflows/quality.yml)
 
-Build a Zettelkasten like vault in VS Code with plain Markdown files. Capture ideas, connect notes, and find backlinks without a database or account. Your notes remain usable without Stemlink.
+Build a Stemlink vault in VS Code with plain Markdown files. Capture ideas, connect notes, and find backlinks without a database or account. Your notes remain usable without Stemlink.
 
 ## Get started
 
@@ -12,13 +12,15 @@ Build a Zettelkasten like vault in VS Code with plain Markdown files. Capture id
 
 The Activity Bar badge shows the number of discovered vaults in the workspace; it is hidden when there are none. It remains visible when `stemlink.showCounts` hides view counts.
 
-The default root holds the collection; `inbox/` holds captures, `permanent/` holds permanent notes, and `templates/` holds editable examples. The bundled manual lists alternatives: `zk/inbox/notes`, `Zettelkasten/Fleeting/Permanent`, `vault/capture/notes`, and `vault/inbox/permanent`. Use Open Vault or settings for these layouts; Stemlink does not infer a layout from its folder names.
+The default root holds the collection; `inbox/` holds captures, `permanent/` holds permanent notes, and `templates/` holds editable examples. The bundled manual lists alternatives: `zk/inbox/notes`, `Stemlink vault/Fleeting/Permanent`, `vault/capture/notes`, and `vault/inbox/permanent`. Use Open Vault or settings for these layouts; Stemlink does not infer a layout from its folder names.
 
-Vault creation copies the bundled manual to the vault root and personalizes its folder summary with your chosen names. Editable Markdown examples go into the mapped templates folder (`templates/` by default). `INDEX.md` routers and accepted `AGENTS.md` instructions also include configured folder names; existing files are preserved. Routers are navigation-only, not authoritative; Stemlink's in-memory note/reference index is authoritative for live state. Stemlink updates only generated index sections with current Markdown counts as files change. Promotion preserves the capture's content; rewrite it as needed.
+Capture and permanent-note view headings use the selected vault's folder names, preserving their spelling and case. Switching vaults updates these headings; counts follow `stemlink.showCounts`. Without a selected vault, the headings remain Fleeting and Notes.
+
+Vault creation copies the bundled manual to the vault root and personalizes its folder summary with your chosen names. Editable Markdown examples go into the mapped templates folder (`templates/` by default). `INDEX.md` routers and accepted `AGENTS.md` instructions also include configured folder names; existing files are preserved. The root router links to folder routers; each folder router maps local Markdown filenames to YAML `description`, falling back to `title`. Missing metadata is labeled explicitly. Routers help choose files to read, not replace reading them; Stemlink's in-memory note/reference index is authoritative for live state. Stemlink updates only generated sections on discovery, observed filesystem changes, edits (including unsaved metadata), and **Refresh**. Promotion preserves the capture's content; rewrite it as needed.
 
 Add Fleeting Note reads `_fleeting.md` from the mapped templates folder first and falls back to the configured notes folder for existing vaults.
 
-Create Vault and Open Vault also ask before adding minimal `AGENTS.md` instructions to the vault root, inbox, and notes folders. Existing files are preserved.
+Vault `AGENTS.md` files are optional. With `stemlink.offerAgentInstructions` enabled (default: `true`), Create Vault and Open Vault ask before adding missing instructions to the vault root, inbox, and permanent-note folders. Set it to `false` to skip both the prompt and installation. Existing files are preserved, not removed when the setting is disabled.
 
 ## Extension settings
 
@@ -26,15 +28,17 @@ Use the gear in the **Vaults** view or **Stemlink: Settings** to open Stemlink s
 
 Settings are resource-scoped and apply to the workspace folder containing each vault. Defaults:
 
-| Setting                           |     Default | Purpose                                                                                                                                                         |
-| --------------------------------- | ----------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `stemlink.root`                   |     `notes` | Workspace-relative vault root for settings-based discovery.                                                                                                     |
-| `stemlink.inbox`                  |     `inbox` | Capture folder name inside the vault.                                                                                                                           |
-| `stemlink.notes`                  | `permanent` | Permanent-note folder name inside the vault.                                                                                                                    |
-| `stemlink.templates`              | `templates` | Editable-example folder name inside the vault.                                                                                                                  |
-| `stemlink.showCounts`             |      `true` | Show counts in the sidebar views and reference groups; errors remain visible when counts are hidden.                                                            |
-| `stemlink.enableRouterIndexes`    |      `true` | Create routers on explicit Create/Open and refresh their generated counts after observed Markdown changes. Disabled leaves existing `INDEX.md` files untouched. |
-| `stemlink.offerAgentInstructions` |      `true` | Ask before adding missing vault `AGENTS.md` files during Create/Open. Disabled skips prompts and installation.                                                  |
+The `stemlink.root`, `stemlink.inbox`, `stemlink.notes`, and `stemlink.templates` settings appear together under **Stemlink › Vault Folders** in VS Code Settings.
+
+| Setting                           |     Default | Purpose                                                                                                                                                                           |
+| --------------------------------- | ----------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `stemlink.root`                   |     `notes` | Workspace-relative vault root for settings-based discovery.                                                                                                                       |
+| `stemlink.inbox`                  |     `inbox` | Capture folder name inside the vault.                                                                                                                                             |
+| `stemlink.notes`                  | `permanent` | Permanent-note folder name inside the vault.                                                                                                                                      |
+| `stemlink.templates`              | `templates` | Editable-example folder name inside the vault.                                                                                                                                    |
+| `stemlink.showCounts`             |      `true` | Show counts in the sidebar views and reference groups; errors remain visible when counts are hidden.                                                                              |
+| `stemlink.enableRouterIndexes`    |      `true` | Create routers on explicit Create/Open and refresh generated counts and file descriptions on discovery and observed changes. Disabled leaves existing `INDEX.md` files untouched. |
+| `stemlink.offerAgentInstructions` |      `true` | Ask before adding missing vault `AGENTS.md` files during Create/Open. Disabled skips prompts and installation.                                                                    |
 
 To share user-level Stemlink settings across devices, enable [VS Code Settings Sync](https://code.visualstudio.com/docs/configure/settings-sync) on each device, sign in, and include **Settings**. Excluded settings do not sync. Workspace and workspace-folder overrides, including paths saved by Create Vault, do not sync through Settings Sync. Vault files and workspace selection are not synced by Stemlink.
 
@@ -72,7 +76,7 @@ Permanent notes use timestamped filenames and YAML front matter. Write tags as a
 ```markdown
 ---
 title: Filenames are stable addresses
-tags: [zettelkasten]
+tags: [stemlink-vault]
 ---
 
 Related: [[202411130915-ids-as-timestamps]]

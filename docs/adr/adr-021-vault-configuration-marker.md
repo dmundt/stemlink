@@ -10,7 +10,7 @@ status: Accepted
 
 ## Context
 
-Folder names such as `fleeting`, `stable`, `inbox`, and `notes` do not reliably identify a Zettelkasten or its purpose. Workspace settings alone do not travel with a vault. A workspace-level registry would need updates when vaults move and would tie recognition to one workspace.
+Folder names such as `fleeting`, `stable`, `inbox`, and `notes` do not reliably identify a Stemlink vault or its purpose. Workspace settings alone do not travel with a vault. A workspace-level registry would need updates when vaults move and would tie recognition to one workspace.
 
 We need an explicit, portable declaration of the vault root and its two note directories without adding a database or changing Markdown files.
 

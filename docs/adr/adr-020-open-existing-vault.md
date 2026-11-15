@@ -6,7 +6,7 @@ status: Accepted
 
 ## Context
 
-Automatic discovery covers workspace roots and immediate children. Users also need to open other folders or mark an existing Zettelkasten without recreating its contents.
+Automatic discovery covers workspace roots and immediate children. Users also need to open other folders or mark an existing Stemlink vault without recreating its contents.
 
 ## Decision
 

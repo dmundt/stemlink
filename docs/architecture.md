@@ -11,7 +11,7 @@ Stemlink is a VS Code extension for plain Markdown vaults. It uses native views,
 | [discovery.ts](../src/discovery.ts)                 | Marker parsing, workspace discovery, and marker/settings conflict selection.                           |
 | [vault.ts](../src/vault.ts)                         | Configured paths, in-memory note and backlink indexes, filesystem and document updates.                |
 | [tree.ts](../src/tree.ts)                           | Shared tree model and native Vaults, Fleeting, Notes, and References views.                            |
-| [router.ts](../src/router.ts)                       | Optional generated `INDEX.md` sections and count refreshes.                                            |
+| [router.ts](../src/router.ts)                       | Optional generated `INDEX.md` routing, file descriptions, and serialized refreshes.                    |
 | [agentInstructions.ts](../src/agentInstructions.ts) | Consent-based installation of missing vault `AGENTS.md` files.                                         |
 
 ## Data flow

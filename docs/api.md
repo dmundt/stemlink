@@ -10,7 +10,7 @@ The [manifest](../package.json) contributes these user-facing commands:
 | `stemlink.addNote`         | Create a permanent note from entered title and tags.                    |
 | `stemlink.promote`         | Create a note from a selected inbox capture.                            |
 | `stemlink.checkReferences` | Refresh the selected vault and report findings in Problems.             |
-| `stemlink.refresh`         | Refresh the selected vault index and tree.                              |
+| `stemlink.refresh`         | Refresh the selected vault index, tree, and enabled generated routers.  |
 
 `stemlink.selectVault` and `stemlink.openAt` are internal tree commands. Command failures are reported through native error notifications. Cancellation of a prompt stops its operation.
 

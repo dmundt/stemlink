@@ -6,7 +6,7 @@ status: Accepted
 
 ## Context
 
-Stemlink supports a plain-file Zettelkasten, not a feature-heavy note platform.
+Stemlink supports plain-Markdown vaults, not a feature-heavy note platform.
 
 ## Decision
 
