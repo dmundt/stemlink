@@ -32,6 +32,8 @@ Settings are resource-scoped and apply to the workspace folder containing each v
 | `stemlink.enableRouterIndexes` | `true` | Create routers on explicit Create/Open and refresh their generated counts after observed Markdown changes. Disabled leaves existing `INDEX.md` files untouched. |
 | `stemlink.offerAgentInstructions` | `true` | Ask before adding missing vault `AGENTS.md` files during Create/Open. Disabled skips prompts and installation. |
 
+To share user-level Stemlink settings across devices, enable [VS Code Settings Sync](https://code.visualstudio.com/docs/configure/settings-sync) on each device, sign in, and include **Settings**. Excluded settings do not sync. Workspace and workspace-folder overrides, including paths saved by Create Vault, do not sync through Settings Sync. Vault files and workspace selection are not synced by Stemlink.
+
 Configure all four names in VS Code settings, for example:
 
 ```json
