@@ -1,6 +1,6 @@
 ---
 title: Note filenames stay frozen after creation
-tags: [zettelkasten, conventions]
+tags: [stemlink-vault, conventions]
 ---
 
 A note is named once, at creation, and never renamed. Every link points

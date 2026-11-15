@@ -1,8 +1,10 @@
 ---
-status: Accepted
+status: Accepted; superseded in part by ADR 034
 ---
 
 # ADR 017: Build and publication
+
+[ADR 034](adr-034-quality-and-publication-alignment.md) updates the quality checks and release-job ordering.
 
 ## Context
 

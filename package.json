@@ -1,7 +1,7 @@
 {
   "name": "stemlink",
   "displayName": "Stemlink",
-  "description": "Plain Markdown Zettelkasten navigation and note management.",
+  "description": "Plain Markdown vault navigation and note management for Stemlink.",
   "version": "0.1.0",
   "publisher": "dmundt",
   "license": "MIT",
@@ -16,33 +16,67 @@
   "activationEvents": [
     "onStartupFinished",
     "onLanguage:markdown",
-    "onView:stemlink.vault"
+    "onView:stemlink.vaults",
+    "onView:stemlink.fleeting",
+    "onView:stemlink.notes",
+    "onView:stemlink.references"
   ],
   "main": "./dist/extension.js",
   "contributes": {
-    "configuration": {
-      "title": "Stemlink",
-      "properties": {
-        "stemlink.root": {
-          "type": "string",
-          "default": "zk",
-          "scope": "resource",
-          "description": "Workspace-relative Zettelkasten root."
-        },
-        "stemlink.inbox": {
-          "type": "string",
-          "default": "inbox",
-          "scope": "resource",
-          "description": "Inbox folder name inside the Zettelkasten root."
-        },
-        "stemlink.notes": {
-          "type": "string",
-          "default": "notes",
-          "scope": "resource",
-          "description": "Permanent notes folder name inside the Zettelkasten root."
+    "configuration": [
+      {
+        "title": "Vault Folders",
+        "properties": {
+          "stemlink.root": {
+            "type": "string",
+            "default": "notes",
+            "scope": "resource",
+            "description": "Workspace-relative vault root."
+          },
+          "stemlink.inbox": {
+            "type": "string",
+            "default": "inbox",
+            "scope": "resource",
+            "description": "Inbox folder name inside the vault root."
+          },
+          "stemlink.notes": {
+            "type": "string",
+            "default": "permanent",
+            "scope": "resource",
+            "description": "Permanent notes folder name inside the vault root."
+          },
+          "stemlink.templates": {
+            "type": "string",
+            "default": "templates",
+            "scope": "resource",
+            "description": "Editable templates folder name inside the vault root."
+          }
+        }
+      },
+      {
+        "title": "Features",
+        "properties": {
+          "stemlink.showCounts": {
+            "type": "boolean",
+            "default": true,
+            "scope": "resource",
+            "description": "Show counts in vault, note, capture, and reference views. Errors remain visible."
+          },
+          "stemlink.enableRouterIndexes": {
+            "type": "boolean",
+            "default": true,
+            "scope": "resource",
+            "description": "Create INDEX.md routers when a vault is created or opened, and refresh generated counts and file descriptions on discovery and observed Markdown edits or filesystem changes. Existing files are left untouched when disabled."
+          },
+          "stemlink.offerAgentInstructions": {
+            "type": "boolean",
+            "default": true,
+            "scope": "resource",
+            "description": "Ask before adding missing AGENTS.md files during Create Vault or Open Vault. Existing files are never overwritten."
+          }
         }
       }
-    },
+    ],
     "commands": [
       {
         "command": "stemlink.openVault",
@@ -52,7 +86,7 @@
       },
       {
         "command": "stemlink.createVault",
-        "title": "Create Zettelkasten",
+        "title": "Create Vault",
         "category": "Stemlink",
         "icon": "$(new-folder)"
       },
@@ -60,7 +94,7 @@
         "command": "stemlink.addFleetingNote",
         "title": "Add Fleeting Note",
         "category": "Stemlink",
-        "icon": "$(new-file)"
+        "icon": "$(add)"
       },
       {
         "command": "stemlink.addNote",
@@ -84,6 +118,12 @@
         "title": "Refresh",
         "category": "Stemlink",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "stemlink.openSettings",
+        "title": "Settings",
+        "category": "Stemlink",
+        "icon": "$(gear)"
       }
     ],
     "viewsContainers": {
@@ -98,43 +138,61 @@
     "views": {
       "stemlink": [
         {
-          "id": "stemlink.vault",
-          "name": "Stemlink"
+          "id": "stemlink.vaults",
+          "name": "Vaults",
+          "initialSize": 100
+        },
+        {
+          "id": "stemlink.fleeting",
+          "name": "Fleeting"
+        },
+        {
+          "id": "stemlink.notes",
+          "name": "Notes"
+        },
+        {
+          "id": "stemlink.references",
+          "name": "References"
         }
       ]
     },
     "menus": {
       "view/title": [
         {
-          "command": "stemlink.openVault",
-          "when": "view == stemlink.vault",
-          "group": "navigation"
+          "command": "stemlink.createVault",
+          "when": "view == stemlink.vaults",
+          "group": "navigation@1"
         },
         {
-          "command": "stemlink.createVault",
-          "when": "view == stemlink.vault",
+          "command": "stemlink.openVault",
+          "when": "view == stemlink.vaults",
+          "group": "navigation@2"
+        },
+        {
+          "command": "stemlink.addFleetingNote",
+          "when": "view == stemlink.fleeting",
           "group": "navigation"
         },
         {
           "command": "stemlink.addNote",
-          "when": "view == stemlink.vault",
+          "when": "view == stemlink.notes",
           "group": "navigation"
         },
         {
           "command": "stemlink.refresh",
-          "when": "view == stemlink.vault",
-          "group": "navigation"
+          "when": "view == stemlink.vaults",
+          "group": "navigation@3"
+        },
+        {
+          "command": "stemlink.openSettings",
+          "when": "view == stemlink.vaults",
+          "group": "navigation@4"
         }
       ],
       "view/item/context": [
         {
-          "command": "stemlink.addFleetingNote",
-          "when": "view == stemlink.vault && viewItem == stemlink.inbox",
-          "group": "inline"
-        },
-        {
           "command": "stemlink.promote",
-          "when": "view == stemlink.vault && viewItem == stemlink.capture",
+          "when": "view == stemlink.fleeting && viewItem == stemlink.capture",
           "group": "inline"
         }
       ]
@@ -142,6 +200,9 @@
   },
   "scripts": {
     "compile": "tsc -p .",
+    "lint": "eslint . --max-warnings=0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test": "npm run compile && node --test dist/test/*.test.js",
     "test:integration": "npm run compile && node dist/test/runIntegration.js",
     "test:multi-root": "npm run compile && node dist/test/runMultiRoot.js",
@@ -157,10 +218,22 @@
     "yaml": "^2.8.1"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.0",
     "@types/node": "^22.0.0",
     "@types/vscode": "^1.90.0",
     "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^4.1.1",
+    "eslint": "^10.0.0",
+    "prettier": "^3.5.0",
+    "typescript-eslint": "^8.0.0",
     "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "@vscode/vsce": {
+      "minimatch": "^11.0.5"
+    },
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^11.0.5"
+    }
   }
 }
