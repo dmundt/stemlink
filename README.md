@@ -16,6 +16,18 @@ Vault creation includes a manual and editable templates. Existing files are pres
 
 Create Zettelkasten and Open Vault ask before adding missing vault `AGENTS.md` instructions. Existing files are preserved.
 
+## Extension settings
+
+Settings are resource-scoped and apply to the workspace folder containing each vault. Defaults:
+
+| Setting | Default | Purpose |
+|---|---:|---|
+| `stemlink.root` | `zk` | Workspace-relative vault root for settings-based discovery. |
+| `stemlink.inbox` | `inbox` | Capture folder name inside the vault. |
+| `stemlink.notes` | `notes` | Permanent-note folder name inside the vault. |
+| `stemlink.enableRouterIndexes` | `true` | Create routers on explicit Create/Open and refresh their generated counts after observed Markdown changes. Disabled leaves existing `INDEX.md` files untouched. |
+| `stemlink.offerAgentInstructions` | `true` | Ask before adding missing vault `AGENTS.md` files during Create/Open. Disabled skips prompts and installation. |
+
 Existing vaults can be recognized by a `.stemlink.json` file in the workspace root or an immediate child folder:
 
 ```json

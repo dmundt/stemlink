@@ -43,8 +43,19 @@
           "default": "notes",
           "scope": "resource",
           "description": "Permanent notes folder name inside the Zettelkasten root."
+        },
+        "stemlink.enableRouterIndexes": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Create INDEX.md routers when a vault is created or opened, and refresh generated counts after observed Markdown changes. Existing files are left untouched when disabled."
+        },
+        "stemlink.offerAgentInstructions": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Ask before adding missing AGENTS.md files during Create Zettelkasten or Open Vault. Existing files are never overwritten."
         }
-
       }
     },
     "commands": [
