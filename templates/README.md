@@ -35,7 +35,7 @@ Stemlink defaults distinguish the collection from its capture and permanent-note
 
 These are folder names, not note IDs. Stemlink's permanent-note filenames still use timestamps and remain stable after creation; folder names do not provide note identity. Choose folder names during **Create Vault**, use **Open Vault**, or configure paths for an existing vault. Stemlink does not infer alternative layouts from their names.
 
-Set `stemlink.showCounts` to `false` to hide sidebar and reference-group counts. It defaults to `true`; errors remain visible.
+Set `stemlink.showCounts` to `false` to hide sidebar and reference-group counts. It defaults to `true`; errors remain visible. The Activity Bar badge still shows the number of discovered vaults when there is at least one.
 
 VS Code Settings Sync can share user-level Stemlink settings between devices when enabled with **Settings** selected. Workspace and workspace-folder overrides, vault files, and the selected vault are not synced by Stemlink.
 

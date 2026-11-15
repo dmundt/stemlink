@@ -23,6 +23,7 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [031: Native vault selection](adr-031-native-vault-selection.md) — persistent row selection without checkmarks or Selected text, restoring the last available vault or selecting the first.
 - [032: Vault UI terminology](adr-032-vault-ui-terminology.md) — consistent Vault and Notes labels without changing command identifiers.
 - [033: Configurable count display](adr-033-configurable-count-display.md) — optional sidebar counts, shown by default.
+- [035: Vault count badge](adr-035-vault-count-badge.md) — native Activity Bar badge for discovered vaults.
 
 ## Creating and processing notes
 

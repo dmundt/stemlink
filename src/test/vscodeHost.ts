@@ -494,6 +494,10 @@ async function testMultiRoot(views: Map<string, vscode.TreeView<Item>>): Promise
     });
     await vscode.commands.executeCommand("stemlink.createVault");
     assert.equal(answers.length, 0);
+    await waitFor(
+      () => views.get("stemlink.vaults")?.badge?.value === 2,
+      "badge did not count both workspace vaults",
+    );
     const notes = vscode.Uri.joinPath(folders[1].uri, "second-vault", "permanent");
     const secondRootInstructions = vscode.Uri.joinPath(folders[1].uri, "second-vault", "AGENTS.md");
     assert.ok((await vscode.workspace.fs.stat(notes)).type & vscode.FileType.Directory);
@@ -519,6 +523,11 @@ async function testMultiRoot(views: Map<string, vscode.TreeView<Item>>): Promise
       await waitFor(
         () => views.get("stemlink.vaults")?.title === "Vaults",
         "second vault did not use its folder-scoped count setting",
+      );
+      assert.equal(
+        views.get("stemlink.vaults")?.badge?.value,
+        2,
+        "hiding counts also hid the vault badge",
       );
       await vscode.commands.executeCommand(
         "stemlink.selectVault",
@@ -586,6 +595,10 @@ async function testMultiRoot(views: Map<string, vscode.TreeView<Item>>): Promise
     assert.ok(
       vscode.workspace.workspaceFolders?.some((candidate) => sameUri(candidate.uri, external)),
       "external vault was not added to the workspace",
+    );
+    await waitFor(
+      () => views.get("stemlink.vaults")?.badge?.value === 3,
+      "badge did not include the opened vault",
     );
     await vscode.commands.executeCommand("stemlink.addFleetingNote");
     const externalInboxIndex = vscode.Uri.joinPath(external, "inbox", routerIndexName);
@@ -1793,6 +1806,11 @@ async function testNativeVaultSelection(
 ): Promise<void> {
   const firstRoot = vscode.Uri.joinPath(folder.uri, "existing-vault");
   const secondRoot = vscode.Uri.joinPath(folder.uri, "other-vault");
+  assert.deepEqual(
+    view.badge,
+    { value: 2, tooltip: "2 vaults" },
+    "initial vault badge was incorrect",
+  );
   await vscode.commands.executeCommand("stemlink.vaults.focus");
   await waitFor(
     () => view.selection[0]?.vault?.paths.root.toString() === firstRoot.toString(),
@@ -1836,8 +1854,26 @@ async function testNativeVaultSelection(
     () => view.selection[0]?.vault?.paths.root.toString() === firstRoot.toString(),
     "removing selected vault did not auto-select the remaining vault",
   );
-  await vscode.workspace.fs.writeFile(marker, bytes);
+  await waitFor(() => view.badge?.value === 1, "vault badge did not decrease after removal");
+  assert.equal(view.badge?.tooltip, "1 vault");
+  const firstMarker = vscode.Uri.joinPath(firstRoot, ".stemlink.json");
+  const firstBytes = await vscode.workspace.fs.readFile(firstMarker);
+  try {
+    await vscode.workspace.fs.delete(firstMarker);
+    await waitFor(
+      () => view.badge === undefined,
+      "vault badge remained after all vaults were removed",
+    );
+  } finally {
+    await vscode.workspace.fs.writeFile(firstMarker, firstBytes);
+    await vscode.workspace.fs.writeFile(marker, bytes);
+  }
+  await waitFor(() => view.badge?.value === 2, "vault badge did not update after rediscovery");
   await waitFor(() => view.title === "Vaults (2)", "restored vault was not rediscovered");
+  await waitFor(
+    () => view.selection[0]?.vault?.paths.root.toString() === firstRoot.toString(),
+    "rediscovered vault was not selected",
+  );
   assert.equal(
     view.selection[0]?.vault?.paths.root.toString(),
     firstRoot.toString(),
