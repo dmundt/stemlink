@@ -35,6 +35,8 @@ Stemlink defaults distinguish the collection from its capture and permanent-note
 
 These are folder names, not note IDs. Stemlink's permanent-note filenames still use timestamps and remain stable after creation; folder names do not provide note identity. Choose folder names during **Create Vault**, use **Open Vault**, or configure paths for an existing vault. Stemlink does not infer alternative layouts from their names.
 
+Set `stemlink.showCounts` to `false` to hide sidebar and reference-group counts. It defaults to `true`; errors remain visible.
+
 All four names can be set in VS Code settings:
 
 ```json
