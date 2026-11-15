@@ -14,14 +14,11 @@ export class Item extends vscode.TreeItem {
   ) {
     super(
       label,
-      kind === "Vaults" ||
-        kind === "Fleeting" ||
-        kind === "Notes" ||
-        kind === "References" ||
-        kind === "Inbound" ||
-        kind === "Outbound"
-        ? vscode.TreeItemCollapsibleState.Collapsed
-        : vscode.TreeItemCollapsibleState.None,
+      kind === "Inbound" || kind === "Outbound"
+        ? vscode.TreeItemCollapsibleState.Expanded
+        : kind === "Vaults" || kind === "Fleeting" || kind === "Notes" || kind === "References"
+          ? vscode.TreeItemCollapsibleState.Collapsed
+          : vscode.TreeItemCollapsibleState.None,
     );
     if (
       kind === "Vaults" ||
@@ -41,6 +38,7 @@ export class Item extends vscode.TreeItem {
     if (kind === "Outbound") this.tooltip = "References from the active note.";
     if (kind === "capture") this.contextValue = "stemlink.capture";
     if (kind === "vault" && vault) {
+      this.iconPath = new vscode.ThemeIcon("archive");
       this.id = `stemlink.vault:${vault.paths.root.toString()}`;
       this.command = {
         command: "stemlink.selectVault",
@@ -249,8 +247,24 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
         }
         return [
           new Item(label("Vaults", this.vaults().length), "Vaults"),
-          new Item(label("Fleeting", fleeting), "Fleeting"),
-          new Item(label("Notes", notes), "Notes"),
+          new Item(
+            label(
+              vault
+                ? vault.paths.inbox.path.slice(vault.paths.inbox.path.lastIndexOf("/") + 1)
+                : "Fleeting",
+              fleeting,
+            ),
+            "Fleeting",
+          ),
+          new Item(
+            label(
+              vault
+                ? vault.paths.notes.path.slice(vault.paths.notes.path.lastIndexOf("/") + 1)
+                : "Notes",
+              notes,
+            ),
+            "Notes",
+          ),
           new Item(label("References", references), "References"),
         ];
       }
