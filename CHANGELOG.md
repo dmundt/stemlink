@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Separate Vaults, Fleeting, Notes, and References into native views with workbench dividers.
+
 - Write tags as single-line YAML lists when creating or promoting notes, including long tag lists.
 
 - Document configurable vault folder naming schemes and clarify that permanent-note identity comes from timestamped filenames.

@@ -16,7 +16,10 @@
   "activationEvents": [
     "onStartupFinished",
     "onLanguage:markdown",
-    "onView:stemlink.vault"
+    "onView:stemlink.vaults",
+    "onView:stemlink.fleeting",
+    "onView:stemlink.notes",
+    "onView:stemlink.references"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -41,6 +44,7 @@
           "scope": "resource",
           "description": "Permanent notes folder name inside the Zettelkasten root."
         }
+
       }
     },
     "commands": [
@@ -98,8 +102,20 @@
     "views": {
       "stemlink": [
         {
-          "id": "stemlink.vault",
-          "name": "Stemlink"
+          "id": "stemlink.vaults",
+          "name": "Vaults"
+        },
+        {
+          "id": "stemlink.fleeting",
+          "name": "Fleeting"
+        },
+        {
+          "id": "stemlink.notes",
+          "name": "Notes"
+        },
+        {
+          "id": "stemlink.references",
+          "name": "References"
         }
       ]
     },
@@ -107,34 +123,34 @@
       "view/title": [
         {
           "command": "stemlink.openVault",
-          "when": "view == stemlink.vault",
+          "when": "view == stemlink.vaults",
           "group": "navigation"
         },
         {
           "command": "stemlink.createVault",
-          "when": "view == stemlink.vault",
+          "when": "view == stemlink.vaults",
+          "group": "navigation"
+        },
+        {
+          "command": "stemlink.addFleetingNote",
+          "when": "view == stemlink.fleeting",
           "group": "navigation"
         },
         {
           "command": "stemlink.addNote",
-          "when": "view == stemlink.vault",
+          "when": "view == stemlink.notes",
           "group": "navigation"
         },
         {
           "command": "stemlink.refresh",
-          "when": "view == stemlink.vault",
+          "when": "view == stemlink.vaults",
           "group": "navigation"
         }
       ],
       "view/item/context": [
         {
-          "command": "stemlink.addFleetingNote",
-          "when": "view == stemlink.vault && viewItem == stemlink.inbox",
-          "group": "inline"
-        },
-        {
           "command": "stemlink.promote",
-          "when": "view == stemlink.vault && viewItem == stemlink.capture",
+          "when": "view == stemlink.fleeting && viewItem == stemlink.capture",
           "group": "inline"
         }
       ]
