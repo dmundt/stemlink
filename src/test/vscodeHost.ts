@@ -3,9 +3,11 @@ import { performance } from "node:perf_hooks";
 import * as os from "node:os";
 import * as vscode from "vscode";
 import { discoverVaults, readVaultMarker, resolveVaultPaths } from "../discovery";
-import { isVaultInstructionFile, renderRouterIndexes, renderVaultReadme, routerIndexName } from "../core";
+import { isVaultInstructionFile, renderRouterIndexes, renderVaultReadme, routerIndexName, routerIndexStart } from "../core";
 import { Vault, directChild, pathsFor, sameUri, validFolderName } from "../vault";
 import { Item, VaultTree, VaultTreeSection } from "../tree";
+import { VaultRouterIndexes } from "../router";
+import { VaultAgentInstructions } from "../agentInstructions";
 
 async function waitFor(condition: () => boolean, message: string): Promise<void> {
   const deadline = Date.now() + 5000;
@@ -157,6 +159,193 @@ async function testVirtualVault(): Promise<void> {
     vault.dispose();
     registration.dispose();
     changes.dispose();
+  }
+}
+
+async function testMockVaultFiles(extensionUri: vscode.Uri): Promise<void> {
+  const root = vscode.Uri.parse("stemlink-mock:/vault");
+  const inbox = vscode.Uri.joinPath(root, "capture");
+  const notes = vscode.Uri.joinPath(root, "permanent");
+  const templates = vscode.Uri.joinPath(root, "examples");
+  const paths = { root, inbox, notes, templates };
+  const generated = renderRouterIndexes("vault", "capture", "permanent", 0, 0, "examples");
+  const files = new Map<string, string>([
+    ["/vault/INDEX.md", "User-owned index\n"],
+    ["/vault/capture/INDEX.md", generated.inbox],
+    ["/vault/permanent/INDEX.md", generated.notes],
+    ["/vault/capture/capture.md", "Capture\n"],
+    ["/vault/permanent/202601011200-note.md", "Note\n"],
+  ]);
+  const directories = new Set(["/vault", "/vault/capture", "/vault/permanent", "/vault/examples"]);
+  let deniedReadDirectory: string | undefined;
+  let deniedReadFile: string | undefined;
+  let deniedWriteFile: string | undefined;
+  const changes = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
+  const provider: vscode.FileSystemProvider = {
+    onDidChangeFile: changes.event,
+    watch: () => new vscode.Disposable(() => {}),
+    stat: uri => {
+      if (directories.has(uri.path)) return { type: vscode.FileType.Directory, ctime: 0, mtime: 0, size: 0 };
+      const text = files.get(uri.path);
+      if (text === undefined) throw vscode.FileSystemError.FileNotFound(uri);
+      return { type: vscode.FileType.File, ctime: 0, mtime: 0, size: Buffer.byteLength(text) };
+    },
+    readDirectory: uri => {
+      if (uri.path === deniedReadDirectory) throw vscode.FileSystemError.NoPermissions("Injected directory failure");
+      if (!directories.has(uri.path)) throw vscode.FileSystemError.FileNotFound(uri);
+      const prefix = `${uri.path}/`;
+      return [...files.keys()].filter(name => name.startsWith(prefix) && !name.slice(prefix.length).includes("/"))
+        .map(name => [name.slice(prefix.length), vscode.FileType.File]);
+    },
+    readFile: uri => {
+      if (uri.path === deniedReadFile) throw vscode.FileSystemError.NoPermissions("Injected read failure");
+      const text = files.get(uri.path);
+      if (text === undefined) throw vscode.FileSystemError.FileNotFound(uri);
+      return Buffer.from(text);
+    },
+    writeFile: (uri, content) => {
+      if (uri.path === deniedWriteFile) throw vscode.FileSystemError.NoPermissions("Injected write failure");
+      files.set(uri.path, Buffer.from(content).toString("utf8"));
+    },
+    createDirectory: () => { throw vscode.FileSystemError.NoPermissions(); },
+    delete: () => { throw vscode.FileSystemError.NoPermissions(); },
+    rename: () => { throw vscode.FileSystemError.NoPermissions(); },
+  };
+  const registration = vscode.workspace.registerFileSystemProvider("stemlink-mock", provider);
+  const router = new VaultRouterIndexes();
+  const instructions = new VaultAgentInstructions(extensionUri);
+  const windowApi = vscode.window as { showWarningMessage: typeof vscode.window.showWarningMessage };
+  const originalWarning = windowApi.showWarningMessage;
+  let prompts = 0;
+  windowApi.showWarningMessage = new Proxy(originalWarning, {
+    apply: () => { prompts++; return Promise.resolve("Skip"); },
+  });
+  try {
+    assert.equal(await readVaultMarker(root), undefined);
+    files.set("/vault/.stemlink.json", "{");
+    await assert.rejects(() => readVaultMarker(root), /Invalid .*\.stemlink\.json/);
+    deniedReadFile = "/vault/.stemlink.json";
+    await assert.rejects(() => readVaultMarker(root), /Injected read failure/);
+    deniedReadFile = undefined;
+
+    assert.deepEqual(await router.initialize(paths), ["INDEX.md"]);
+    assert.equal(files.get("/vault/INDEX.md"), "User-owned index\n");
+    assert.match(files.get("/vault/capture/INDEX.md") ?? "", /Markdown captures: 1/);
+    assert.match(files.get("/vault/permanent/INDEX.md") ?? "", /Markdown files: 1/);
+    deniedReadDirectory = inbox.path;
+    await assert.rejects(() => router.initialize(paths), /Injected directory failure/);
+    deniedReadDirectory = undefined;
+    files.set("/vault/capture/INDEX.md", `${routerIndexStart}\nUnclosed`);
+    await assert.rejects(() => router.initialize(paths), /Malformed/);
+    assert.equal(files.get("/vault/capture/INDEX.md"), `${routerIndexStart}\nUnclosed`);
+    files.set("/vault/capture/INDEX.md", generated.inbox);
+    deniedWriteFile = "/vault/capture/INDEX.md";
+    await assert.rejects(() => router.initialize(paths), /Injected write failure/);
+    assert.equal(files.get("/vault/capture/INDEX.md"), generated.inbox);
+    deniedWriteFile = undefined;
+
+    await instructions.offer(paths);
+    assert.equal(prompts, 1, "missing instructions did not prompt");
+    assert.ok(![...files.keys()].some(name => name.endsWith("/AGENTS.md")), "skip created instructions");
+    for (const directory of [root, inbox, notes]) files.set(`${directory.path}/AGENTS.md`, "Existing instructions\n");
+    await instructions.offer(paths);
+    assert.equal(prompts, 1, "existing instructions prompted again");
+    for (const directory of [root, inbox, notes]) {
+      assert.equal(files.get(`${directory.path}/AGENTS.md`), "Existing instructions\n");
+    }
+  } finally {
+    windowApi.showWarningMessage = originalWarning;
+    router.dispose();
+    registration.dispose();
+    changes.dispose();
+  }
+}
+
+async function testCommandFailures(
+  root: vscode.Uri, inbox: vscode.Uri, notes: vscode.Uri, answers: (string | undefined)[],
+): Promise<void> {
+  const windowApi = vscode.window as { showErrorMessage: typeof vscode.window.showErrorMessage };
+  const workspaceApi = vscode.workspace as { applyEdit: typeof vscode.workspace.applyEdit };
+  const fs = vscode.workspace.fs;
+  const originalError = windowApi.showErrorMessage;
+  const originalApplyEdit = workspaceApi.applyEdit;
+  const errors: string[] = [];
+  windowApi.showErrorMessage = new Proxy(originalError, {
+    apply: (_target, _thisArg, args: unknown[]) => {
+      errors.push(String(args[0]));
+      return Promise.resolve(undefined);
+    },
+  });
+  const readNotes = async () => (await fs.readDirectory(notes))
+    .filter(([name]) => !name.startsWith("_") && !isVaultInstructionFile(name))
+    .map(([name]) => name).sort();
+  const assertError = async (command: string, message: string, ...args: unknown[]) => {
+    const before = errors.length;
+    await vscode.commands.executeCommand(command, ...args);
+    assert.ok(errors.slice(before).some(error => error.includes(message)),
+      `${command} did not report ${message}: ${errors.slice(before).join("; ")}`);
+  };
+  try {
+    const initialNotes = await readNotes();
+    answers.push("Cancelled note", undefined);
+    await vscode.commands.executeCommand("stemlink.addNote");
+    assert.deepEqual(await readNotes(), initialNotes, "cancelling tags created a note");
+
+    workspaceApi.applyEdit = async () => false;
+    try {
+      answers.push("Rejected edit", "one");
+      await assertError("stemlink.addNote", "Could not create the note");
+      const capturesBefore = (await fs.readDirectory(inbox)).map(([name]) => name).sort();
+      await assertError("stemlink.addFleetingNote", "Could not create the note");
+      assert.deepEqual((await fs.readDirectory(inbox)).map(([name]) => name).sort(), capturesBefore,
+        "rejected edit created a capture");
+    } finally {
+      workspaceApi.applyEdit = originalApplyEdit;
+    }
+    assert.deepEqual(await readNotes(), initialNotes, "rejected edit created a note");
+
+    const invalidCapture = vscode.Uri.joinPath(inbox, "mock-invalid-capture.md");
+    const invalidText = "---\ntitle: [\n---\nCapture body\n";
+    await fs.writeFile(invalidCapture, Buffer.from(invalidText));
+    try {
+      answers.push("Invalid capture", "");
+      await assertError("stemlink.promote", "invalid YAML", { uri: invalidCapture });
+      assert.equal(Buffer.from(await fs.readFile(invalidCapture)).toString("utf8"), invalidText);
+      assert.deepEqual(await readNotes(), initialNotes, "invalid capture created a note");
+    } finally {
+      await fs.delete(invalidCapture);
+    }
+
+    const capture = vscode.Uri.joinPath(inbox, "mock-failure-capture.md");
+    const captureText = "Capture retained after rejected edit\n";
+    await fs.writeFile(capture, Buffer.from(captureText));
+    try {
+      answers.push("Cancelled promotion", undefined);
+      await vscode.commands.executeCommand("stemlink.promote", { uri: capture });
+      assert.equal(Buffer.from(await fs.readFile(capture)).toString("utf8"), captureText);
+      assert.deepEqual(await readNotes(), initialNotes, "cancelled promotion created a note");
+
+      workspaceApi.applyEdit = async () => false;
+      try {
+        answers.push("Retained capture", "one, two");
+        await assertError("stemlink.promote", "Could not create the note", { uri: capture });
+      } finally {
+        workspaceApi.applyEdit = originalApplyEdit;
+      }
+      assert.equal(Buffer.from(await fs.readFile(capture)).toString("utf8"), captureText,
+        "rejected promotion lost the capture");
+      assert.deepEqual(await readNotes(), initialNotes, "rejected promotion created a note");
+    } finally {
+      await fs.delete(capture);
+    }
+
+    await assertError("stemlink.selectVault", "selected vault is no longer available",
+      vscode.Uri.joinPath(root, "nonexistent"));
+    await assertError("stemlink.openAt", "missing.md", vscode.Uri.joinPath(root, "missing.md"));
+    assert.equal(answers.length, 0, "command left unused prompt answers");
+  } finally {
+    windowApi.showErrorMessage = originalError;
+    workspaceApi.applyEdit = originalApplyEdit;
   }
 }
 
@@ -1132,6 +1321,7 @@ export async function run(): Promise<void> {
   const second = vscode.Uri.joinPath(notes, "202601011200-note-1.md");
   if (process.env.STEMLINK_BENCHMARK !== "1") {
     await testVirtualVault();
+    await testMockVaultFiles(extension.extensionUri);
     for (const name of ["", ".", "..", " note", "note ", "note.", "a/b", "a\\b", "a:b", "a?b"]) {
       assert.equal(validFolderName(name), false, `accepted invalid folder name ${JSON.stringify(name)}`);
     }
@@ -1594,6 +1784,8 @@ export async function run(): Promise<void> {
       } finally {
         validationApi.showErrorMessage = originalValidationError;
       }
+
+      await testCommandFailures(vaultRoot, inbox, permanent, answers);
 
       answers.push("A: title", "alpha, beta");
       await vscode.commands.executeCommand("stemlink.addNote");
