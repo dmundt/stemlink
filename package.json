@@ -1,0 +1,150 @@
+{
+  "name": "stemlink",
+  "displayName": "Stemlink",
+  "description": "Plain Markdown Zettelkasten navigation and note management.",
+  "version": "0.1.0",
+  "publisher": "dmundt",
+  "icon": "media/icon.png",
+  "private": true,
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:markdown",
+    "onView:stemlink.vault"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Stemlink",
+      "properties": {
+        "stemlink.root": {
+          "type": "string",
+          "default": "zk",
+          "scope": "resource",
+          "description": "Workspace-relative Zettelkasten root."
+        },
+        "stemlink.inbox": {
+          "type": "string",
+          "default": "inbox",
+          "scope": "resource",
+          "description": "Inbox folder name inside the Zettelkasten root."
+        },
+        "stemlink.notes": {
+          "type": "string",
+          "default": "notes",
+          "scope": "resource",
+          "description": "Permanent notes folder name inside the Zettelkasten root."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "stemlink.createVault",
+        "title": "Create Zettelkasten",
+        "category": "Stemlink",
+        "icon": "$(new-folder)"
+      },
+      {
+        "command": "stemlink.addFleetingNote",
+        "title": "Add Fleeting Note",
+        "category": "Stemlink",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "stemlink.addNote",
+        "title": "Add Note",
+        "category": "Stemlink",
+        "icon": "$(add)"
+      },
+      {
+        "command": "stemlink.promote",
+        "title": "Promote Capture to Note",
+        "category": "Stemlink",
+        "icon": "$(arrow-right)"
+      },
+      {
+        "command": "stemlink.checkReferences",
+        "title": "Check References",
+        "category": "Stemlink"
+      },
+      {
+        "command": "stemlink.refresh",
+        "title": "Refresh",
+        "category": "Stemlink",
+        "icon": "$(refresh)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "stemlink",
+          "title": "Stemlink",
+          "icon": "media/stemlink.svg"
+        }
+      ]
+    },
+    "views": {
+      "stemlink": [
+        {
+          "id": "stemlink.vault",
+          "name": "Stemlink"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "stemlink.createVault",
+          "when": "view == stemlink.vault",
+          "group": "navigation"
+        },
+        {
+          "command": "stemlink.addNote",
+          "when": "view == stemlink.vault",
+          "group": "navigation"
+        },
+        {
+          "command": "stemlink.refresh",
+          "when": "view == stemlink.vault",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "stemlink.addFleetingNote",
+          "when": "view == stemlink.vault && viewItem == stemlink.inbox",
+          "group": "inline"
+        },
+        {
+          "command": "stemlink.promote",
+          "when": "view == stemlink.vault && viewItem == stemlink.capture",
+          "group": "inline"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "test": "npm run compile && node --test dist/test/*.test.js",
+    "test:integration": "npm run compile && node dist/test/runIntegration.js",
+    "test:multi-root": "npm run compile && node dist/test/runMultiRoot.js",
+    "test:coverage": "npm run compile && node --experimental-test-coverage --test --test-concurrency=1 --test-coverage-include=dist/*.js dist/test/core.test.js dist/test/runIntegration.js dist/test/runMultiRoot.js",
+    "benchmark:integration": "npm run compile && node dist/test/runIntegration.js --benchmark",
+    "benchmark": "npm run compile && node dist/test/benchmark.js",
+    "vscode:prepublish": "npm run compile"
+  },
+  "dependencies": {
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.90.0",
+    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^4.1.1",
+    "typescript": "^5.9.3"
+  }
+}

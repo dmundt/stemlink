@@ -1,0 +1,10 @@
+src/**
+dist/test/**
+.vscode/**
+zk/**
+example/**
+node_modules/@types/**
+node_modules/typescript/**
+tsconfig.json
+*.tsbuildinfo
+.playwright-mcp/**
