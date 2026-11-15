@@ -27,7 +27,7 @@ export class Item extends vscode.TreeItem {
     if (kind === "capture") this.contextValue = "stemlink.capture";
     if (kind === "vault" && vault) {
       this.id = `stemlink.vault:${vault.paths.root.toString()}`;
-      this.command = { command: "stemlink.selectVault", title: "Select Zettelkasten", arguments: [vault.paths.root] };
+      this.command = { command: "stemlink.selectVault", title: "Select Vault", arguments: [vault.paths.root] };
     } else if (uri) {
       this.resourceUri = uri;
       this.command = { command: "stemlink.openAt", title: "Open", arguments: [uri, offset] };

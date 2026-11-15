@@ -30,25 +30,25 @@
           "type": "string",
           "default": "notes",
           "scope": "resource",
-          "description": "Workspace-relative Zettelkasten root."
+          "description": "Workspace-relative vault root."
         },
         "stemlink.inbox": {
           "type": "string",
           "default": "inbox",
           "scope": "resource",
-          "description": "Inbox folder name inside the Zettelkasten root."
+          "description": "Inbox folder name inside the vault root."
         },
         "stemlink.notes": {
           "type": "string",
           "default": "permanent",
           "scope": "resource",
-          "description": "Permanent notes folder name inside the Zettelkasten root."
+          "description": "Permanent notes folder name inside the vault root."
         },
         "stemlink.templates": {
           "type": "string",
           "default": "templates",
           "scope": "resource",
-          "description": "Editable templates folder name inside the Zettelkasten root."
+          "description": "Editable templates folder name inside the vault root."
         },
         "stemlink.enableRouterIndexes": {
           "type": "boolean",
@@ -60,7 +60,7 @@
           "type": "boolean",
           "default": true,
           "scope": "resource",
-          "description": "Ask before adding missing AGENTS.md files during Create Zettelkasten or Open Vault. Existing files are never overwritten."
+          "description": "Ask before adding missing AGENTS.md files during Create Vault or Open Vault. Existing files are never overwritten."
         }
       }
     },
@@ -73,7 +73,7 @@
       },
       {
         "command": "stemlink.createVault",
-        "title": "Create Zettelkasten",
+        "title": "Create Vault",
         "category": "Stemlink",
         "icon": "$(new-folder)"
       },

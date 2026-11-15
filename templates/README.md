@@ -33,7 +33,7 @@ Stemlink defaults distinguish the collection from its capture and permanent-note
 | Lifecycle labels | `vault/` | `inbox/` | `permanent/` | Names the raw-capture and permanent-note stages. |
 | Knowledge labels | `vault/` | `Inbox/` | `Knowledge/` | An alternative vocabulary for capture and durable knowledge. |
 
-These are folder names, not note IDs. Stemlink's permanent-note filenames still use timestamps and remain stable after creation; folder names do not provide note identity. Choose folder names during **Create Zettelkasten**, use **Open Vault**, or configure paths for an existing vault. Stemlink does not infer alternative layouts from their names.
+These are folder names, not note IDs. Stemlink's permanent-note filenames still use timestamps and remain stable after creation; folder names do not provide note identity. Choose folder names during **Create Vault**, use **Open Vault**, or configure paths for an existing vault. Stemlink does not infer alternative layouts from their names.
 
 All four names can be set in VS Code settings:
 
@@ -50,7 +50,7 @@ Creation prefills its root, capture, and permanent-note prompts from these setti
 
 ## 2. Setup
 
-Create `notes/` with `inbox/`, `permanent/`, and `templates/` inside it; put this manual in the root and open the folder in a text editor. Put the vault somewhere your normal backups cover. With Stemlink, **Create Zettelkasten** creates the folders and copies the bundled manual and editable examples. The copied manual starts with a summary of your chosen folder names.
+Create `notes/` with `inbox/`, `permanent/`, and `templates/` inside it; put this manual in the root and open the folder in a text editor. Put the vault somewhere your normal backups cover. With Stemlink, **Create Vault** creates the folders and copies the bundled manual and editable examples. The copied manual starts with a summary of your chosen folder names.
 
 Stemlink recognizes `.stemlink.json` in the workspace root or an immediate child folder. Its `inbox` and `notes` values are folder names relative to the file:
 
@@ -74,7 +74,7 @@ Existing user-authored `INDEX.md` files are preserved. Stemlink refreshes only i
 
 ### Agent instructions
 
-Create Zettelkasten and Open Vault ask before adding minimal `AGENTS.md` files at the vault root and in existing inbox and notes folders. Existing instruction files are preserved, and missing folders are not created.
+Create Vault and Open Vault ask before adding minimal `AGENTS.md` files at the vault root and in existing inbox and notes folders. Existing instruction files are preserved, and missing folders are not created.
 
 ## 3. Naming files
 
@@ -152,7 +152,7 @@ Search the files for a distinctive word, tag, or filename stem. Browse `permanen
 
 ## 10. Templates
 
-Stemlink copies these editable examples into the configured templates folder (`templates/` by default) during **Create Zettelkasten**. They are starting points, not enforced formats. Copy and rename a template before editing:
+Stemlink copies these editable examples into the configured templates folder (`templates/` by default) during **Create Vault**. They are starting points, not enforced formats. Copy and rename a template before editing:
 
 - `_template.md`: a complete permanent-note example.
 - `_fleeting.md`: a quick capture without front matter; its copy belongs in `inbox/`.

@@ -14,7 +14,7 @@ Remove the vault-row checkmark and `Selected` description. Keep workspace names 
 
 Restore the last available selected vault from workspace state. If there is no available selection, select the first listed vault, including when there is only one. Explicit Create/Open selects its target. If the selected vault disappears, select the first remaining vault. Persist the resulting selection.
 
-Native row selection and the Select Zettelkasten command both change the active vault. Editor changes, refreshes, and discovering additional vaults do not replace an available selection. Retain stable vault-row identities and synchronize the native selection after tree refreshes and when the view becomes visible, without moving focus or opening a hidden view.
+Native row selection and the Select Vault command both change the active vault. Editor changes, refreshes, and discovering additional vaults do not replace an available selection. Retain stable vault-row identities and synchronize the native selection after tree refreshes and when the view becomes visible, without moving focus or opening a hidden view.
 
 Keep the existing note-navigation behavior: links resolve against their note's vault without changing the selected vault. Marker/settings conflict cancellation still skips the conflicting vault.
 

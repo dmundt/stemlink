@@ -10,7 +10,7 @@ AI agents benefit from concise, scope-specific rules for the vault, unprocessed 
 
 ## Decision
 
-During Create Zettelkasten and Open Vault, ask whether to add minimal `AGENTS.md` files at the vault root, in the configured inbox, and in the configured notes folder. Ask only when at least one target file is missing. Create only missing files; preserve existing instructions. Do not create missing configured folders. Require Workspace Trust for writes.
+During Create Vault and Open Vault, ask whether to add minimal `AGENTS.md` files at the vault root, in the configured inbox, and in the configured notes folder. Ask only when at least one target file is missing. Create only missing files; preserve existing instructions. Do not create missing configured folders. Require Workspace Trust for writes.
 
 The root instructions cover plain Markdown, stable timestamped note filenames, links, and the authority of Stemlink's in-memory note/reference index over `INDEX.md` routers. Generated instructions include the chosen root, capture, and permanent-note folder names. Inbox instructions treat captures as unprocessed and prohibit promotion or rewriting without a request. Notes instructions cover stable filenames, flat storage, links, and templates.
 

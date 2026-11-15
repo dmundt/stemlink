@@ -14,7 +14,7 @@ Bundled templates currently appear beside permanent notes, where they look like 
 
 ## Decision
 
-During Create Zettelkasten, copy `_template.md`, `_fleeting.md`, and `_promotion.md` into a vault-level `templates/` folder, separate from the configured inbox and notes folders. Reserve `templates` as a folder name so the example folder cannot collide with either configured destination. Preserve existing files and report conflicts. Do not install or move templates when opening an existing vault.
+During Create Vault, copy `_template.md`, `_fleeting.md`, and `_promotion.md` into a vault-level `templates/` folder, separate from the configured inbox and notes folders. Reserve `templates` as a folder name so the example folder cannot collide with either configured destination. Preserve existing files and report conflicts. Do not install or move templates when opening an existing vault.
 
 Add Fleeting Note reads `templates/_fleeting.md` first. If that path is missing, it falls back to the legacy `notes/_fleeting.md`; if both are missing, report both expected paths. If the preferred template exists but cannot be read, report its error rather than hiding it with a fallback. Existing template files are never moved or deleted.
 

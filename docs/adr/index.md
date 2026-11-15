@@ -21,6 +21,7 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [029: Default vault layout](adr-029-default-vault-layout.md) — `notes/` containing `templates/`, `inbox/`, and `permanent/`; existing vault compatibility and configurable alternatives.
 - [030: Configurable folder settings](adr-030-configurable-folder-settings.md) — all four folder settings, configured creation defaults, and template mapping conflict resolution.
 - [031: Native vault selection](adr-031-native-vault-selection.md) — persistent row selection without checkmarks or Selected text, restoring the last available vault or selecting the first.
+- [032: Vault UI terminology](adr-032-vault-ui-terminology.md) — consistent Vault and Notes labels without changing command identifiers.
 
 ## Creating and processing notes
 
