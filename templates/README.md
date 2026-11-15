@@ -46,6 +46,10 @@ Stemlink adds `INDEX.md` at the vault root, inbox, and notes folders when creati
 
 Existing user-authored `INDEX.md` files are preserved. Stemlink refreshes only its marked generated section after observed file changes. Text outside that section is yours to edit.
 
+### Agent instructions
+
+Create Zettelkasten and Open Vault ask before adding minimal `AGENTS.md` files at the vault root and in existing inbox and notes folders. Existing instruction files are preserved, and missing folders are not created.
+
 ## 3. Naming files
 
 Use the local creation time and a short, lowercase, hyphenated slug:

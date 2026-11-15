@@ -14,6 +14,8 @@ Vault creation includes a manual and editable templates. Existing files are pres
 
 `INDEX.md` routers in the vault root and note folders provide navigation and live Markdown counts. Stemlink's in-memory note/reference index is authoritative; routers are not. Existing user indexes are preserved.
 
+Create Zettelkasten and Open Vault ask before adding missing vault `AGENTS.md` instructions. Existing files are preserved.
+
 Existing vaults can be recognized by a `.stemlink.json` file in the workspace root or an immediate child folder:
 
 ```json

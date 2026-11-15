@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Offer optional, scope-specific vault `AGENTS.md` instructions during creation and opening without overwriting existing files.
+
 - Add AI routing `INDEX.md` files to created and opened vaults with live counts and user-index preservation; routers are non-authoritative, while Stemlink's in-memory note/reference index is authoritative.
 
 - Separate Vaults, Fleeting, Notes, and References into native views with workbench dividers.
