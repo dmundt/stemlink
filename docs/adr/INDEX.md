@@ -12,7 +12,7 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [019: Multiple vaults](adr-019-multiple-vaults.md) — vault selection, counts, and background indexing.
 - [020: Open an existing vault](adr-020-open-existing-vault.md) — folder picker, confirmed marker creation, and workspace integration.
 - [021: Vault-local .stemlink.json](adr-021-vault-configuration-marker.md) — usage, format, rationale, alternatives, and compatibility.
-- [022: AI routing indexes](adr-022-ai-routing-indexes.md) — generated `INDEX.md` routers and observed state counts.
+- [022: AI routing indexes](adr-022-ai-routing-indexes.md) — superseded count-only router design.
 - [023: Separate native tree views](adr-023-separated-tree-views.md) — native view separators and section-specific commands.
 - [024: Opt-in vault agent instructions](adr-024-vault-agent-instructions.md) — scope-specific `AGENTS.md` files, consent, and preservation.
 - [025: Configurable feature settings](adr-025-configurable-feature-settings.md) — resource-scoped router and agent-instruction settings with behavior-preserving defaults.
@@ -25,6 +25,11 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [033: Configurable count display](adr-033-configurable-count-display.md) — optional sidebar counts, shown by default.
 - [035: Vault count badge](adr-035-vault-count-badge.md) — native Activity Bar badge for discovered vaults.
 - [036: Settings action](adr-036-settings-action.md) — open extension settings from the Vaults view.
+- [037: File-description routers](adr-037-file-description-routers.md) — local filename mappings and generated router refreshes.
+- [038: Vault row icon](adr-038-vault-row-icon.md) — native archive icon for each vault.
+- [040: Configured view headings](adr-040-configured-view-headings.md) — selected-vault folder names for capture and note views.
+- [041: Grouped vault folder settings](adr-041-grouped-vault-folder-settings.md) — root, inbox, notes, and templates settings category.
+- [042: Compact Vaults view](adr-042-compact-vaults-view.md) — small initial height with native overflow scrolling.
 
 ## Creating and processing notes
 
@@ -42,6 +47,7 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [010: Link completion](adr-010-completion.md) — completing filename stems.
 - [011: Manual reference audit](adr-011-manual-audit.md) — checking notes and links.
 - [012: Rename protection](adr-012-rename-protection.md) — warnings and rename limitations.
+- [039: Expanded reference groups](adr-039-expanded-reference-groups.md) — default expansion of Inbound and Outbound.
 
 ## Performance and indexing
 

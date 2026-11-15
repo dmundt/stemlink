@@ -1,7 +1,7 @@
 {
   "name": "stemlink",
   "displayName": "Stemlink",
-  "description": "Plain Markdown Zettelkasten navigation and note management.",
+  "description": "Plain Markdown vault navigation and note management for Stemlink.",
   "version": "0.1.0",
   "publisher": "dmundt",
   "license": "MIT",
@@ -23,53 +23,60 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
-    "configuration": {
-      "title": "Stemlink",
-      "properties": {
-        "stemlink.root": {
-          "type": "string",
-          "default": "notes",
-          "scope": "resource",
-          "description": "Workspace-relative vault root."
-        },
-        "stemlink.inbox": {
-          "type": "string",
-          "default": "inbox",
-          "scope": "resource",
-          "description": "Inbox folder name inside the vault root."
-        },
-        "stemlink.notes": {
-          "type": "string",
-          "default": "permanent",
-          "scope": "resource",
-          "description": "Permanent notes folder name inside the vault root."
-        },
-        "stemlink.templates": {
-          "type": "string",
-          "default": "templates",
-          "scope": "resource",
-          "description": "Editable templates folder name inside the vault root."
-        },
-        "stemlink.showCounts": {
-          "type": "boolean",
-          "default": true,
-          "scope": "resource",
-          "description": "Show counts in vault, note, capture, and reference views. Errors remain visible."
-        },
-        "stemlink.enableRouterIndexes": {
-          "type": "boolean",
-          "default": true,
-          "scope": "resource",
-          "description": "Create INDEX.md routers when a vault is created or opened, and refresh generated counts after observed Markdown changes. Existing files are left untouched when disabled."
-        },
-        "stemlink.offerAgentInstructions": {
-          "type": "boolean",
-          "default": true,
-          "scope": "resource",
-          "description": "Ask before adding missing AGENTS.md files during Create Vault or Open Vault. Existing files are never overwritten."
+    "configuration": [
+      {
+        "title": "Vault Folders",
+        "properties": {
+          "stemlink.root": {
+            "type": "string",
+            "default": "notes",
+            "scope": "resource",
+            "description": "Workspace-relative vault root."
+          },
+          "stemlink.inbox": {
+            "type": "string",
+            "default": "inbox",
+            "scope": "resource",
+            "description": "Inbox folder name inside the vault root."
+          },
+          "stemlink.notes": {
+            "type": "string",
+            "default": "permanent",
+            "scope": "resource",
+            "description": "Permanent notes folder name inside the vault root."
+          },
+          "stemlink.templates": {
+            "type": "string",
+            "default": "templates",
+            "scope": "resource",
+            "description": "Editable templates folder name inside the vault root."
+          }
+        }
+      },
+      {
+        "title": "Features",
+        "properties": {
+          "stemlink.showCounts": {
+            "type": "boolean",
+            "default": true,
+            "scope": "resource",
+            "description": "Show counts in vault, note, capture, and reference views. Errors remain visible."
+          },
+          "stemlink.enableRouterIndexes": {
+            "type": "boolean",
+            "default": true,
+            "scope": "resource",
+            "description": "Create INDEX.md routers when a vault is created or opened, and refresh generated counts and file descriptions on discovery and observed Markdown edits or filesystem changes. Existing files are left untouched when disabled."
+          },
+          "stemlink.offerAgentInstructions": {
+            "type": "boolean",
+            "default": true,
+            "scope": "resource",
+            "description": "Ask before adding missing AGENTS.md files during Create Vault or Open Vault. Existing files are never overwritten."
+          }
         }
       }
-    },
+    ],
     "commands": [
       {
         "command": "stemlink.openVault",
@@ -132,7 +139,8 @@
       "stemlink": [
         {
           "id": "stemlink.vaults",
-          "name": "Vaults"
+          "name": "Vaults",
+          "initialSize": 100
         },
         {
           "id": "stemlink.fleeting",
@@ -151,14 +159,14 @@
     "menus": {
       "view/title": [
         {
-          "command": "stemlink.openVault",
-          "when": "view == stemlink.vaults",
-          "group": "navigation"
-        },
-        {
           "command": "stemlink.createVault",
           "when": "view == stemlink.vaults",
-          "group": "navigation"
+          "group": "navigation@1"
+        },
+        {
+          "command": "stemlink.openVault",
+          "when": "view == stemlink.vaults",
+          "group": "navigation@2"
         },
         {
           "command": "stemlink.addFleetingNote",
@@ -173,7 +181,7 @@
         {
           "command": "stemlink.refresh",
           "when": "view == stemlink.vaults",
-          "group": "navigation"
+          "group": "navigation@3"
         },
         {
           "command": "stemlink.openSettings",

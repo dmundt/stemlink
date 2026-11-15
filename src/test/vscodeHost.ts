@@ -241,7 +241,7 @@ async function testMockVaultFiles(extensionUri: vscode.Uri): Promise<void> {
   const notes = vscode.Uri.joinPath(root, "permanent");
   const templates = vscode.Uri.joinPath(root, "examples");
   const paths = { root, inbox, notes, templates };
-  const generated = renderRouterIndexes("vault", "capture", "permanent", 0, 0, "examples");
+  const generated = renderRouterIndexes("vault", "capture", "permanent", [], [], "examples");
   const files = new Map<string, string>([
     ["/vault/INDEX.md", "User-owned index\n"],
     ["/vault/capture/INDEX.md", generated.inbox],
@@ -351,6 +351,101 @@ async function testMockVaultFiles(extensionUri: vscode.Uri): Promise<void> {
     router.dispose();
     registration.dispose();
     changes.dispose();
+  }
+}
+
+async function testRouterMappings(folder: vscode.WorkspaceFolder): Promise<void> {
+  const root = vscode.Uri.joinPath(folder.uri, "router-fixture", "vault");
+  const inbox = vscode.Uri.joinPath(root, "fleeting");
+  const notes = vscode.Uri.joinPath(root, "notes");
+  const paths = { root, inbox, notes, templates: vscode.Uri.joinPath(root, "templates") };
+  const note = vscode.Uri.joinPath(notes, "202601011200-router-note.md");
+  const capture = vscode.Uri.joinPath(inbox, "capture.md");
+  const notesIndex = vscode.Uri.joinPath(notes, routerIndexName);
+  const inboxIndex = vscode.Uri.joinPath(inbox, routerIndexName);
+  const router = new VaultRouterIndexes();
+  await vscode.workspace.fs.createDirectory(inbox);
+  await vscode.workspace.fs.createDirectory(notes);
+  await vscode.workspace.fs.writeFile(note, Buffer.from("---\ntitle: Original title\n---\nBody\n"));
+  await vscode.workspace.fs.writeFile(capture, Buffer.from("Unprocessed capture\n"));
+  try {
+    await router.initialize(paths);
+    await waitForFileText(
+      notesIndex,
+      (text) => text.includes("| Original title |"),
+      "router omitted YAML title",
+    );
+    await waitForFileText(
+      inboxIndex,
+      (text) => text.includes("[capture.md](./capture.md) | No description or title."),
+      "capture router omitted local file",
+    );
+
+    await vscode.workspace.fs.writeFile(
+      note,
+      Buffer.from("---\ntitle: Updated title\ndescription: Saved description\n---\nBody\n"),
+    );
+    router.sync([paths]);
+    await waitForFileText(
+      notesIndex,
+      (text) => text.includes("| Saved description |"),
+      "router did not refresh existing metadata on discovery",
+    );
+    const document = await vscode.workspace.openTextDocument(note);
+    await vscode.window.showTextDocument(document);
+    const edit = new vscode.WorkspaceEdit();
+    edit.replace(
+      note,
+      new vscode.Range(new vscode.Position(0, 0), document.positionAt(document.getText().length)),
+      "---\ntitle: Updated title\ndescription: Unsaved description\n---\nBody\n",
+    );
+    assert.equal(await vscode.workspace.applyEdit(edit), true);
+    await waitForFileText(
+      notesIndex,
+      (text) => text.includes("| Unsaved description |"),
+      "router did not reflect unsaved metadata",
+    );
+    await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor");
+    await waitForFileText(
+      notesIndex,
+      (text) => text.includes("| Saved description |"),
+      "router did not restore saved metadata after revert",
+    );
+
+    const added = vscode.Uri.joinPath(inbox, "new capture.md");
+    const renamed = vscode.Uri.joinPath(inbox, "renamed capture.md");
+    await vscode.workspace.fs.writeFile(added, Buffer.from("---\ndescription: New capture\n---\n"));
+    await waitForFileText(
+      inboxIndex,
+      (text) => text.includes("[new capture.md](./new%20capture.md) | New capture |"),
+      "router did not add new file mapping",
+    );
+    await vscode.workspace.fs.rename(added, renamed);
+    await waitForFileText(
+      inboxIndex,
+      (text) => text.includes("[renamed capture.md]") && !text.includes("[new capture.md]"),
+      "router did not update renamed mapping",
+    );
+    const deletion = new vscode.WorkspaceEdit();
+    deletion.deleteFile(renamed);
+    assert.equal(await vscode.workspace.applyEdit(deletion), true);
+    await waitForFileText(
+      inboxIndex,
+      (text) => !text.includes("[renamed capture.md]"),
+      "router kept deleted mapping",
+    );
+    await vscode.workspace.fs.delete(inboxIndex);
+    await router.refresh(paths);
+    await assert.rejects(
+      async () => vscode.workspace.fs.stat(inboxIndex),
+      (error: unknown) => error instanceof vscode.FileSystemError && error.code === "FileNotFound",
+      "refresh recreated a deleted router",
+    );
+  } finally {
+    router.dispose();
+    if (vscode.window.activeTextEditor?.document.uri.toString() === note.toString())
+      await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor");
+    await vscode.workspace.fs.delete(root, { recursive: true });
   }
 }
 
@@ -753,14 +848,14 @@ async function testDiscovery(folder: vscode.WorkspaceFolder): Promise<void> {
     let sections = await tree.getChildren();
     assert.equal(sections[0].label, "Vaults (2)", "vault selection waited for counts");
     const countsDeadline = Date.now() + 5000;
-    while (sections[1].label !== "Fleeting (1)" || sections[2].label !== "Notes (4)") {
+    while (sections[1].label !== "fleeting (1)" || sections[2].label !== "stable (4)") {
       if (Date.now() >= countsDeadline) throw new Error("vault counts did not become ready");
       await new Promise((resolve) => setTimeout(resolve, 25));
       sections = await tree.getChildren();
     }
     assert.deepEqual(
       sections.map((item) => item.label),
-      ["Vaults (2)", "Fleeting (1)", "Notes (4)", "References (...)"],
+      ["Vaults (2)", "fleeting (1)", "stable (4)", "References (...)"],
     );
     const vaultItems = await tree.getChildren(sections[0]);
     assert.deepEqual(
@@ -768,7 +863,10 @@ async function testDiscovery(folder: vscode.WorkspaceFolder): Promise<void> {
       ["existing-vault", "other-vault"],
     );
     for (const item of vaultItems) {
-      assert.equal(item.iconPath, undefined, "vault row still has an icon");
+      assert.ok(
+        item.iconPath instanceof vscode.ThemeIcon && item.iconPath.id === "archive",
+        "vault row lacks the native archive icon",
+      );
       assert.notEqual(item.description, "Selected", "vault row still has Selected text");
     }
     assert.equal(vaultItems[1].command?.command, "stemlink.selectVault");
@@ -780,6 +878,12 @@ async function testDiscovery(folder: vscode.WorkspaceFolder): Promise<void> {
     assert.deepEqual(
       references.map((item) => item.label),
       ["Inbound (1)", "Outbound (1)"],
+    );
+    assert.ok(
+      references.every(
+        (item) => item.collapsibleState === vscode.TreeItemCollapsibleState.Expanded,
+      ),
+      "reference groups should default to expanded",
     );
 
     const edit = new vscode.WorkspaceEdit();
@@ -798,14 +902,14 @@ async function testDiscovery(folder: vscode.WorkspaceFolder): Promise<void> {
     await otherVault.ensure();
     sections = await tree.getChildren();
     const otherDeadline = Date.now() + 5000;
-    while (sections[1].label !== "Fleeting (1)") {
+    while (sections[1].label !== "inbox (1)") {
       if (Date.now() >= otherDeadline) throw new Error("second vault count did not become ready");
       await new Promise((resolve) => setTimeout(resolve, 25));
       sections = await tree.getChildren();
     }
     assert.deepEqual(
       sections.map((item) => item.label),
-      ["Vaults (2)", "Fleeting (1)", "Notes (2)", "References (0)"],
+      ["Vaults (2)", "inbox (1)", "notes (2)", "References (0)"],
     );
     assert.notEqual((await tree.getChildren(sections[0]))[1].description, "Selected");
   } finally {
@@ -1391,7 +1495,7 @@ async function testFeatureSettings(folder: vscode.WorkspaceFolder): Promise<void
     vscode.Uri.joinPath(directory, "AGENTS.md"),
   );
   const indexBefore = Buffer.from(
-    renderRouterIndexes("settings-vault", "inbox", "notes", 0, 0).root,
+    renderRouterIndexes("settings-vault", "inbox", "notes", [], []).root,
   );
   const api = vscode.window as {
     showInputBox: typeof vscode.window.showInputBox;
@@ -1536,7 +1640,7 @@ async function testDynamicVaultFiles(
   const cases = [
     { root: "notes", inbox: "inbox", notes: "permanent" },
     { root: "zk", inbox: "inbox", notes: "notes" },
-    { root: "Zettelkasten", inbox: "Fleeting", notes: "Permanent" },
+    { root: "Stemlink vault", inbox: "Fleeting", notes: "Permanent" },
     { root: "vault", inbox: "Inbox", notes: "Knowledge" },
     { root: "configured-vault", inbox: "templates", notes: "knowledge", templates: "examples" },
   ] as const;
@@ -1917,10 +2021,30 @@ export async function run(): Promise<void> {
   } finally {
     windowApi.createTreeView = originalCreateTreeView;
   }
-  const settings = extension.packageJSON.contributes.configuration.properties as Record<
-    string,
-    { default: string | boolean; scope: string }
-  >;
+  const settingGroups = extension.packageJSON.contributes.configuration as {
+    title: string;
+    properties: Record<string, { default: string | boolean; scope: string }>;
+  }[];
+  assert.deepEqual(
+    settingGroups.map((group) => group.title),
+    ["Vault Folders", "Features"],
+    "settings groups or order changed",
+  );
+  assert.deepEqual(
+    Object.keys(settingGroups[0].properties),
+    ["stemlink.root", "stemlink.inbox", "stemlink.notes", "stemlink.templates"],
+    "vault folder settings are not grouped together",
+  );
+  const settings = Object.assign({}, ...settingGroups.map((group) => group.properties));
+  const contributedViews = extension.packageJSON.contributes.views.stemlink as {
+    id: string;
+    initialSize?: number;
+  }[];
+  assert.equal(
+    contributedViews.find((view) => view.id === "stemlink.vaults")?.initialSize,
+    100,
+    "Vaults view should start compact",
+  );
   const commands = extension.packageJSON.contributes.commands as {
     command: string;
     title: string;
@@ -1995,6 +2119,7 @@ export async function run(): Promise<void> {
     }
     await testVirtualVault();
     await testMockVaultFiles(extension.extensionUri);
+    await testRouterMappings(folder);
     const emptyTree = new VaultTree(
       () => undefined,
       () => [],
@@ -2032,7 +2157,7 @@ export async function run(): Promise<void> {
       const schemes = [
         { root: "notes", inbox: "inbox", notes: "permanent", templates: "templates" },
         { root: "zk", inbox: "inbox", notes: "notes", templates: "examples" },
-        { root: "Zettelkasten", inbox: "Fleeting", notes: "Permanent", templates: "Templates" },
+        { root: "Stemlink vault", inbox: "Fleeting", notes: "Permanent", templates: "Templates" },
         { root: "vault", inbox: "capture", notes: "notes", templates: "manuals" },
         { root: "vault", inbox: "inbox", notes: "permanent", templates: "examples" },
       ];
@@ -2319,7 +2444,7 @@ export async function run(): Promise<void> {
         const hidden = await tree.getChildren();
         assert.deepEqual(
           hidden.map((item) => item.label),
-          ["Vaults", "Fleeting", "Notes", "References"],
+          ["Vaults", "inbox", "permanent", "References"],
         );
         const noVault = new VaultTree(
           () => undefined,
@@ -2350,9 +2475,12 @@ export async function run(): Promise<void> {
         );
         await waitFor(
           () =>
-            ["vaults", "fleeting", "notes", "references"].every(
-              (name) => views.get(`stemlink.${name}`)?.title?.toLowerCase() === name,
-            ),
+            [
+              ["vaults", "Vaults"],
+              ["fleeting", "inbox"],
+              ["notes", "permanent"],
+              ["references", "References"],
+            ].every(([id, name]) => views.get(`stemlink.${id}`)?.title === name),
           "view titles did not hide counts after changing the setting",
         );
       } finally {
@@ -2360,11 +2488,12 @@ export async function run(): Promise<void> {
       }
       await waitFor(
         () =>
-          ["vaults", "fleeting", "notes", "references"].every((name) =>
-            views
-              .get(`stemlink.${name}`)
-              ?.title?.startsWith(`${name[0].toUpperCase()}${name.slice(1)} (`),
-          ),
+          [
+            ["vaults", "Vaults"],
+            ["fleeting", "inbox"],
+            ["notes", "permanent"],
+            ["references", "References"],
+          ].every(([id, name]) => views.get(`stemlink.${id}`)?.title?.startsWith(`${name} (`)),
         "view titles did not restore counts after changing the setting",
       );
       const restored = await tree.getChildren();
