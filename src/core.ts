@@ -1,4 +1,4 @@
-import { parseDocument, stringify } from "yaml";
+import { Document, isMap, parseDocument } from "yaml";
 
 export interface Link {
   stem: string;
@@ -9,6 +9,171 @@ export interface Link {
 
 export const stemPattern = /^\d{12}-[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const filenamePattern = /^\d{12}-[a-z0-9]+(?:-[a-z0-9]+)*\.md$/;
+export const routerIndexName = "INDEX.md";
+export const agentInstructionsName = "AGENTS.md";
+export const routerIndexStart = "<!-- stemlink:generated:start -->";
+export const routerIndexEnd = "<!-- stemlink:generated:end -->";
+
+export function isRouterIndex(name: string): boolean {
+  return name.toLowerCase() === routerIndexName.toLowerCase();
+}
+
+export function isVaultInstructionFile(name: string): boolean {
+  return isRouterIndex(name) || name.toLowerCase() === agentInstructionsName.toLowerCase();
+}
+
+export interface RouterIndexContent {
+  root: string;
+  inbox: string;
+  notes: string;
+}
+
+export interface RouterEntry {
+  name: string;
+  description: string;
+}
+
+export function routerDescription(text: string): string {
+  const matter = frontMatter(text);
+  if (!matter) {
+    if (/^(?:\uFEFF)?---[ \t]*\r?\n/.test(text)) throw new Error("Unclosed YAML front matter.");
+    return "No description or title.";
+  }
+  const document = parseDocument(matter.yaml, { uniqueKeys: true });
+  if (document.errors.length)
+    throw new Error(`Invalid YAML front matter: ${document.errors[0].message}`);
+  if (!isMap(document.contents)) throw new Error("Front matter must be a YAML mapping.");
+  for (const field of ["description", "title"]) {
+    const value: unknown = document.get(field);
+    if (value === undefined || value === null) continue;
+    if (typeof value !== "string") throw new Error(`Front matter ${field} must be text.`);
+    if (value.trim()) return value.replace(/\s+/g, " ").trim();
+  }
+  return "No description or title.";
+}
+
+export function markdownCodeSpan(value: string): string {
+  let delimiter = "`";
+  while (value.includes(delimiter)) delimiter += "`";
+  return `${delimiter}${value}${delimiter}`;
+}
+
+export function renderVaultReadme(
+  template: string,
+  rootName: string,
+  inboxName: string,
+  notesName: string,
+  templatesName = "templates",
+): string {
+  const marker = "<!-- stemlink:configured-folders -->";
+  const markerIndex = template.indexOf(marker);
+  if (markerIndex < 0 || template.indexOf(marker, markerIndex + marker.length) >= 0) {
+    throw new Error("Vault manual must contain exactly one configured-folder marker.");
+  }
+  const folders = [
+    "## This vault's folders",
+    "",
+    `- Vault root: ${markdownCodeSpan(`${rootName}/`)}`,
+    `- Captures: ${markdownCodeSpan(`${inboxName}/`)}`,
+    `- Permanent notes: ${markdownCodeSpan(`${notesName}/`)}`,
+    `- Editable examples: ${markdownCodeSpan(`${templatesName}/`)}`,
+  ].join("\n");
+  return template.replace(marker, () => folders);
+}
+
+export function renderRouterIndexes(
+  rootName: string,
+  inboxName: string,
+  notesName: string,
+  inboxEntries: readonly RouterEntry[],
+  notesEntries: readonly RouterEntry[],
+  templatesName = "templates",
+): RouterIndexContent {
+  const path = (name: string) => encodeURIComponent(name);
+  const inboxCount = inboxEntries.length;
+  const notesCount = notesEntries.length;
+  const escape = (text: string) =>
+    text.replace(/[&<>"'\\`*_[\]{}|]/g, (character) => `&#${character.charCodeAt(0)};`);
+  const listing = (entries: readonly RouterEntry[]) => [
+    "| File | Description |",
+    "| --- | --- |",
+    ...[...entries]
+      .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+      .map(
+        (entry) =>
+          `| [${escape(entry.name)}](./${path(entry.name)}) | ${escape(entry.description)} |`,
+      ),
+  ];
+  const section = (lines: string[]) => [routerIndexStart, ...lines, routerIndexEnd, ""].join("\n");
+  const authorityRule =
+    "Navigation only, not authoritative. Stemlink's in-memory note/reference index is authoritative for live vault state.";
+  return {
+    root: section([
+      `# Stemlink vault router: ${markdownCodeSpan(`${rootName}/`)}`,
+      "",
+      "Start here. Use the folder indexes to route work, then read the relevant Markdown files directly.",
+      "",
+      authorityRule,
+      "",
+      `- [Inbox ${markdownCodeSpan(`${inboxName}/`)} (${inboxCount} captures)](./${path(inboxName)}/${routerIndexName})`,
+      `- [Notes ${markdownCodeSpan(`${notesName}/`)} (${notesCount} Markdown files)](./${path(notesName)}/${routerIndexName})`,
+      "",
+      `Counts cover direct-child Markdown files and exclude INDEX.md and AGENTS.md. Templates live in the vault-level templates folder: ${markdownCodeSpan(`${templatesName}/`)}.`,
+    ]),
+    inbox: section([
+      `# Inbox router: ${markdownCodeSpan(`${inboxName}/`)}`,
+      "",
+      "This folder holds unprocessed captures. Read captures before suggesting promotion; do not modify files unless asked.",
+      "",
+      authorityRule,
+      "",
+      `- [Vault index](../${routerIndexName})`,
+      `- [Notes ${markdownCodeSpan(`${notesName}/`)} (${notesCount} Markdown files)](../${path(notesName)}/${routerIndexName})`,
+      "",
+      `Markdown captures: ${inboxCount}`,
+      "",
+      "Use the file descriptions below to choose captures to read. Descriptions come from YAML description, then title; read each file for its full content.",
+      "",
+      ...listing(inboxEntries),
+    ]),
+    notes: section([
+      `# Notes router: ${markdownCodeSpan(`${notesName}/`)}`,
+      "",
+      `Read relevant Markdown files directly and follow their wiki-link stems. New templates live in ${markdownCodeSpan(`${templatesName}/`)} at the vault root; treat legacy underscore-prefixed files as templates, not notes.`,
+      "",
+      authorityRule,
+      "",
+      `- [Vault index](../${routerIndexName})`,
+      `- [Inbox ${markdownCodeSpan(`${inboxName}/`)} (${inboxCount} captures)](../${path(inboxName)}/${routerIndexName})`,
+      "",
+      `Markdown files: ${notesCount} (excludes INDEX.md and AGENTS.md).`,
+      "",
+      "Use the file descriptions below to choose notes to read. Descriptions come from YAML description, then title; read each file for its full content.",
+      "",
+      ...listing(notesEntries),
+    ]),
+  };
+}
+
+export function replaceRouterIndexSection(current: string, generated: string): string | undefined {
+  const start = current.indexOf(routerIndexStart);
+  const end = current.indexOf(routerIndexEnd);
+  if (start < 0 && end < 0) return undefined;
+  if (
+    start < 0 ||
+    end < start ||
+    current.indexOf(routerIndexStart, start + routerIndexStart.length) >= 0 ||
+    current.indexOf(routerIndexEnd, end + routerIndexEnd.length) >= 0
+  ) {
+    throw new Error("Malformed Stemlink-generated section in INDEX.md.");
+  }
+  const lineEnding = current.includes("\r\n") ? "\r\n" : "\n";
+  const normalized = generated.replace(/\r?\n/g, lineEnding);
+  let suffixStart = end + routerIndexEnd.length;
+  if (current.startsWith("\r\n", suffixStart)) suffixStart += 2;
+  else if (current.startsWith("\n", suffixStart)) suffixStart++;
+  return current.slice(0, start) + normalized + current.slice(suffixStart);
+}
 
 export function frontMatter(text: string): { yaml: string; end: number } | undefined {
   const match = /^(?:\uFEFF)?---[ \t]*\r?\n([\s\S]*?)^---[ \t]*(?:\r?\n|$)/m.exec(text);
@@ -25,21 +190,34 @@ export function metadataProblem(text: string): string | undefined {
     return "Front matter must contain title and tags.";
   }
   const fields = value as Record<string, unknown>;
-  if (typeof fields.title !== "string" || !fields.title.trim() ||
-      !Array.isArray(fields.tags) || !fields.tags.every(tag => typeof tag === "string")) {
+  if (
+    typeof fields.title !== "string" ||
+    !fields.title.trim() ||
+    !Array.isArray(fields.tags) ||
+    !fields.tags.every((tag) => typeof tag === "string")
+  ) {
     return "Front matter must contain a non-empty title and a list of tags.";
   }
   return undefined;
 }
 
 export function makeNote(title: string, tags: string[], body = ""): string {
-  return `---\n${stringify({ title, tags })}---\n\n${body}`;
+  return `---\n${noteMetadata(new Document(), title, tags)}---\n\n${body}`;
+}
+
+function noteMetadata(document: Document, title: string, tags: string[]): string {
+  const sequence = document.createNode(tags);
+  sequence.flow = true;
+  document.set("title", title);
+  document.set("tags", sequence);
+  return document.toString({ lineWidth: 0, flowCollectionPadding: false });
 }
 
 export function promoteNote(text: string, title: string, tags: string[]): string {
   const matter = frontMatter(text);
   if (!matter) {
-    if (/^(?:\uFEFF)?---[ \t]*\r?\n/.test(text)) throw new Error("Capture has unclosed YAML front matter.");
+    if (/^(?:\uFEFF)?---[ \t]*\r?\n/.test(text))
+      throw new Error("Capture has unclosed YAML front matter.");
     return makeNote(title, tags, text);
   }
   const document = parseDocument(matter.yaml, { uniqueKeys: true });
@@ -50,15 +228,20 @@ export function promoteNote(text: string, title: string, tags: string[]): string
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new Error("Capture front matter must be a YAML mapping.");
   }
-  document.set("title", title);
-  document.set("tags", tags);
-  return `---\n${document.toString()}---\n${text.slice(matter.end)}`;
+  return `---\n${noteMetadata(document, title, tags)}---\n${text.slice(matter.end)}`;
 }
 
 export function slug(title: string): string {
-  return title.normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
-    .slice(0, 80).replace(/-+$/g, "") || "note";
+  return (
+    title
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 80)
+      .replace(/-+$/g, "") || "note"
+  );
 }
 
 export function timestamp(date: Date): string {
@@ -79,8 +262,12 @@ export function linksIn(text: string): Link[] {
     if (fenceMatch) {
       const marker = fenceMatch[1];
       if (!fence) fence = { character: marker[0], length: marker.length };
-      else if (marker[0] === fence.character && marker.length >= fence.length &&
-          /^[ \t]*(?:\r?\n)?$/.test(line.slice(fenceMatch[0].length))) fence = undefined;
+      else if (
+        marker[0] === fence.character &&
+        marker.length >= fence.length &&
+        /^[ \t]*(?:\r?\n)?$/.test(line.slice(fenceMatch[0].length))
+      )
+        fence = undefined;
       position += line.length;
       continue;
     }
@@ -92,18 +279,27 @@ export function linksIn(text: string): Link[] {
           const count = end - i;
           if (!inlineTicks) {
             if ((lastTickRun.get(count) ?? -1) > position + i) inlineTicks = count;
-          }
-          else if (count === inlineTicks) inlineTicks = 0;
+          } else if (count === inlineTicks) inlineTicks = 0;
           i = end;
         } else if (!inlineTicks && line.startsWith("[[", i) && (i === 0 || line[i - 1] !== "\\")) {
           const end = line.indexOf("]]", i + 2);
           if (end < 0) {
             const stop = line.replace(/[\r\n]+$/, "").length;
-            links.push({ stem: line.slice(i + 2, stop), start: position + i, end: position + stop, valid: false });
+            links.push({
+              stem: line.slice(i + 2, stop),
+              start: position + i,
+              end: position + stop,
+              valid: false,
+            });
             break;
           }
           const stem = line.slice(i + 2, end);
-          links.push({ stem, start: position + i, end: position + end + 2, valid: stemPattern.test(stem) });
+          links.push({
+            stem,
+            start: position + i,
+            end: position + end + 2,
+            valid: stemPattern.test(stem),
+          });
           i = end + 2;
         } else {
           i++;
@@ -131,7 +327,8 @@ export interface Finding<T extends NoteData = NoteData> {
 }
 
 export function auditNotes<T extends NoteData>(notes: T[]): Finding<T>[] {
-  const stems = new Set(notes.map(note => note.stem));
+  notes = notes.filter((note) => !isVaultInstructionFile(note.name));
+  const stems = new Set(notes.map((note) => note.stem));
   const incoming = new Set<string>();
   const findings: Finding<T>[] = [];
   const add = (note: T, severity: Finding["severity"], message: string, start = 0, end = 0) =>
@@ -145,7 +342,8 @@ export function auditNotes<T extends NoteData>(notes: T[]): Finding<T>[] {
       if (!link.valid) add(note, "warning", "Malformed reference.", link.start, link.end);
       else {
         outgoing++;
-        if (!stems.has(link.stem)) add(note, "error", `Note not found: ${link.stem}`, link.start, link.end);
+        if (!stems.has(link.stem))
+          add(note, "error", `Note not found: ${link.stem}`, link.start, link.end);
         else if (note.stem !== link.stem) incoming.add(link.stem);
       }
     }

@@ -1,32 +1,88 @@
-# Zettelkasten Manual
+# Stemlink Vault Manual
 
 This is a collection of plain Markdown files: one idea per permanent note, connected by filename. There is no database or required application. Stemlink is optional.
+
+<!-- stemlink:configured-folders -->
 
 ## 1. Folder layout
 
 ```text
-zk/
+notes/
 ├── .stemlink.json # Stemlink vault configuration
-├── README.md   # this manual
-├── inbox/      # quick, unprocessed captures
-└── notes/      # permanent notes and templates; keep flat
+├── README.md      # this manual
+├── inbox/         # quick, unprocessed captures
+├── permanent/     # permanent notes; keep flat
+└── templates/     # editable Markdown examples
+    ├── _template.md
+    ├── _fleeting.md
+    └── _promotion.md
 ```
 
-These are the default names; use your configured names if they differ. Keep permanent notes in one folder. Use tags and links instead of topic subfolders.
+These are the default names; use your configured names if they differ. Capture, permanent-note, and template folder names must be distinct ignoring case. Keep permanent notes in one folder. Use tags and links instead of topic subfolders.
+
+### Folder naming options
+
+Stemlink defaults distinguish the collection from its capture and permanent-note folders. Other Stemlink vault folder schemes can be configured:
+
+| Scheme           | Vault root        | Inbox/capture | Permanent notes | Rationale                                                     |
+| ---------------- | ----------------- | ------------- | --------------- | ------------------------------------------------------------- |
+| Stemlink default | `notes/`          | `inbox/`      | `permanent/`    | Separates the collection, captures, and permanent notes.      |
+| Previous default | `zk/`             | `inbox/`      | `notes/`        | Short, neutral labels; inbox is also common in GTD workflows. |
+| Ahrens-inspired  | `Stemlink vault/` | `Fleeting/`   | `Permanent/`    | Uses fleeting and permanent note terms.                       |
+| Capture labels   | `vault/`          | `capture/`    | `notes/`        | Keeps unprocessed captures separate from permanent notes.     |
+| Lifecycle labels | `vault/`          | `inbox/`      | `permanent/`    | Names the raw-capture and permanent-note stages.              |
+| Knowledge labels | `vault/`          | `Inbox/`      | `Knowledge/`    | An alternative vocabulary for capture and durable knowledge.  |
+
+These are folder names, not note IDs. Stemlink's permanent-note filenames still use timestamps and remain stable after creation; folder names do not provide note identity. Choose folder names during **Create Vault**, use **Open Vault**, or configure paths for an existing vault. Stemlink does not infer alternative layouts from their names.
+
+Set `stemlink.showCounts` to `false` to hide sidebar and reference-group counts. It defaults to `true`; errors remain visible. The Activity Bar badge still shows the number of discovered vaults when there is at least one.
+
+Use the gear in the **Vaults** view or **Stemlink: Settings** to open Stemlink settings.
+
+The capture and permanent-note view headings match the selected vault's configured folder names, including their case. Selecting another vault updates them; without a selected vault, they remain Fleeting and Notes.
+
+VS Code Settings Sync can share user-level Stemlink settings between devices when enabled with **Settings** selected. Workspace and workspace-folder overrides, vault files, and the selected vault are not synced by Stemlink.
+
+All four names can be set in VS Code settings:
+
+```json
+{
+  "stemlink.root": "notes",
+  "stemlink.inbox": "inbox",
+  "stemlink.notes": "permanent",
+  "stemlink.templates": "templates"
+}
+```
+
+Creation prefills its root, capture, and permanent-note prompts from these settings. The templates folder uses its setting without another prompt. Names must be single folder names, not nested paths.
 
 ## 2. Setup
 
-Create the root, inbox, and notes folders, put this manual in the root, and open the folder in a text editor. Put it somewhere your normal backups cover. With Stemlink, **Create Zettelkasten** creates the folders and copies this manual and the templates.
+Create `notes/` with `inbox/`, `permanent/`, and `templates/` inside it; put this manual in the root and open the folder in a text editor. Put the vault somewhere your normal backups cover. With Stemlink, **Create Vault** creates the folders and copies the bundled manual and editable examples. The copied manual starts with a summary of your chosen folder names.
 
 Stemlink recognizes `.stemlink.json` in the workspace root or an immediate child folder. Its `inbox` and `notes` values are folder names relative to the file:
 
 ```json
-{ "version": 1, "inbox": "inbox", "notes": "notes" }
+{ "version": 1, "inbox": "inbox", "notes": "permanent", "templates": "templates" }
 ```
 
-Change those names if your folders differ. Select a vault under **Vaults** when several are available. If settings conflict with a marker for the same vault, Stemlink asks which configuration to use. Existing workspace settings also work without this file.
+Change those names if your folders differ. Optional `templates` names a distinct child folder for editable examples and defaults to `templates` when absent. After moving examples yourself, update this mapping; Stemlink does not move existing files. The layout and paths below use default names; use the configured-folder summary above for this vault. Stemlink restores the last available vault or selects the first listed vault, including a sole vault. Choose another under **Vaults** when needed; native row highlighting shows the selection without a checkmark or Selected label. Editor changes and refreshes keep that selection; removing the selected vault selects the first remaining one. If settings conflict with a marker for the same vault, Stemlink asks which configuration to use. Existing workspace settings also work without this file.
 
-Use **Open Vault** to select an existing folder. Without a marker, confirm adding one and choose existing capture and permanent-note folders. Folders outside discovery scope are added to the workspace. Notes and templates are not replaced or installed; Workspace Trust is required.
+When `stemlink.templates` is unset, the marker's templates mapping is retained. An explicitly configured template name participates in the marker/settings chooser. Choosing settings does not rewrite the marker or move files. Open Vault uses the template setting when adding a new marker but does not install templates.
+
+Existing markers, explicit folder settings, notes, and templates are not migrated or renamed when defaults change. For an old markerless vault that relied on `zk/inbox/notes`, use **Open Vault** or set `stemlink.root=zk`, `stemlink.inbox=inbox`, and `stemlink.notes=notes`. The `notes` setting and marker key still refer to the permanent-note folder, now named `permanent` by default.
+
+Use **Open Vault** to select an existing folder. Without a marker, confirm adding one and choose existing capture and permanent-note folders. Folders outside discovery scope are added to the workspace. Open Vault does not install or move templates in existing vaults; Workspace Trust is required.
+
+### AI routing indexes
+
+Stemlink adds `INDEX.md` at the vault root, inbox, and notes folders when creating or opening a vault. The root routes readers to folder indexes; each folder index maps local Markdown filenames to YAML `description`, falling back to `title`, and reports its Markdown count. Missing metadata is labeled explicitly. Use these descriptions to choose files to read, not as a replacement for their content. These routers are not authoritative; Stemlink's in-memory note/reference index is authoritative for live state. The routers are not notes; counts exclude `INDEX.md` and `AGENTS.md`. Templates in the separate `templates/` folder are not included in the Notes count. Stemlink does not create missing inbox or notes directories.
+
+Existing user-authored `INDEX.md` files are preserved. Stemlink refreshes only its marked generated section on discovery, observed file changes, edits (including unsaved metadata), and **Refresh**. Text outside that section is yours to edit. Malformed YAML is reported and labeled in the mapping. Saved routers may temporarily reflect unsaved note metadata; reverting the note updates its router again.
+
+### Agent instructions
+
+`AGENTS.md` files are optional. With `stemlink.offerAgentInstructions` enabled (default: `true`), Create Vault and Open Vault ask before adding missing instructions at the vault root and in existing inbox and permanent-note folders. Set it to `false` to skip both the prompt and installation. Existing instruction files are preserved, not removed when the setting is disabled; missing folders are not created.
 
 ## 3. Naming files
 
@@ -46,11 +102,11 @@ Permanent notes use two YAML fields:
 ```yaml
 ---
 title: Note filenames stay frozen after creation
-tags: [zettelkasten, conventions]
+tags: [stemlink-vault, conventions]
 ---
 ```
 
-`title` is the editable name. Quote it if it contains a colon. `tags` is an inline list; choose a few useful lowercase tags rather than a hierarchy. Inbox captures need no front matter.
+`title` is the editable name. Quote it if it contains a colon. In every vault Markdown file that uses tags, write them as a single-line inline list, such as `tags: [notes, zk, bug]`, not a multiline block list. Choose a few useful lowercase tags rather than a hierarchy. Inbox captures need no front matter.
 
 ## 5. Writing a permanent note
 
@@ -59,7 +115,7 @@ Write one idea in your own words, in complete sentences that will make sense lat
 ```markdown
 ---
 title: Note filenames stay frozen after creation
-tags: [zettelkasten, conventions]
+tags: [stemlink-vault, conventions]
 ---
 
 A filename is a stable address; the title can change as the idea develops.
@@ -84,41 +140,41 @@ The stem is the filename, not the title. To find backlinks without an extension,
 
 Put ideas in `inbox/` quickly. A capture can be a fragment or question; it needs no front matter or links. Most captures do not need to become permanent notes.
 
-Copy `_fleeting.md` from `notes/` into `inbox/`, rename it, and replace the example. With Stemlink, **Add Fleeting Note** copies the saved template into the inbox and opens it. Edit the template to customize future captures.
+Copy `_fleeting.md` from `templates/` into `inbox/`, rename it, and replace the example. With Stemlink, **Add Fleeting Note** copies the saved template into the inbox and opens it. Edit `templates/_fleeting.md` to customize future captures. When the mapped template is missing, Stemlink falls back to `_fleeting.md` in the configured permanent-note folder, such as `permanent/_fleeting.md` or the previous default `notes/_fleeting.md`.
 
 ## 8. Weekly: process
 
 Review the inbox regularly:
 
-| Capture | Action |
-|---|---|
-| Not worth keeping | Delete it. |
-| Worth keeping | Rewrite it as one permanent idea with front matter and useful links. |
-| Still unfinished | Leave it in the inbox for another review. |
+| Capture           | Action                                                               |
+| ----------------- | -------------------------------------------------------------------- |
+| Not worth keeping | Delete it.                                                           |
+| Worth keeping     | Rewrite it as one permanent idea with front matter and useful links. |
+| Still unfinished  | Leave it in the inbox for another review.                            |
 
 The rewrite is the thinking, not merely moving the file. Stemlink's **Promote Capture to Note** preserves the capture's content; edit it into a permanent note after promotion.
 
 ## 9. Finding notes
 
-Search the files for a distinctive word, tag, or filename stem. Browse `notes/` by timestamp for a rough timeline. Search for a stem to find references to it. In Stemlink, use the Notes tree, link navigation, or **References > Inbound**; run **Check References** when you want an audit.
+Search the files for a distinctive word, tag, or filename stem. Browse `permanent/` by timestamp for a rough timeline. Search for a stem to find references to it. In Stemlink, use the Notes tree, link navigation, or **References > Inbound**; run **Check References** when you want an audit.
 
 ## 10. Templates
 
-Copy and rename a template before editing:
+Stemlink copies these editable examples into the configured templates folder (`templates/` by default) during **Create Vault**. They are starting points, not enforced formats. Copy and rename a template before editing:
 
 - `_template.md`: a complete permanent-note example.
 - `_fleeting.md`: a quick capture without front matter; its copy belongs in `inbox/`.
 - `_promotion.md`: a skeleton for rewriting a capture as a permanent note.
 
-| Part | When copying |
-|---|---|
-| `title:` | Edit the living name freely. Quote it if it contains a colon. |
-| `tags:` | Choose 1–3 useful lowercase tags. |
-| Body | Rewrite in your own words as one idea. |
-| `[[link]]` | Replace examples with full stems of real notes, in context. |
-| Filename | Give a permanent note a new timestamp and slug; keep it stable afterward. |
+| Part       | When copying                                                              |
+| ---------- | ------------------------------------------------------------------------- |
+| `title:`   | Edit the living name freely. Quote it if it contains a colon.             |
+| `tags:`    | Choose 1–3 useful lowercase tags.                                         |
+| Body       | Rewrite in your own words as one idea.                                    |
+| `[[link]]` | Replace examples with full stems of real notes, in context.               |
+| Filename   | Give a permanent note a new timestamp and slug; keep it stable afterward. |
 
-Stemlink's **Check References** ignores Markdown files in `notes/` whose names start with `_`, including templates. Other invalid filenames are reported. Underscore files remain visible in the Notes tree and their outgoing links can appear in backlinks; their names are not valid wiki-link targets.
+Templates in `templates/` are outside the Notes tree and reference audit. Legacy underscore-prefixed Markdown files left in the configured permanent-note folder are excluded from **Check References**, but remain visible in Notes and their outgoing links can appear in backlinks; their names are not valid wiki-link targets.
 
 ## 11. Maintenance and troubleshooting
 
@@ -136,4 +192,4 @@ Stemlink's **Check References** ignores Markdown files in `notes/` whose names s
 3. Use YAML `title` and `tags` on permanent notes.
 4. Link to related notes where useful; do not invent links.
 5. Review the inbox regularly and rewrite what is worth keeping.
-6. Keep `notes/` flat and back up the vault.
+6. Keep `permanent/` flat and back up the vault.

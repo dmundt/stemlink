@@ -4,9 +4,13 @@ status: Accepted
 
 # ADR 021: Vault-local .stemlink.json
 
+[ADR 027](adr-027-templates-folder-mapping.md) extends version 1 with an optional `templates` folder mapping.
+
+[ADR 029](adr-029-default-vault-layout.md) sets new-vault defaults to `notes/inbox/permanent`. The custom layout below remains supported without migration.
+
 ## Context
 
-Folder names such as `fleeting`, `stable`, `inbox`, and `notes` do not reliably identify a Zettelkasten or its purpose. Workspace settings alone do not travel with a vault. A workspace-level registry would need updates when vaults move and would tie recognition to one workspace.
+Folder names such as `fleeting`, `stable`, `inbox`, and `notes` do not reliably identify a Stemlink vault or its purpose. Workspace settings alone do not travel with a vault. A workspace-level registry would need updates when vaults move and would tie recognition to one workspace.
 
 We need an explicit, portable declaration of the vault root and its two note directories without adding a database or changing Markdown files.
 
