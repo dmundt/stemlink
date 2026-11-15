@@ -21,6 +21,8 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 
 - [024: Opt-in vault agent instructions](adr-024-vault-agent-instructions.md) — scope-specific `AGENTS.md` files, consent, and preservation.
 
+- [025: Configurable feature settings](adr-025-configurable-feature-settings.md) — resource-scoped router and agent-instruction settings with behavior-preserving defaults.
+
 ## Creating and processing notes
 
 - [005: Add Note](adr-005-add-note.md) — permanent-note creation.

@@ -657,15 +657,142 @@ async function testOpenVault(folder: vscode.WorkspaceFolder, extensionUri: vscod
   }
 }
 
+async function testFeatureSettings(folder: vscode.WorkspaceFolder): Promise<void> {
+  const config = vscode.workspace.getConfiguration("stemlink", folder.uri);
+  const previousRouterSetting = config.inspect<boolean>("enableRouterIndexes")?.workspaceValue;
+  const previousAgentSetting = config.inspect<boolean>("offerAgentInstructions")?.workspaceValue;
+  const previousPaths = {
+    root: config.inspect<string>("root")?.workspaceValue,
+    inbox: config.inspect<string>("inbox")?.workspaceValue,
+    notes: config.inspect<string>("notes")?.workspaceValue,
+  };
+  const root = vscode.Uri.joinPath(folder.uri, "settings-vault");
+  const inbox = vscode.Uri.joinPath(root, "inbox");
+  const notes = vscode.Uri.joinPath(root, "notes");
+  const rootIndex = vscode.Uri.joinPath(root, routerIndexName);
+  const inboxIndex = vscode.Uri.joinPath(inbox, routerIndexName);
+  const notesIndex = vscode.Uri.joinPath(notes, routerIndexName);
+  const instructions = [root, inbox, notes].map(directory => vscode.Uri.joinPath(directory, "AGENTS.md"));
+  const indexBefore = Buffer.from(renderRouterIndexes("settings-vault", "inbox", "notes", 0, 0).root);
+  const api = vscode.window as {
+    showInputBox: typeof vscode.window.showInputBox;
+    showOpenDialog: typeof vscode.window.showOpenDialog;
+    showWorkspaceFolderPick: typeof vscode.window.showWorkspaceFolderPick;
+    showWarningMessage: typeof vscode.window.showWarningMessage;
+  };
+  const originalInput = api.showInputBox;
+  const originalOpen = api.showOpenDialog;
+  const originalWorkspaceFolderPick = api.showWorkspaceFolderPick;
+  const originalWarning = api.showWarningMessage;
+  let instructionPrompts = 0;
+  try {
+    await vscode.workspace.fs.createDirectory(inbox);
+    await vscode.workspace.fs.createDirectory(notes);
+    await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root, ".stemlink.json"),
+      Buffer.from(JSON.stringify({ version: 1, inbox: "inbox", notes: "notes" })));
+    await vscode.workspace.fs.writeFile(rootIndex, indexBefore);
+    await config.update("enableRouterIndexes", false, vscode.ConfigurationTarget.Workspace);
+    await config.update("offerAgentInstructions", false, vscode.ConfigurationTarget.Workspace);
+    api.showOpenDialog = async () => [root];
+    api.showWarningMessage = new Proxy(originalWarning, {
+      apply: (_target, _thisArg, args: unknown[]) => {
+        const message = String(args[0]);
+        if (message.includes("AGENTS.md")) {
+          instructionPrompts++;
+          return Promise.resolve("Add");
+        }
+        return Promise.resolve(message.includes("Reuse the folder") ? "Continue" : undefined);
+      },
+    });
+
+    await vscode.commands.executeCommand("stemlink.openVault");
+    assert.equal(instructionPrompts, 0, "disabled agent-instruction setting still prompted");
+    assert.deepEqual(await vscode.workspace.fs.readFile(rootIndex), indexBefore,
+      "disabled router setting modified an existing router");
+    for (const uri of [inboxIndex, notesIndex, ...instructions]) {
+      await assert.rejects(async () => vscode.workspace.fs.stat(uri),
+        (error: unknown) => error instanceof vscode.FileSystemError && error.code === "FileNotFound",
+        `disabled settings created ${uri.path}`);
+    }
+
+    await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(inbox, "capture.md"), Buffer.from("Capture\n"));
+    await new Promise(resolve => setTimeout(resolve, 200));
+    assert.deepEqual(await vscode.workspace.fs.readFile(rootIndex), indexBefore,
+      "disabled router setting refreshed an existing router");
+
+    await config.update("enableRouterIndexes", true, vscode.ConfigurationTarget.Workspace);
+    await vscode.commands.executeCommand("stemlink.openVault");
+    await waitForFileText(rootIndex, text => text.includes("Inbox `inbox/` (1 captures)"),
+      "enabling router setting did not initialize the router on Open Vault");
+    for (const uri of [inboxIndex, notesIndex]) {
+      assert.ok((await vscode.workspace.fs.stat(uri)).type & vscode.FileType.File,
+        "enabled router setting did not create a missing index");
+    }
+    for (const uri of instructions) {
+      await assert.rejects(async () => vscode.workspace.fs.stat(uri),
+        (error: unknown) => error instanceof vscode.FileSystemError && error.code === "FileNotFound",
+        "disabled agent-instruction setting installed a file");
+    }
+
+    await config.update("offerAgentInstructions", true, vscode.ConfigurationTarget.Workspace);
+    await vscode.commands.executeCommand("stemlink.openVault");
+    assert.equal(instructionPrompts, 1, "enabling agent-instruction setting did not prompt");
+    for (const uri of instructions) {
+      assert.ok((await vscode.workspace.fs.stat(uri)).type & vscode.FileType.File,
+        "accepted agent-instruction prompt did not create a missing file");
+    }
+
+    await config.update("enableRouterIndexes", false, vscode.ConfigurationTarget.Workspace);
+    await config.update("offerAgentInstructions", false, vscode.ConfigurationTarget.Workspace);
+    const createAnswers = ["settings-created", "inbox", "notes"];
+    api.showInputBox = async () => createAnswers.shift();
+    api.showWorkspaceFolderPick = async () => folder;
+    await vscode.commands.executeCommand("stemlink.createVault");
+    assert.equal(createAnswers.length, 0, "Create did not request its folder names");
+    const createdRoot = vscode.Uri.joinPath(folder.uri, "settings-created");
+    for (const directory of [
+      createdRoot,
+      vscode.Uri.joinPath(createdRoot, "inbox"),
+      vscode.Uri.joinPath(createdRoot, "notes"),
+    ]) {
+      for (const name of [routerIndexName, "AGENTS.md"]) {
+        await assert.rejects(async () => vscode.workspace.fs.stat(vscode.Uri.joinPath(directory, name)),
+          (error: unknown) => error instanceof vscode.FileSystemError && error.code === "FileNotFound",
+          `Create ignored disabled setting for ${name}`);
+      }
+    }
+  } finally {
+    api.showInputBox = originalInput;
+    api.showOpenDialog = originalOpen;
+    api.showWorkspaceFolderPick = originalWorkspaceFolderPick;
+    api.showWarningMessage = originalWarning;
+    await config.update("enableRouterIndexes", previousRouterSetting, vscode.ConfigurationTarget.Workspace);
+    await config.update("offerAgentInstructions", previousAgentSetting, vscode.ConfigurationTarget.Workspace);
+    await config.update("root", previousPaths.root, vscode.ConfigurationTarget.Workspace);
+    await config.update("inbox", previousPaths.inbox, vscode.ConfigurationTarget.Workspace);
+    await config.update("notes", previousPaths.notes, vscode.ConfigurationTarget.Workspace);
+  }
+}
+
 export async function run(): Promise<void> {
   const folder = vscode.workspace.workspaceFolders?.[0];
   assert.ok(folder, "test workspace missing");
   const extension = vscode.extensions.getExtension("dmundt.stemlink");
   assert.ok(extension, "development extension missing");
   await extension.activate();
+  const settings = extension.packageJSON.contributes.configuration.properties as
+    Record<string, { default: string | boolean; scope: string }>;
+  for (const [key, value] of [
+    ["stemlink.root", "zk"], ["stemlink.inbox", "inbox"], ["stemlink.notes", "notes"],
+    ["stemlink.enableRouterIndexes", true], ["stemlink.offerAgentInstructions", true],
+  ] as const) {
+    assert.equal(settings[key]?.default, value, `${key} default changed`);
+    assert.equal(settings[key]?.scope, "resource", `${key} must remain resource-scoped`);
+  }
   if (process.env.STEMLINK_DISCOVERY === "1") {
     await testDiscovery(folder);
     await testOpenVault(folder, extension.extensionUri);
+    await testFeatureSettings(folder);
     return;
   }
   if (process.env.STEMLINK_MULTI_ROOT === "1") {
