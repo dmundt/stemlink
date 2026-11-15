@@ -6,6 +6,7 @@ This is a collection of plain Markdown files: one idea per permanent note, conne
 
 ```text
 zk/
+├── .stemlink.json # Stemlink vault configuration
 ├── README.md   # this manual
 ├── inbox/      # quick, unprocessed captures
 └── notes/      # permanent notes and templates; keep flat
@@ -16,6 +17,16 @@ These are the default names; use your configured names if they differ. Keep perm
 ## 2. Setup
 
 Create the root, inbox, and notes folders, put this manual in the root, and open the folder in a text editor. Put it somewhere your normal backups cover. With Stemlink, **Create Zettelkasten** creates the folders and copies this manual and the templates.
+
+Stemlink recognizes `.stemlink.json` in the workspace root or an immediate child folder. Its `inbox` and `notes` values are folder names relative to the file:
+
+```json
+{ "version": 1, "inbox": "inbox", "notes": "notes" }
+```
+
+Change those names if your folders differ. Select a vault under **Vaults** when several are available. If settings conflict with a marker for the same vault, Stemlink asks which configuration to use. Existing workspace settings also work without this file.
+
+Use **Open Vault** to select an existing folder. Without a marker, confirm adding one and choose existing capture and permanent-note folders. Folders outside discovery scope are added to the workspace. Notes and templates are not replaced or installed; Workspace Trust is required.
 
 ## 3. Naming files
 
@@ -89,7 +100,7 @@ The rewrite is the thinking, not merely moving the file. Stemlink's **Promote Ca
 
 ## 9. Finding notes
 
-Search the files for a distinctive word, tag, or filename stem. Browse `notes/` by timestamp for a rough timeline. Search for a stem to find references to it. In Stemlink, use the Notes tree, link navigation, or **Ref To**; run **Check References** when you want an audit.
+Search the files for a distinctive word, tag, or filename stem. Browse `notes/` by timestamp for a rough timeline. Search for a stem to find references to it. In Stemlink, use the Notes tree, link navigation, or **References > Inbound**; run **Check References** when you want an audit.
 
 ## 10. Templates
 

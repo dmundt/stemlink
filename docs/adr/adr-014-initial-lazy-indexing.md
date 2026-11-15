@@ -1,8 +1,10 @@
 ---
-status: Proposed
+status: Superseded
 ---
 
 # ADR 014: Initial lazy indexing
+
+Superseded by [ADR 019](adr-019-multiple-vaults.md), which warms only the selected vault.
 
 ## Context
 

@@ -7,7 +7,11 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [001: Minimal extension](adr-001-minimal-extension.md) — scope and design constraints.
 - [002: Configurable vault creation](adr-002-vault-creation.md) — folder prompts, settings, and manual.
 - [003: Plain Markdown notes](adr-003-note-format.md) — filenames, YAML front matter, and links.
-- [004: Single tree view](adr-004-tree-view.md) — Inbox, Notes, Ref From, and Ref To.
+- [004: Single tree view](adr-004-tree-view.md) — superseded tree layout.
+- [018: Vault marker discovery](adr-018-vault-marker-discovery.md) — marker format; selection superseded.
+- [019: Multiple vaults](adr-019-multiple-vaults.md) — vault selection, counts, and background indexing.
+- [020: Open an existing vault](adr-020-open-existing-vault.md) — folder picker, confirmed marker creation, and workspace integration.
+- [021: Vault-local .stemlink.json](adr-021-vault-configuration-marker.md) — usage, format, rationale, alternatives, and compatibility.
 
 ## Creating and processing notes
 
@@ -28,7 +32,11 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 ## Performance and indexing
 
 - [013: Performance at 10,000 notes](adr-013-performance.md) — benchmark and capacity decisions.
-- [014: Initial lazy indexing](adr-014-initial-lazy-indexing.md) — proposed background indexing.
+- [014: Initial lazy indexing](adr-014-initial-lazy-indexing.md) — superseded background indexing proposal.
+
+## Distribution
+
+- [017: Build and publication](adr-017-build-and-publication.md) — quality matrix, VSIX, release, and Marketplace OIDC.
 
 ## Maintenance rules
 
