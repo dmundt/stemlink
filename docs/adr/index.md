@@ -15,6 +15,8 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 
 - [028: Inline YAML tags](adr-028-inline-yaml-tags.md) — single-line tag lists for generated metadata and vault authoring.
 
+- [023: Separate native tree views](adr-023-separated-tree-views.md) — native view separators and section-specific commands.
+
 ## Creating and processing notes
 
 - [005: Add Note](adr-005-add-note.md) — permanent-note creation.

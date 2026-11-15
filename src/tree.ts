@@ -2,7 +2,8 @@ import * as vscode from "vscode";
 import { linksIn } from "./core";
 import { Vault, directChild, reportError } from "./vault";
 
-type Section = "Vaults" | "Fleeting" | "Notes" | "References" | "Inbound" | "Outbound";
+export type VaultSection = "Vaults" | "Fleeting" | "Notes" | "References";
+type Section = VaultSection | "Inbound" | "Outbound";
 export class Item extends vscode.TreeItem {
   constructor(
     label: string,
@@ -245,6 +246,31 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
     if (this.refreshTimer) clearTimeout(this.refreshTimer);
     this.vaultSubscriptions.forEach(item => item.dispose());
     this.subscriptions.forEach(item => item.dispose());
+    this.emitter.dispose();
+  }
+}
+
+export class VaultTreeSection implements vscode.TreeDataProvider<Item>, vscode.Disposable {
+  private readonly emitter = new vscode.EventEmitter<Item | undefined>();
+  readonly onDidChangeTreeData = this.emitter.event;
+  private readonly subscription: vscode.Disposable;
+
+  constructor(private readonly tree: VaultTree, private readonly section: VaultSection) {
+    this.subscription = tree.onDidChangeTreeData(() => this.emitter.fire(undefined));
+  }
+
+  getTreeItem(element: Item): vscode.TreeItem {
+    return this.tree.getTreeItem(element);
+  }
+
+  async getChildren(element?: Item): Promise<Item[]> {
+    if (element) return this.tree.getChildren(element);
+    const root = (await this.tree.getChildren()).find(item => item.kind === this.section);
+    return root ? this.tree.getChildren(root) : [];
+  }
+
+  dispose(): void {
+    this.subscription.dispose();
     this.emitter.dispose();
   }
 }

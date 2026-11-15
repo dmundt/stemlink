@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { auditNotes, linksIn, makeNote, promoteNote, slug, timestamp } from "./core";
 import { readVaultMarker, resolveVaultPaths, samePaths } from "./discovery";
-import { Item, VaultTree } from "./tree";
+import { Item, VaultSection, VaultTree, VaultTreeSection } from "./tree";
 import { Vault, VaultPaths, directChild, reportError, sameUri, validFolderName } from "./vault";
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
@@ -38,8 +38,35 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   };
   const tree = new VaultTree(activeVault, allVaults);
   context.subscriptions.push(tree);
-  const treeView = vscode.window.createTreeView("stemlink.vault", { treeDataProvider: tree });
-  context.subscriptions.push(treeView);
+  const treeSections: VaultSection[] = ["Vaults", "Fleeting", "Notes", "References"];
+  const treeViews = new Map<VaultSection, vscode.TreeView<Item>>();
+  for (const section of treeSections) {
+    const provider = new VaultTreeSection(tree, section);
+    const view = vscode.window.createTreeView<Item>(`stemlink.${section.toLowerCase()}`, { treeDataProvider: provider });
+    view.title = section;
+    treeViews.set(section, view);
+    context.subscriptions.push(provider, view);
+  }
+  const updateTreeViewMessages = (): void => {
+    for (const [section, view] of treeViews) {
+      view.message = section === "Vaults"
+        ? vaults.size ? undefined : "Use Open Vault or Create Zettelkasten."
+        : selectedVault ? undefined : "Select a vault in Vaults.";
+    }
+  };
+  const updateTreeViewTitles = async (): Promise<void> => {
+    const items = await tree.getChildren();
+    for (const section of treeSections) {
+      const item = items.find(candidate => candidate.kind === section);
+      const view = treeViews.get(section);
+      if (typeof item?.label === "string" && view) view.title = item.label;
+    }
+  };
+  context.subscriptions.push(tree.onDidChangeTreeData(() => {
+    void updateTreeViewTitles().catch(reportError);
+  }));
+  void updateTreeViewTitles().catch(reportError);
+  updateTreeViewMessages();
 
   const warmIndex = (vault: Vault) => {
     if (background.has(vault) || vault.indexState === "ready") return;
@@ -53,7 +80,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const selectVault = async (vault: Vault | undefined): Promise<void> => {
     await context.workspaceState.update(selectionKey, vault?.paths.root.toString());
     selectedVault = vault;
-    treeView.message = vault ? undefined : "Select a vault in Vaults.";
+    updateTreeViewMessages();
     if (vault) warmIndex(vault);
     tree.refresh();
   };
@@ -89,8 +116,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       selectedVault = allVaults()[0];
       await context.workspaceState.update(selectionKey, selectedVault.paths.root.toString());
     }
-    treeView.message = selectedVault ? undefined
-      : vaults.size ? "Select a vault in Vaults." : "Use Open Vault or Create Zettelkasten.";
+    updateTreeViewMessages();
     tree.syncVaults();
     if (selectedVault && selectedVault.indexState === "pending") warmIndex(selectedVault);
     if (preferred && selectedVault) await context.workspaceState.update(selectionKey, selectedVault.paths.root.toString());

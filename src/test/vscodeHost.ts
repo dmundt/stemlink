@@ -4,7 +4,7 @@ import * as os from "node:os";
 import * as vscode from "vscode";
 import { discoverVaults, readVaultMarker, resolveVaultPaths } from "../discovery";
 import { Vault, directChild, pathsFor, sameUri, validFolderName } from "../vault";
-import { VaultTree } from "../tree";
+import { VaultTree, VaultTreeSection } from "../tree";
 
 async function waitFor(condition: () => boolean, message: string): Promise<void> {
   const deadline = Date.now() + 5000;
@@ -672,6 +672,9 @@ export async function run(): Promise<void> {
 
   const vault = new Vault(folder);
   const tree = new VaultTree(() => vault, () => [vault]);
+  const sectionViews = (["Vaults", "Fleeting", "Notes", "References"] as const)
+    .map(section => new VaultTreeSection(tree, section));
+
   try {
     started = performance.now();
     await vault.ensure();
@@ -680,6 +683,14 @@ export async function run(): Promise<void> {
     assert.deepEqual(sections.map(item => item.kind), ["Vaults", "Fleeting", "Notes", "References"]);
     assert.equal(sections[1].tooltip, "Unprocessed captures.");
     assert.equal(sections[1].contextValue, "stemlink.inbox");
+    const [vaultRows, captureRows, noteRows, referenceRows] = await Promise.all(
+      sectionViews.map(view => view.getChildren()),
+    );
+    assert.ok(vaultRows.every(item => item.kind === "vault"), "Vaults view contains another section");
+    assert.ok(captureRows.every(item => item.kind === "capture"), "Fleeting view contains another section");
+    assert.ok(noteRows.every(item => item.kind === "note"), "Notes view contains another section");
+    assert.deepEqual(referenceRows.map(item => item.kind), ["Inbound", "Outbound"],
+      "References view did not expose Inbound and Outbound sections");
     const referenceSections = await tree.getChildren(sections[3]);
     const outgoing = await tree.getChildren(referenceSections[1]);
     assert.ok(outgoing.some(item => item.label === "202601011200-note-1"),
@@ -734,6 +745,7 @@ export async function run(): Promise<void> {
       nativeReferencesMs: Math.round(referencesMs), auditMs: Math.round(auditMs),
     }));
   } finally {
+    sectionViews.forEach(view => view.dispose());
     tree.dispose();
     vault.dispose();
     await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor");
