@@ -1,8 +1,10 @@
 ---
-status: Superseded in part by ADR 023
+status: Superseded in part by ADRs 023 and 031
 ---
 
 # ADR 019: Multiple vaults
+
+[ADR 031](adr-031-native-vault-selection.md) replaces the initial manual multi-vault selection rule with last-available or first-listed automatic selection and native row highlighting.
 
 ## Context
 
@@ -14,7 +16,7 @@ Discover all vault markers in each workspace root and its immediate children, re
 
 Show one tree with Vaults, Fleeting, Notes, and References. Select vaults explicitly in Vaults; remember the selection in workspace state. Select a sole vault automatically. Fleeting and Notes belong to the selected vault. References contains Inbound and Outbound for the active note only when it belongs to that vault. Counts represent link occurrences; the total is inbound plus outbound. Other note navigation resolves against the note's own vault without changing the selection.
 
-The one-tree presentation was superseded by [ADR 023](adr-023-separated-tree-views.md). The discovery, selection, and count behavior in this ADR remains in effect.
+The one-tree presentation was superseded by [ADR 023](adr-023-separated-tree-views.md), and initial selection was superseded by [ADR 031](adr-031-native-vault-selection.md). Discovery and count behavior in this ADR remains in effect.
 
 Start the selected vault's content and backlink index in the background. Show `...` for inbound and total counts until the index is complete, and show errors if indexing fails. Filename lookup and outgoing references remain independent of that scan. Backlink requests wait for a complete index.
 

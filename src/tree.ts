@@ -40,6 +40,7 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
   readonly onDidChangeTreeData = this.emitter.event;
   private readonly subscriptions: vscode.Disposable[];
   private readonly vaultSubscriptions = new Map<Vault, vscode.Disposable>();
+  private readonly vaultItems = new Map<Vault, Item>();
   private readonly captureCounts = new Map<Vault, { path: string; count?: number; failed?: boolean }>();
   private readonly pendingNames = new Set<Vault>();
   private readonly failedNames = new Set<Vault>();
@@ -65,6 +66,7 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
       if (!current.has(vault)) {
         subscription.dispose();
         this.vaultSubscriptions.delete(vault);
+        this.vaultItems.delete(vault);
         this.captureCounts.delete(vault);
         this.failedNames.delete(vault);
         this.namePaths.delete(vault);
@@ -194,9 +196,13 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
       if (element.kind === "Vaults") return this.vaults().map(candidate => {
         const root = candidate.paths.root;
         const label = root.path.slice(root.path.lastIndexOf("/") + 1) || candidate.folder.name;
-        const item = new Item(label, "vault", undefined, undefined, candidate);
-        item.description = candidate === vault ? "Selected" : candidate.folder.name;
-        if (candidate === vault) item.iconPath = new vscode.ThemeIcon("check");
+        let item = this.vaultItems.get(candidate);
+        if (!item) {
+          item = new Item(label, "vault", undefined, undefined, candidate);
+          this.vaultItems.set(candidate, item);
+        }
+        item.label = label;
+        item.description = candidate.folder.name;
         item.tooltip = root.path;
         return item;
       });
@@ -248,6 +254,7 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
     this.disposed = true;
     if (this.refreshTimer) clearTimeout(this.refreshTimer);
     this.vaultSubscriptions.forEach(item => item.dispose());
+    this.vaultItems.clear();
     this.subscriptions.forEach(item => item.dispose());
     this.emitter.dispose();
   }
@@ -257,8 +264,10 @@ export class VaultTreeSection implements vscode.TreeDataProvider<Item>, vscode.D
   private readonly emitter = new vscode.EventEmitter<Item | undefined>();
   readonly onDidChangeTreeData = this.emitter.event;
   private readonly subscription: vscode.Disposable;
+  readonly getParent?: (element: Item) => undefined;
 
   constructor(private readonly tree: VaultTree, private readonly section: VaultSection) {
+    if (section === "Vaults") this.getParent = () => undefined;
     this.subscription = tree.onDidChangeTreeData(() => this.emitter.fire(undefined));
   }
 

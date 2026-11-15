@@ -5,7 +5,7 @@ import * as vscode from "vscode";
 import { discoverVaults, readVaultMarker, resolveVaultPaths } from "../discovery";
 import { isVaultInstructionFile, renderRouterIndexes, renderVaultReadme, routerIndexName } from "../core";
 import { Vault, directChild, pathsFor, sameUri, validFolderName } from "../vault";
-import { VaultTree, VaultTreeSection } from "../tree";
+import { Item, VaultTree, VaultTreeSection } from "../tree";
 
 async function waitFor(condition: () => boolean, message: string): Promise<void> {
   const deadline = Date.now() + 5000;
@@ -280,8 +280,7 @@ async function testDiscovery(folder: vscode.WorkspaceFolder): Promise<void> {
   });
   try {
     await vscode.commands.executeCommand("stemlink.addFleetingNote");
-    assert.ok(errors.some(message => message.includes("Select a Zettelkasten under Vaults")),
-      "multiple vaults should require explicit selection");
+    assert.equal(errors.length, 0, "first vault was not automatically selected");
   } finally { errorApi.showErrorMessage = originalError; }
   const discovered = await discoverVaults(folder);
   const foundRoot = discovered.find(candidate => candidate.root.toString() === root.toString());
@@ -298,7 +297,6 @@ async function testDiscovery(folder: vscode.WorkspaceFolder): Promise<void> {
   assert.ok(links?.some(link => link.target?.toString() === second.toString()),
     `discovered vault links do not resolve: ${JSON.stringify(links?.map(link => link.target?.toString()))}`);
   await vscode.commands.executeCommand("stemlink.selectVault", root);
-  await vscode.commands.executeCommand("stemlink.addFleetingNote");
   const captures = await vscode.workspace.fs.readDirectory(vscode.Uri.joinPath(root, "fleeting"));
   assert.equal(captures.filter(([name]) => name.endsWith(".md")).length, 1, "discovered inbox was not used");
   await vscode.commands.executeCommand("stemlink.selectVault", otherRoot);
@@ -336,7 +334,10 @@ async function testDiscovery(folder: vscode.WorkspaceFolder): Promise<void> {
     assert.deepEqual(sections.map(item => item.label), ["Vaults (2)", "Fleeting (1)", "Notes (4)", "References (...)"]);
     const vaultItems = await tree.getChildren(sections[0]);
     assert.deepEqual(vaultItems.map(item => item.label), ["existing-vault", "other-vault"]);
-    assert.equal(vaultItems[0].description, "Selected");
+    for (const item of vaultItems) {
+      assert.equal(item.iconPath, undefined, "vault row still has an icon");
+      assert.notEqual(item.description, "Selected", "vault row still has Selected text");
+    }
     assert.equal(vaultItems[1].command?.command, "stemlink.selectVault");
     await firstVault.ensure();
     sections = await tree.getChildren();
@@ -363,7 +364,7 @@ async function testDiscovery(folder: vscode.WorkspaceFolder): Promise<void> {
       sections = await tree.getChildren();
     }
     assert.deepEqual(sections.map(item => item.label), ["Vaults (2)", "Fleeting (1)", "Notes (2)", "References (0)"]);
-    assert.equal((await tree.getChildren(sections[0]))[1].description, "Selected");
+    assert.notEqual((await tree.getChildren(sections[0]))[1].description, "Selected");
   } finally {
     tree.dispose();
     firstVault.dispose();
@@ -618,7 +619,7 @@ async function testOpenVault(folder: vscode.WorkspaceFolder, extensionUri: vscod
     assert.equal(Buffer.from(await vscode.workspace.fs.readFile(inboxInstructions)).toString("utf8"),
       "User-owned inbox instructions.\n", "opening replaced existing inbox instructions");
     assert.match(instructionPrompts[0] ?? "", /permanent\/AGENTS\.md/,
-      "open prompt included existing agent instructions or omitted missing ones");
+      `open prompt included existing agent instructions or omitted missing ones: ${JSON.stringify({ instructionPrompts, errors })}`);
     const notesInstructions = Buffer.from(
       await vscode.workspace.fs.readFile(vscode.Uri.joinPath(notes, "AGENTS.md")),
     ).toString("utf8");
@@ -1023,12 +1024,80 @@ async function testDynamicVaultFiles(folder: vscode.WorkspaceFolder, extensionUr
   }
 }
 
+async function testNativeVaultSelection(
+  folder: vscode.WorkspaceFolder, view: vscode.TreeView<Item>, provider: vscode.TreeDataProvider<Item>,
+): Promise<void> {
+  const firstRoot = vscode.Uri.joinPath(folder.uri, "existing-vault");
+  const secondRoot = vscode.Uri.joinPath(folder.uri, "other-vault");
+  await vscode.commands.executeCommand("stemlink.vaults.focus");
+  await waitFor(() => view.selection[0]?.vault?.paths.root.toString() === firstRoot.toString(),
+    "first vault was not natively selected on open");
+  const rows = await provider.getChildren();
+  const second = rows?.find(item => item.vault?.paths.root.toString() === secondRoot.toString());
+  assert.ok(second, "second vault row missing");
+  await view.reveal(second, { select: true, focus: false });
+  await vscode.commands.executeCommand("stemlink.addFleetingNote");
+  const capture = vscode.window.activeTextEditor?.document;
+  assert.ok(capture && directChild(capture.uri, vscode.Uri.joinPath(secondRoot, "inbox")),
+    "native row selection did not change the active vault");
+  await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor");
+  await vscode.workspace.fs.delete(capture.uri);
+
+  await vscode.window.showTextDocument(vscode.Uri.joinPath(firstRoot, "stable", "202601011200-note-0.md"));
+  let refreshes = 0;
+  const refreshed = provider.onDidChangeTreeData?.(() => { refreshes++; });
+  try {
+    await vscode.commands.executeCommand("stemlink.refresh");
+    await waitFor(() => refreshes > 0, "vault tree did not refresh");
+  } finally {
+    refreshed?.dispose();
+  }
+  await waitFor(() => view.selection[0]?.vault?.paths.root.toString() === secondRoot.toString(),
+    "editor change or refresh cleared native vault selection");
+
+  const marker = vscode.Uri.joinPath(secondRoot, ".stemlink.json");
+  const bytes = await vscode.workspace.fs.readFile(marker);
+  await vscode.workspace.fs.delete(marker);
+  await waitFor(() => view.selection[0]?.vault?.paths.root.toString() === firstRoot.toString(),
+    "removing selected vault did not auto-select the remaining vault");
+  await vscode.workspace.fs.writeFile(marker, bytes);
+  await waitFor(() => view.title === "Vaults (2)", "restored vault was not rediscovered");
+  assert.equal(view.selection[0]?.vault?.paths.root.toString(), firstRoot.toString(),
+    "rediscovery replaced the remaining selected vault");
+  await vscode.commands.executeCommand("workbench.action.closeSidebar");
+  await waitFor(() => !view.visible, "Vaults view did not close");
+  await vscode.commands.executeCommand("stemlink.selectVault", secondRoot);
+  assert.equal(view.visible, false, "changing vault opened the hidden Vaults view");
+  await vscode.commands.executeCommand("stemlink.vaults.focus");
+  await waitFor(() => view.selection[0]?.vault?.paths.root.toString() === secondRoot.toString(),
+    "showing Vaults did not restore its selected row");
+  await vscode.commands.executeCommand("stemlink.selectVault", firstRoot);
+}
+
 export async function run(): Promise<void> {
   const folder = vscode.workspace.workspaceFolders?.[0];
   assert.ok(folder, "test workspace missing");
   const extension = vscode.extensions.getExtension("dmundt.stemlink");
   assert.ok(extension, "development extension missing");
-  await extension.activate();
+  const windowApi = vscode.window as { createTreeView: typeof vscode.window.createTreeView };
+  const originalCreateTreeView = windowApi.createTreeView;
+  let vaultView: vscode.TreeView<Item> | undefined;
+  let vaultProvider: vscode.TreeDataProvider<Item> | undefined;
+  windowApi.createTreeView = new Proxy(originalCreateTreeView, {
+    apply: (target, thisArg, args: unknown[]) => {
+      const view = Reflect.apply(target, thisArg, args) as vscode.TreeView<Item>;
+      if (args[0] === "stemlink.vaults") {
+        vaultView = view;
+        vaultProvider = (args[1] as vscode.TreeViewOptions<Item>).treeDataProvider;
+      }
+      return view;
+    },
+  });
+  try {
+    await extension.activate();
+  } finally {
+    windowApi.createTreeView = originalCreateTreeView;
+  }
   const settings = extension.packageJSON.contributes.configuration.properties as
     Record<string, { default: string | boolean; scope: string }>;
   for (const [key, value] of [
@@ -1040,6 +1109,8 @@ export async function run(): Promise<void> {
     assert.equal(settings[key]?.scope, "resource", `${key} must remain resource-scoped`);
   }
   if (process.env.STEMLINK_DISCOVERY === "1") {
+    assert.ok(vaultView && vaultProvider, "vault view was not captured during activation");
+    await testNativeVaultSelection(folder, vaultView, vaultProvider);
     await testDiscovery(folder);
     await testOpenVault(folder, extension.extensionUri);
     await testFeatureSettings(folder);
