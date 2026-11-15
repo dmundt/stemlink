@@ -13,6 +13,8 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [020: Open an existing vault](adr-020-open-existing-vault.md) — folder picker, confirmed marker creation, and workspace integration.
 - [021: Vault-local .stemlink.json](adr-021-vault-configuration-marker.md) — usage, format, rationale, alternatives, and compatibility.
 
+- [028: Inline YAML tags](adr-028-inline-yaml-tags.md) — single-line tag lists for generated metadata and vault authoring.
+
 ## Creating and processing notes
 
 - [005: Add Note](adr-005-add-note.md) — permanent-note creation.

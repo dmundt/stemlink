@@ -1,4 +1,4 @@
-import { parseDocument, stringify } from "yaml";
+import { Document, parseDocument } from "yaml";
 
 export interface Link {
   stem: string;
@@ -33,7 +33,15 @@ export function metadataProblem(text: string): string | undefined {
 }
 
 export function makeNote(title: string, tags: string[], body = ""): string {
-  return `---\n${stringify({ title, tags })}---\n\n${body}`;
+  return `---\n${noteMetadata(new Document(), title, tags)}---\n\n${body}`;
+}
+
+function noteMetadata(document: Document, title: string, tags: string[]): string {
+  const sequence = document.createNode(tags);
+  sequence.flow = true;
+  document.set("title", title);
+  document.set("tags", sequence);
+  return document.toString({ lineWidth: 0, flowCollectionPadding: false });
 }
 
 export function promoteNote(text: string, title: string, tags: string[]): string {
@@ -50,9 +58,7 @@ export function promoteNote(text: string, title: string, tags: string[]): string
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new Error("Capture front matter must be a YAML mapping.");
   }
-  document.set("title", title);
-  document.set("tags", tags);
-  return `---\n${document.toString()}---\n${text.slice(matter.end)}`;
+  return `---\n${noteMetadata(document, title, tags)}---\n${text.slice(matter.end)}`;
 }
 
 export function slug(title: string): string {

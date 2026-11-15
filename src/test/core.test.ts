@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { parseDocument } from "yaml";
 import { auditNotes, frontMatter, linksIn, makeNote, metadataProblem, promoteNote, slug, timestamp } from "../core";
 
 test("parses references in prose, not front matter or Markdown code", () => {
@@ -30,9 +31,35 @@ test("promoting preserves body and existing YAML fields", () => {
   assert.match(result, /source: example/);
   assert.match(result, /\n\nBody \[\[202601011201-link\]\]\n$/);
   assert.equal(metadataProblem(result), undefined);
+  assert.match(result, /^tags: \[one, two\]$/m);
   assert.throws(() => promoteNote("---\ninvalid: [\n---\nBody", "A", []), /invalid YAML/);
   assert.throws(() => promoteNote("---\ntitle: no closing\n", "A", []), /unclosed/);
   assert.ok(promoteNote("Plain capture", "Title", []).endsWith("Plain capture"));
+});
+
+test("note creation and promotion keep tag sequences on one line", () => {
+  const body = "Body remains unchanged.\n";
+  const capture = "---\nsource: example\ntags:\n  - old\n---\n\n" + body;
+  const cases = [
+    ["notes", "zk", "bug"],
+    [],
+    ["one, two", "[brackets]", "a: b", "#hash", "true", 'a "quote"'],
+    Array.from({ length: 30 }, (_, index) => `long-tag-${index}`),
+  ];
+  for (const tags of cases) {
+    for (const text of [
+      makeNote("Title", tags, body),
+      promoteNote(body, "Title", tags),
+      promoteNote(capture, "Title", tags),
+    ]) {
+      const matter = frontMatter(text);
+      assert.ok(matter);
+      assert.match(matter.yaml, /^tags: \[[^\r\n]*\]$/m);
+      assert.deepEqual(parseDocument(matter.yaml).toJS().tags, tags);
+      assert.ok(text.endsWith(body), "serializing tags changed note body");
+      assert.equal(metadataProblem(text), undefined);
+    }
+  }
 });
 
 test("audit reports broken, malformed, missing metadata and incoming references", () => {
