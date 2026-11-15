@@ -9,6 +9,103 @@ export interface Link {
 
 export const stemPattern = /^\d{12}-[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const filenamePattern = /^\d{12}-[a-z0-9]+(?:-[a-z0-9]+)*\.md$/;
+export const routerIndexName = "INDEX.md";
+export const agentInstructionsName = "AGENTS.md";
+export const routerIndexStart = "<!-- stemlink:generated:start -->";
+export const routerIndexEnd = "<!-- stemlink:generated:end -->";
+
+export function isRouterIndex(name: string): boolean {
+  return name.toLowerCase() === routerIndexName.toLowerCase();
+}
+
+export function isVaultInstructionFile(name: string): boolean {
+  return isRouterIndex(name) || name.toLowerCase() === agentInstructionsName.toLowerCase();
+}
+
+export interface RouterIndexContent {
+  root: string;
+  inbox: string;
+  notes: string;
+}
+
+export function markdownCodeSpan(value: string): string {
+  let delimiter = "`";
+  while (value.includes(delimiter)) delimiter += "`";
+  return `${delimiter}${value}${delimiter}`;
+}
+
+export function renderRouterIndexes(
+  rootName: string,
+  inboxName: string,
+  notesName: string,
+  inboxCount: number,
+  notesCount: number,
+): RouterIndexContent {
+  const path = (name: string) => encodeURIComponent(name);
+  const section = (lines: string[]) => [
+    routerIndexStart,
+    ...lines,
+    routerIndexEnd,
+    "",
+  ].join("\n");
+  const authorityRule =
+    "Navigation only, not authoritative. Stemlink's in-memory note/reference index is authoritative for live vault state.";
+  return {
+    root: section([
+      `# Zettelkasten router: ${markdownCodeSpan(`${rootName}/`)}`,
+      "",
+      "Start here. Use the folder indexes to route work, then read the relevant Markdown files directly.",
+      "",
+      authorityRule,
+      "",
+      `- [Inbox ${markdownCodeSpan(`${inboxName}/`)} (${inboxCount} captures)](./${path(inboxName)}/${routerIndexName})`,
+      `- [Notes ${markdownCodeSpan(`${notesName}/`)} (${notesCount} Markdown files)](./${path(notesName)}/${routerIndexName})`,
+      "",
+      "Counts cover direct-child Markdown files and exclude INDEX.md and AGENTS.md. Underscore-prefixed templates in the notes folder are included.",
+    ]),
+    inbox: section([
+      `# Inbox router: ${markdownCodeSpan(`${inboxName}/`)}`,
+      "",
+      "This folder holds unprocessed captures. Read captures before suggesting promotion; do not modify files unless asked.",
+      "",
+      authorityRule,
+      "",
+      `- [Vault index](../${routerIndexName})`,
+      `- [Notes ${markdownCodeSpan(`${notesName}/`)} (${notesCount} Markdown files)](../${path(notesName)}/${routerIndexName})`,
+      "",
+      `Markdown captures: ${inboxCount}`,
+    ]),
+    notes: section([
+      `# Notes router: ${markdownCodeSpan(`${notesName}/`)}`,
+      "",
+      "Read relevant Markdown files directly and follow their wiki-link stems. Treat underscore-prefixed files as templates, not notes.",
+      "",
+      authorityRule,
+      "",
+      `- [Vault index](../${routerIndexName})`,
+      `- [Inbox ${markdownCodeSpan(`${inboxName}/`)} (${inboxCount} captures)](../${path(inboxName)}/${routerIndexName})`,
+      "",
+      `Markdown files: ${notesCount} (excludes INDEX.md and AGENTS.md).`,
+    ]),
+  };
+}
+
+export function replaceRouterIndexSection(current: string, generated: string): string | undefined {
+  const start = current.indexOf(routerIndexStart);
+  const end = current.indexOf(routerIndexEnd);
+  if (start < 0 && end < 0) return undefined;
+  if (start < 0 || end < start || current.indexOf(routerIndexStart, start + routerIndexStart.length) >= 0 ||
+      current.indexOf(routerIndexEnd, end + routerIndexEnd.length) >= 0) {
+    throw new Error("Malformed Stemlink-generated section in INDEX.md.");
+  }
+  const lineEnding = current.includes("\r\n") ? "\r\n" : "\n";
+  const normalized = generated.replace(/\r?\n/g, lineEnding);
+  let suffixStart = end + routerIndexEnd.length;
+  if (current.startsWith("\r\n", suffixStart)) suffixStart += 2;
+  else if (current.startsWith("\n", suffixStart)) suffixStart++;
+  return current.slice(0, start) + normalized +
+    current.slice(suffixStart);
+}
 
 export function frontMatter(text: string): { yaml: string; end: number } | undefined {
   const match = /^(?:\uFEFF)?---[ \t]*\r?\n([\s\S]*?)^---[ \t]*(?:\r?\n|$)/m.exec(text);
@@ -137,6 +234,7 @@ export interface Finding<T extends NoteData = NoteData> {
 }
 
 export function auditNotes<T extends NoteData>(notes: T[]): Finding<T>[] {
+  notes = notes.filter(note => !isVaultInstructionFile(note.name));
   const stems = new Set(notes.map(note => note.stem));
   const incoming = new Set<string>();
   const findings: Finding<T>[] = [];

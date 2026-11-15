@@ -1,6 +1,9 @@
 import * as vscode from "vscode";
-import { auditNotes, linksIn, makeNote, promoteNote, slug, timestamp } from "./core";
+import {
+  auditNotes, isVaultInstructionFile, linksIn, makeNote, promoteNote, slug, timestamp,
+} from "./core";
 import { readVaultMarker, resolveVaultPaths, samePaths } from "./discovery";
+import { VaultRouterIndexes } from "./router";
 import { Item, VaultSection, VaultTree, VaultTreeSection } from "./tree";
 import { Vault, VaultPaths, directChild, reportError, sameUri, validFolderName } from "./vault";
 
@@ -37,7 +40,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     return selectedVault && folder && sameUri(folder.uri, selectedVault.folder.uri) ? selectedVault : undefined;
   };
   const tree = new VaultTree(activeVault, allVaults);
+  const routerIndexes = new VaultRouterIndexes();
   context.subscriptions.push(tree);
+  context.subscriptions.push(routerIndexes);
   const treeSections: VaultSection[] = ["Vaults", "Fleeting", "Notes", "References"];
   const treeViews = new Map<VaultSection, vscode.TreeView<Item>>();
   for (const section of treeSections) {
@@ -109,6 +114,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
       vault.selectPaths(descriptor.paths);
     }
+    routerIndexes.sync(allVaults().map(vault => vault.paths));
     const wanted = preferred?.toString() ?? selectedVault?.paths.root.toString() ??
       context.workspaceState.get<string>(selectionKey);
     selectedVault = wanted ? vaults.get(wanted) : undefined;
@@ -131,7 +137,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const pendingOpen = pendingRoot && vscode.workspace.workspaceFolders?.some(folder => sameUri(folder.uri, vscode.Uri.parse(pendingRoot)))
     ? pendingRoot : undefined;
   await queueDiscovery(pendingOpen ? vscode.Uri.parse(pendingOpen) : undefined);
-  if (pendingOpen) await context.globalState.update(pendingOpenKey, undefined);
+  if (pendingOpen) {
+    const vault = vaults.get(pendingOpen);
+    if (vault) {
+      await routerIndexes.initialize(vault.paths).catch(reportError);
+    }
+    await context.globalState.update(pendingOpenKey, undefined);
+  }
 
   const command = <T extends unknown[]>(name: string, handler: (...args: T) => Promise<void>) =>
     context.subscriptions.push(vscode.commands.registerCommand(name, async (...args: unknown[]) => {
@@ -176,7 +188,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (!((await vscode.workspace.fs.stat(root)).type & vscode.FileType.Directory)) {
       throw new Error("Choose a Zettelkasten folder.");
     }
-    if (!await readVaultMarker(root)) {
+    const marker = await readVaultMarker(root);
+    if (!marker) {
       const answer = await vscode.window.showWarningMessage(
         "This folder has no .stemlink.json. Add a marker using existing inbox and permanent-note folders?",
         { modal: true }, "Add Marker",
@@ -203,6 +216,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const folders = vscode.workspace.workspaceFolders ?? [];
     if (folders.some(folder => sameUri(root, folder.uri) || directChild(root, folder.uri))) {
       await queueDiscovery(root);
+      const vault = vaults.get(root.toString());
+      if (vault) {
+        await routerIndexes.initialize(vault.paths);
+      }
       return;
     }
     if (!folders.length) {
@@ -241,6 +258,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       if (timer) clearTimeout(timer);
     }
     await queueDiscovery(root);
+    const vault = vaults.get(root.toString());
+    if (vault) {
+      await routerIndexes.initialize(vault.paths);
+    }
   });
 
   command("stemlink.createVault", async () => {
@@ -303,6 +324,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         preserved.push(name);
       }
     }
+    preserved.push(...await routerIndexes.initialize(desiredPaths));
     const target = folders.length > 1 ? vscode.ConfigurationTarget.WorkspaceFolder : vscode.ConfigurationTarget.Workspace;
     const keys = ["root", "inbox", "notes"] as const;
     const values = [root, inbox, notes];
@@ -392,11 +414,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   command("stemlink.promote", async (item?: Item) => {
     const uri = item?.uri ?? vscode.window.activeTextEditor?.document.uri;
     const vault = requireActiveVault();
-    if (!uri || !directChild(uri, vault.paths.inbox) || !uri.path.endsWith(".md")) {
+    const name = uri?.path.slice(uri.path.lastIndexOf("/") + 1) ?? "";
+    if (!uri || !directChild(uri, vault.paths.inbox) || !uri.path.endsWith(".md") || isVaultInstructionFile(name)) {
       throw new Error("Select an inbox Markdown capture to promote.");
     }
-    const name = uri.path.slice(uri.path.lastIndexOf("/") + 1, -3).replace(/^\d{12}-/, "").replace(/-/g, " ");
-    const metadata = await askMetadata(name);
+    const title = name.slice(0, -3).replace(/^\d{12}-/, "").replace(/-/g, " ");
+    const metadata = await askMetadata(title);
     if (!metadata) return;
     const doc = await vscode.workspace.openTextDocument(uri);
     if (doc.isDirty && !await doc.save()) throw new Error("Could not save the capture; promotion cancelled.");
@@ -546,6 +569,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     if (!configuring && event.affectsConfiguration("stemlink")) scheduleDiscovery();
   }));
   context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => {
+    const pending = context.globalState.get<string>(pendingOpenKey);
+    const root = pending && vscode.workspace.workspaceFolders?.find(folder => sameUri(folder.uri, vscode.Uri.parse(pending)));
+    if (pending && root) {
+      void (async () => {
+        try {
+          await queueDiscovery(root.uri);
+          const vault = vaults.get(pending);
+          if (vault) {
+            await routerIndexes.initialize(vault.paths);
+          }
+        } finally {
+          await context.globalState.update(pendingOpenKey, undefined);
+        }
+      })().catch(reportError);
+      return;
+    }
     scheduleDiscovery();
   }));
 }

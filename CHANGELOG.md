@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add AI routing `INDEX.md` files to created and opened vaults with live counts and user-index preservation; routers are non-authoritative, while Stemlink's in-memory note/reference index is authoritative.
+
 - Separate Vaults, Fleeting, Notes, and References into native views with workbench dividers.
 
 - Write tags as single-line YAML lists when creating or promoting notes, including long tag lists.

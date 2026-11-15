@@ -40,6 +40,12 @@ Change those names if your folders differ. Select a vault under **Vaults** when 
 
 Use **Open Vault** to select an existing folder. Without a marker, confirm adding one and choose existing capture and permanent-note folders. Folders outside discovery scope are added to the workspace. Notes and templates are not replaced or installed; Workspace Trust is required.
 
+### AI routing indexes
+
+Stemlink adds `INDEX.md` at the vault root, inbox, and notes folders when creating or opening a vault. Each file routes AI agents to the relevant folder and reports its current Markdown count. These routers are not authoritative; Stemlink's in-memory note/reference index is authoritative for live state. The routers are not notes; counts exclude `INDEX.md` and `AGENTS.md`. Stemlink does not create missing inbox or notes directories.
+
+Existing user-authored `INDEX.md` files are preserved. Stemlink refreshes only its marked generated section after observed file changes. Text outside that section is yours to edit.
+
 ## 3. Naming files
 
 Use the local creation time and a short, lowercase, hyphenated slug:

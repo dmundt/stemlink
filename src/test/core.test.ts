@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseDocument } from "yaml";
-import { auditNotes, frontMatter, linksIn, makeNote, metadataProblem, promoteNote, slug, timestamp } from "../core";
+import { auditNotes, frontMatter, linksIn, makeNote, metadataProblem, promoteNote, slug, timestamp,
+  isRouterIndex, isVaultInstructionFile, renderRouterIndexes, replaceRouterIndexSection, routerIndexStart, routerIndexEnd } from "../core";
 
 test("parses references in prose, not front matter or Markdown code", () => {
   const text = [
@@ -132,4 +133,43 @@ test("audit handles duplicate, self, broken, and malformed links", () => {
   const invalidFindings = auditNotes([invalid]);
   assert.ok(invalidFindings.some(f => f.message === "Invalid note filename."));
   assert.ok(invalidFindings.some(f => f.message === "No outgoing references."));
+});
+
+test("router indexes route by folder and replace only their generated section", () => {
+  const indexes = renderRouterIndexes("zk", "in box", "stable", 2, 4);
+  assert.match(indexes.root, /Zettelkasten router: `zk\/`/);
+  assert.match(indexes.root, /\[Inbox `in box\/` \(2 captures\)\]\(\.\/in%20box\/INDEX\.md\)/);
+  assert.match(indexes.root, /\[Notes `stable\/` \(4 Markdown files\)\]\(\.\/stable\/INDEX\.md\)/);
+  assert.match(indexes.root, /not authoritative.*in-memory note\/reference index/);
+  assert.match(indexes.inbox, /\[Vault index\]\(\.\.\/INDEX\.md\)/);
+  assert.match(indexes.inbox, /Inbox router: `in box\/`/);
+  assert.match(indexes.inbox, /not authoritative.*in-memory note\/reference index/);
+  assert.match(indexes.notes, /excludes INDEX\.md and AGENTS\.md/);
+  assert.match(indexes.notes, /Notes router: `stable\/`/);
+  assert.match(indexes.notes, /not authoritative.*in-memory note\/reference index/);
+  assert.equal(isRouterIndex("index.md"), true);
+  assert.equal(isRouterIndex("_index.md"), false);
+  assert.equal(isVaultInstructionFile("agents.md"), true);
+  assert.equal(isVaultInstructionFile("_template.md"), false);
+
+  const current = `Before\r\n${routerIndexStart}\r\nOld\r\n${routerIndexEnd}\r\nUser content\r\n`;
+  const updated = replaceRouterIndexSection(current, indexes.root);
+  assert.ok(updated);
+  assert.ok(updated.startsWith("Before\r\n"));
+  assert.ok(updated.endsWith("User content\r\n"));
+  assert.ok(updated.includes("Inbox `in box/` (2 captures)"));
+  assert.equal(replaceRouterIndexSection("User-owned index", indexes.root), undefined);
+  assert.equal(replaceRouterIndexSection(indexes.root, indexes.root), indexes.root,
+    "unchanged generated content caused a rewrite");
+  assert.throws(() => replaceRouterIndexSection(`${routerIndexStart}\nUnclosed`, indexes.root), /Malformed/);
+
+  const router = {
+    name: "INDEX.md",
+    stem: "INDEX",
+    text: "Router instructions",
+    links: [],
+  };
+  assert.deepEqual(auditNotes([router]), [], "router file must not create note audit findings");
+  assert.deepEqual(auditNotes([{ ...router, name: "AGENTS.md", stem: "AGENTS" }]), [],
+    "agent instructions must not create note audit findings");
 });

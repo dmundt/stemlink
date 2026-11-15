@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import * as vscode from "vscode";
-import { Link, NoteData, linksIn } from "./core";
+import { isVaultInstructionFile, Link, NoteData, linksIn } from "./core";
 
 export interface VaultPaths {
   root: vscode.Uri;
@@ -128,7 +128,7 @@ export class Vault implements vscode.Disposable {
     if (revision !== this.namesRevision) return this.loadNames();
     const targets = new Map<string, NoteTarget>();
     for (const [name, type] of entries) {
-      if (name.endsWith(".md") && (type & vscode.FileType.File)) {
+      if (name.endsWith(".md") && !isVaultInstructionFile(name) && (type & vscode.FileType.File)) {
         const stem = name.slice(0, -3);
         targets.set(stem, { stem, name, uri: vscode.Uri.joinPath(notes, name) });
       }
@@ -246,7 +246,8 @@ export class Vault implements vscode.Disposable {
     try {
       if (this.disposed) return;
       const uri = document.uri;
-      if (!directChild(uri, this.paths.notes) || !uri.path.endsWith(".md")) return;
+      if (!directChild(uri, this.paths.notes) || !uri.path.endsWith(".md") ||
+          isVaultInstructionFile(uri.path.slice(uri.path.lastIndexOf("/") + 1))) return;
       this.revision++;
       this.fileRevisions.set(uri.toString(), this.revision);
       const name = uri.path.slice(uri.path.lastIndexOf("/") + 1);
@@ -261,7 +262,8 @@ export class Vault implements vscode.Disposable {
   private async onFile(uri: vscode.Uri, deleted: boolean): Promise<void> {
     try {
       if (this.disposed) return;
-      if (!directChild(uri, this.paths.notes) || !uri.path.endsWith(".md")) return;
+      if (!directChild(uri, this.paths.notes) || !uri.path.endsWith(".md") ||
+          isVaultInstructionFile(uri.path.slice(uri.path.lastIndexOf("/") + 1))) return;
       this.revision++;
       this.namesRevision++;
       const currentRevision = this.revision;

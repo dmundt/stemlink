@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { linksIn } from "./core";
+import { isVaultInstructionFile, linksIn } from "./core";
 import { Vault, directChild, reportError } from "./vault";
 
 export type VaultSection = "Vaults" | "Fleeting" | "Notes" | "References";
@@ -70,6 +70,7 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
         this.namePaths.delete(vault);
       }
     }
+
     for (const vault of current) {
       if (!this.vaultSubscriptions.has(vault)) this.vaultSubscriptions.set(vault, vault.changed.event(() => this.refresh()));
     }
@@ -145,7 +146,7 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
   private async captures(vault: Vault): Promise<[string, vscode.FileType][]> {
     try {
       return (await vscode.workspace.fs.readDirectory(vault.paths.inbox))
-        .filter(([name, type]) => name.endsWith(".md") && Boolean(type & vscode.FileType.File))
+        .filter(([name, type]) => name.endsWith(".md") && !isVaultInstructionFile(name) && Boolean(type & vscode.FileType.File))
         .sort(([a], [b]) => a.localeCompare(b));
     } catch (error) {
       if (error instanceof vscode.FileSystemError && error.code === "FileNotFound") return [];
@@ -155,7 +156,9 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
 
   private activeNote(vault: Vault): vscode.TextDocument | undefined {
     const document = vscode.window.activeTextEditor?.document;
-    return document && directChild(document.uri, vault.paths.notes) && document.uri.path.endsWith(".md") ? document : undefined;
+    const name = document?.uri.path.slice(document.uri.path.lastIndexOf("/") + 1) ?? "";
+    return document && directChild(document.uri, vault.paths.notes) && document.uri.path.endsWith(".md") &&
+      !isVaultInstructionFile(name) ? document : undefined;
   }
 
   private referenceCounts(vault: Vault, document: vscode.TextDocument | undefined): { inbound: number | undefined; outbound: number } {
