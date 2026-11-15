@@ -190,4 +190,9 @@ test("vault manual personalizes configured folders and safely renders backticks"
   assert.match(rendered, /Editable examples: `templates\/`/);
   assert.throws(() => renderVaultReadme("# Manual", "zk", "inbox", "notes"), /exactly one/);
   assert.equal(markdownCodeSpan("a``b"), "```a``b```");
+  assert.match(renderVaultReadme(template, "vault", "capture", "notes", "examples"),
+    /Editable examples: `examples\/`/);
+  const indexes = renderRouterIndexes("vault", "capture", "notes", 0, 0, "examples");
+  assert.ok(indexes.root.includes("`examples/`") && indexes.notes.includes("`examples/`"),
+    "routers omitted configured templates folder");
 });

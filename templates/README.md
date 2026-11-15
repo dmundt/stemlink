@@ -39,10 +39,10 @@ Create the root, inbox, notes, and `templates/` folders; put this manual in the 
 Stemlink recognizes `.stemlink.json` in the workspace root or an immediate child folder. Its `inbox` and `notes` values are folder names relative to the file:
 
 ```json
-{ "version": 1, "inbox": "inbox", "notes": "notes" }
+{ "version": 1, "inbox": "inbox", "notes": "notes", "templates": "templates" }
 ```
 
-Change those names if your folders differ. Select a vault under **Vaults** when several are available. If settings conflict with a marker for the same vault, Stemlink asks which configuration to use. Existing workspace settings also work without this file.
+Change those names if your folders differ. Optional `templates` names a distinct child folder for editable examples and defaults to `templates` when absent. After moving examples yourself, update this mapping; Stemlink does not move existing files. The layout and paths below use default names; use the configured-folder summary above for this vault. Select a vault under **Vaults** when several are available. If settings conflict with a marker for the same vault, Stemlink asks which configuration to use. Existing workspace settings also work without this file.
 
 Use **Open Vault** to select an existing folder. Without a marker, confirm adding one and choose existing capture and permanent-note folders. Folders outside discovery scope are added to the workspace. Open Vault does not install or move templates in existing vaults; Workspace Trust is required.
 

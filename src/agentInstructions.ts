@@ -97,7 +97,7 @@ export class VaultAgentInstructions {
     return template
       .replace(/\{\{(vaultRoot|inbox|notes|templates)\}\}/g, (_match, key: string) => {
         const directory = key === "vaultRoot" ? paths.root
-          : key === "inbox" ? paths.inbox : key === "notes" ? paths.notes : vscode.Uri.joinPath(paths.root, "templates");
+          : key === "inbox" ? paths.inbox : key === "notes" ? paths.notes : paths.templates;
         return markdownCodeSpan(`${this.folderName(directory)}/`);
       });
   }

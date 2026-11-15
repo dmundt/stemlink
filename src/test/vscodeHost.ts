@@ -470,9 +470,17 @@ async function testDiscovery(folder: vscode.WorkspaceFolder): Promise<void> {
     workspaceApi.getConfiguration = originalConfig;
   }
   const fixtureMarker = vscode.Uri.joinPath(fixture, ".stemlink.json");
+  assert.equal((await readVaultMarker(fixture))?.templates.toString(),
+    vscode.Uri.joinPath(fixture, "templates").toString(), "legacy marker did not default templates folder");
+  await vscode.workspace.fs.writeFile(fixtureMarker,
+    Buffer.from(JSON.stringify({ version: 1, inbox: "fleeting", notes: "stable", templates: "examples" })));
+  assert.equal((await readVaultMarker(fixture))?.templates.toString(),
+    vscode.Uri.joinPath(fixture, "examples").toString(), "custom templates mapping was ignored");
   for (const invalid of ["{", JSON.stringify({ version: 2, inbox: "fleeting", notes: "stable" }),
     JSON.stringify({ version: 1, inbox: "../outside", notes: "stable" }),
-    JSON.stringify({ version: 1, inbox: "same", notes: "SAME" })]) {
+    JSON.stringify({ version: 1, inbox: "same", notes: "SAME" }),
+    ...["", "../outside", "nested/templates", "STABLE", "FLEETING", null, 3].map(templates =>
+      JSON.stringify({ version: 1, inbox: "fleeting", notes: "stable", templates }))]) {
     await vscode.workspace.fs.writeFile(fixtureMarker, Buffer.from(invalid));
     await assert.rejects(() => readVaultMarker(fixture), /Invalid .*\.stemlink\.json/);
   }
@@ -561,7 +569,7 @@ async function testOpenVault(folder: vscode.WorkspaceFolder, extensionUri: vscod
     await vscode.commands.executeCommand("stemlink.openVault");
     assert.equal(answers.length, 0);
     assert.deepEqual(JSON.parse(Buffer.from(await vscode.workspace.fs.readFile(marker)).toString("utf8")),
-      { version: 1, inbox: "captures", notes: "permanent" });
+      { version: 1, inbox: "captures", notes: "permanent", templates: "templates" });
     assert.equal(Buffer.from(await vscode.workspace.fs.readFile(rootIndex)).toString("utf8"),
       "User-owned vault index.\n", "opening replaced an existing vault index");
     assert.equal(Buffer.from(await vscode.workspace.fs.readFile(inboxIndex)).toString("utf8"),
@@ -837,7 +845,7 @@ async function testDynamicVaultFiles(folder: vscode.WorkspaceFolder, extensionUr
       const readText = async (uri: vscode.Uri) =>
         Buffer.from(await vscode.workspace.fs.readFile(uri)).toString("utf8");
       const marker = JSON.parse(await readText(vscode.Uri.joinPath(root, ".stemlink.json")));
-      assert.deepEqual(marker, { version: 1, inbox: scenario.inbox, notes: scenario.notes });
+      assert.deepEqual(marker, { version: 1, inbox: scenario.inbox, notes: scenario.notes, templates: "templates" });
       for (const directory of [inbox, notes, templates]) {
         assert.ok((await vscode.workspace.fs.stat(directory)).type & vscode.FileType.Directory,
           `${directory.path} was not created`);
@@ -887,6 +895,49 @@ async function testDynamicVaultFiles(folder: vscode.WorkspaceFolder, extensionUr
           `${scenario.root} changed bundled example ${name}`,
         );
       }
+    }
+    const root = vscode.Uri.joinPath(folder.uri, "vault");
+    const customTemplates = vscode.Uri.joinPath(root, "examples");
+    await vscode.workspace.fs.rename(vscode.Uri.joinPath(root, "templates"), customTemplates);
+    const captureText = "Capture from mapped templates folder.\n";
+    await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(customTemplates, "_fleeting.md"), Buffer.from(captureText));
+    const markerUri = vscode.Uri.joinPath(root, ".stemlink.json");
+    const markerText = `${JSON.stringify({
+      version: 1, inbox: "Inbox", notes: "Knowledge", templates: "examples",
+    }, null, 2)}\n`;
+    const markerDocument = await vscode.workspace.openTextDocument(markerUri);
+    const markerEdit = new vscode.WorkspaceEdit();
+    markerEdit.replace(markerUri, new vscode.Range(new vscode.Position(0, 0),
+      markerDocument.positionAt(markerDocument.getText().length)), markerText);
+    assert.equal(await vscode.workspace.applyEdit(markerEdit), true);
+    assert.equal(await markerDocument.save(), true);
+    const savedMarker = await vscode.workspace.fs.readFile(markerUri);
+    for (const directory of [root, vscode.Uri.joinPath(root, "Knowledge")]) {
+      await vscode.workspace.fs.delete(vscode.Uri.joinPath(directory, "AGENTS.md"));
+    }
+    const openApi = vscode.window as { showOpenDialog: typeof vscode.window.showOpenDialog };
+    const originalOpen = openApi.showOpenDialog;
+    try {
+      openApi.showOpenDialog = async () => [root];
+      await vscode.commands.executeCommand("stemlink.openVault");
+      await vscode.commands.executeCommand("stemlink.addFleetingNote");
+      assert.equal(vscode.window.activeTextEditor?.document.getText().replace(/\r\n/g, "\n"), captureText,
+        "Add Fleeting Note ignored mapped templates directory");
+      for (const directory of [root, vscode.Uri.joinPath(root, "Knowledge")]) {
+        const instructions = Buffer.from(
+          await vscode.workspace.fs.readFile(vscode.Uri.joinPath(directory, "AGENTS.md")),
+        ).toString("utf8");
+        assert.ok(instructions.includes("`examples/`"), "agent instructions ignored templates mapping");
+        const router = Buffer.from(
+          await vscode.workspace.fs.readFile(vscode.Uri.joinPath(directory, "INDEX.md")),
+        ).toString("utf8");
+        assert.ok(router.includes("`examples/`"), "router ignored templates mapping");
+      }
+      assert.deepEqual(await vscode.workspace.fs.readFile(markerUri), savedMarker,
+        "Open Vault rewrote templates mapping");
+      assert.equal(errors.length, 0, `mapped templates workflow failed: ${errors.join("; ")}`);
+    } finally {
+      openApi.showOpenDialog = originalOpen;
     }
   } finally {
     api.showInputBox = original.showInputBox;
@@ -1168,7 +1219,7 @@ export async function run(): Promise<void> {
       const manual = vscode.Uri.joinPath(folder.uri, "custom-vault", "README.md");
       const marker = vscode.Uri.joinPath(folder.uri, "custom-vault", ".stemlink.json");
       assert.deepEqual(JSON.parse(Buffer.from(await vscode.workspace.fs.readFile(marker)).toString("utf8")),
-        { version: 1, inbox: "captures", notes: "permanent" }, "vault marker was not created");
+        { version: 1, inbox: "captures", notes: "permanent", templates: "templates" }, "vault marker was not created");
       assert.ok((await vscode.workspace.fs.stat(inbox)).type & vscode.FileType.Directory);
       assert.ok((await vscode.workspace.fs.stat(permanent)).type & vscode.FileType.Directory);
       assert.ok((await vscode.workspace.fs.stat(templateDirectory)).type & vscode.FileType.Directory);
@@ -1289,7 +1340,7 @@ export async function run(): Promise<void> {
           assert.ok(validationErrors.some(message => message.includes(".stemlink.json specifies different folders")),
             "conflicting marker was not reported");
           assert.deepEqual(JSON.parse(Buffer.from(await vscode.workspace.fs.readFile(marker)).toString("utf8")),
-            { version: 1, inbox: "captures", notes: "permanent" }, "reuse overwrote the marker");
+            { version: 1, inbox: "captures", notes: "permanent", templates: "templates" }, "reuse overwrote the marker");
           await assert.rejects(async () => vscode.workspace.fs.stat(vscode.Uri.joinPath(folder.uri, "custom-vault", "different")));
         } finally {
           warningApi.showWarningMessage = previousWarning;

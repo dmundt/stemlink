@@ -47,6 +47,7 @@ export class VaultRouterIndexes implements vscode.Disposable {
     const notesCount = notesExist ? await this.markdownCount(paths.notes) : 0;
     const contents = renderRouterIndexes(
       this.folderName(paths.root), this.folderName(paths.inbox), this.folderName(paths.notes), inboxCount, notesCount,
+      this.folderName(paths.templates),
     );
     const results: [string, "created" | "updated" | "unchanged" | "preserved"][] = [
       [routerIndexName, await this.write(paths.root, contents.root, true)],
@@ -79,6 +80,7 @@ export class VaultRouterIndexes implements vscode.Disposable {
     const notesCount = notesExist ? await this.markdownCount(paths.notes) : 0;
     const contents = renderRouterIndexes(
       this.folderName(paths.root), this.folderName(paths.inbox), this.folderName(paths.notes), inboxCount, notesCount,
+      this.folderName(paths.templates),
     );
     await this.write(paths.root, contents.root, false);
     if (inboxExists) await this.write(paths.inbox, contents.inbox, false);
@@ -150,7 +152,8 @@ export class VaultRouterIndexes implements vscode.Disposable {
   }
 
   private samePaths(a: VaultPaths, b: VaultPaths): boolean {
-    return sameUri(a.root, b.root) && sameUri(a.inbox, b.inbox) && sameUri(a.notes, b.notes);
+    return sameUri(a.root, b.root) && sameUri(a.inbox, b.inbox) && sameUri(a.notes, b.notes) &&
+      sameUri(a.templates, b.templates);
   }
 
   private disposeWatcher(state: WatcherState): void {

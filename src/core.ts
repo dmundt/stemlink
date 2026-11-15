@@ -35,7 +35,7 @@ export function markdownCodeSpan(value: string): string {
 }
 
 export function renderVaultReadme(
-  template: string, rootName: string, inboxName: string, notesName: string,
+  template: string, rootName: string, inboxName: string, notesName: string, templatesName = "templates",
 ): string {
   const marker = "<!-- stemlink:configured-folders -->";
   const markerIndex = template.indexOf(marker);
@@ -48,7 +48,7 @@ export function renderVaultReadme(
     `- Vault root: ${markdownCodeSpan(`${rootName}/`)}`,
     `- Captures: ${markdownCodeSpan(`${inboxName}/`)}`,
     `- Permanent notes: ${markdownCodeSpan(`${notesName}/`)}`,
-    `- Editable examples: ${markdownCodeSpan("templates/")}`,
+    `- Editable examples: ${markdownCodeSpan(`${templatesName}/`)}`,
   ].join("\n");
   return template.replace(marker, () => folders);
 }
@@ -59,6 +59,7 @@ export function renderRouterIndexes(
   notesName: string,
   inboxCount: number,
   notesCount: number,
+  templatesName = "templates",
 ): RouterIndexContent {
   const path = (name: string) => encodeURIComponent(name);
   const section = (lines: string[]) => [
@@ -80,7 +81,7 @@ export function renderRouterIndexes(
       `- [Inbox ${markdownCodeSpan(`${inboxName}/`)} (${inboxCount} captures)](./${path(inboxName)}/${routerIndexName})`,
       `- [Notes ${markdownCodeSpan(`${notesName}/`)} (${notesCount} Markdown files)](./${path(notesName)}/${routerIndexName})`,
       "",
-      "Counts cover direct-child Markdown files and exclude INDEX.md and AGENTS.md. Templates live in the vault-level templates folder.",
+      `Counts cover direct-child Markdown files and exclude INDEX.md and AGENTS.md. Templates live in the vault-level templates folder: ${markdownCodeSpan(`${templatesName}/`)}.`,
     ]),
     inbox: section([
       `# Inbox router: ${markdownCodeSpan(`${inboxName}/`)}`,
@@ -97,7 +98,7 @@ export function renderRouterIndexes(
     notes: section([
       `# Notes router: ${markdownCodeSpan(`${notesName}/`)}`,
       "",
-      "Read relevant Markdown files directly and follow their wiki-link stems. New templates live in the vault-level templates folder; treat legacy underscore-prefixed files as templates, not notes.",
+      `Read relevant Markdown files directly and follow their wiki-link stems. New templates live in ${markdownCodeSpan(`${templatesName}/`)} at the vault root; treat legacy underscore-prefixed files as templates, not notes.`,
       "",
       authorityRule,
       "",

@@ -26,7 +26,16 @@ export async function readVaultMarker(root: vscode.Uri): Promise<VaultPaths | un
       data.inbox.toLowerCase() === data.notes.toLowerCase()) {
     throw new Error(`Invalid ${marker.path}: expected version 1 and distinct valid inbox and notes folder names.`);
   }
-  return { root, inbox: vscode.Uri.joinPath(root, data.inbox), notes: vscode.Uri.joinPath(root, data.notes) };
+  const templates = "templates" in data ? data.templates : "templates";
+  if (typeof templates !== "string" || !validFolderName(templates) ||
+      ("templates" in data &&
+        [data.inbox, data.notes].some(name => name.toLowerCase() === templates.toLowerCase()))) {
+    throw new Error(`Invalid ${marker.path}: templates must be a valid folder name distinct from inbox and notes.`);
+  }
+  return {
+    root, inbox: vscode.Uri.joinPath(root, data.inbox), notes: vscode.Uri.joinPath(root, data.notes),
+    templates: vscode.Uri.joinPath(root, templates),
+  };
 }
 
 export async function discoverVaults(folder: vscode.WorkspaceFolder): Promise<VaultPaths[]> {
@@ -46,7 +55,8 @@ export async function discoverVaults(folder: vscode.WorkspaceFolder): Promise<Va
 }
 
 export function samePaths(a: VaultPaths, b: VaultPaths): boolean {
-  return sameUri(a.root, b.root) && sameUri(a.inbox, b.inbox) && sameUri(a.notes, b.notes);
+  return sameUri(a.root, b.root) && sameUri(a.inbox, b.inbox) && sameUri(a.notes, b.notes) &&
+    sameUri(a.templates, b.templates);
 }
 
 export interface SelectionState {
@@ -87,11 +97,13 @@ export async function resolveVaultPaths(folder: vscode.WorkspaceFolder, state: S
   }
   const sameRoot = markers.findIndex(marker => sameUri(marker.root, legacy.root));
   if (sameRoot < 0) return [...markers, legacy];
+  // Settings do not configure templates; retain the marker's mapping with either choice.
+  legacy.templates = markers[sameRoot].templates;
   if (samePaths(markers[sameRoot], legacy)) return markers;
 
   const choices = [markers[sameRoot], legacy];
   const signature = JSON.stringify(choices.map(choice =>
-    [choice.root.toString(), choice.inbox.toString(), choice.notes.toString()]));
+    [choice.root.toString(), choice.inbox.toString(), choice.notes.toString(), choice.templates.toString()]));
   const key = `stemlink.vaultConflict:${folder.uri.toString()}:${legacy.root.toString()}`;
   const saved = state.get<{ signature: string; selected: number }>(key);
   let selected = saved?.signature === signature && (saved.selected === 0 || saved.selected === 1)

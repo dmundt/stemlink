@@ -6,6 +6,7 @@ export interface VaultPaths {
   root: vscode.Uri;
   inbox: vscode.Uri;
   notes: vscode.Uri;
+  templates: vscode.Uri;
 }
 
 export function validFolderName(value: string): boolean {
@@ -22,7 +23,10 @@ export function pathsFor(folder: vscode.WorkspaceFolder): VaultPaths {
     throw new Error("Stemlink folder settings must be distinct valid folder names.");
   }
   const root = vscode.Uri.joinPath(folder.uri, rootName);
-  return { root, inbox: vscode.Uri.joinPath(root, inboxName), notes: vscode.Uri.joinPath(root, notesName) };
+  return {
+    root, inbox: vscode.Uri.joinPath(root, inboxName), notes: vscode.Uri.joinPath(root, notesName),
+    templates: vscode.Uri.joinPath(root, "templates"),
+  };
 }
 
 export function sameUri(a: vscode.Uri, b: vscode.Uri): boolean {
@@ -83,7 +87,8 @@ export class Vault implements vscode.Disposable {
   get paths(): VaultPaths { return this.selectedPaths ?? pathsFor(this.folder); }
   selectPaths(paths: VaultPaths): void {
     if (this.selectedPaths && sameUri(this.selectedPaths.root, paths.root) &&
-        sameUri(this.selectedPaths.inbox, paths.inbox) && sameUri(this.selectedPaths.notes, paths.notes)) return;
+        sameUri(this.selectedPaths.inbox, paths.inbox) && sameUri(this.selectedPaths.notes, paths.notes) &&
+        sameUri(this.selectedPaths.templates, paths.templates)) return;
     this.selectedPaths = paths;
     this.revision++;
     this.namesRevision++;
