@@ -18,7 +18,7 @@ notes/
     └── _promotion.md
 ```
 
-These are the default names; use your configured names if they differ. The vault-level `templates/` folder name is reserved for examples. Keep permanent notes in one folder. Use tags and links instead of topic subfolders.
+These are the default names; use your configured names if they differ. Capture, permanent-note, and template folder names must be distinct ignoring case. Keep permanent notes in one folder. Use tags and links instead of topic subfolders.
 
 ### Folder naming options
 
@@ -35,6 +35,19 @@ Stemlink defaults distinguish the collection from its capture and permanent-note
 
 These are folder names, not note IDs. Stemlink's permanent-note filenames still use timestamps and remain stable after creation; folder names do not provide note identity. Choose folder names during **Create Zettelkasten**, use **Open Vault**, or configure paths for an existing vault. Stemlink does not infer alternative layouts from their names.
 
+All four names can be set in VS Code settings:
+
+```json
+{
+  "stemlink.root": "notes",
+  "stemlink.inbox": "inbox",
+  "stemlink.notes": "permanent",
+  "stemlink.templates": "templates"
+}
+```
+
+Creation prefills its root, capture, and permanent-note prompts from these settings. The templates folder uses its setting without another prompt. Names must be single folder names, not nested paths.
+
 ## 2. Setup
 
 Create `notes/` with `inbox/`, `permanent/`, and `templates/` inside it; put this manual in the root and open the folder in a text editor. Put the vault somewhere your normal backups cover. With Stemlink, **Create Zettelkasten** creates the folders and copies the bundled manual and editable examples. The copied manual starts with a summary of your chosen folder names.
@@ -46,6 +59,8 @@ Stemlink recognizes `.stemlink.json` in the workspace root or an immediate child
 ```
 
 Change those names if your folders differ. Optional `templates` names a distinct child folder for editable examples and defaults to `templates` when absent. After moving examples yourself, update this mapping; Stemlink does not move existing files. The layout and paths below use default names; use the configured-folder summary above for this vault. Select a vault under **Vaults** when several are available. If settings conflict with a marker for the same vault, Stemlink asks which configuration to use. Existing workspace settings also work without this file.
+
+When `stemlink.templates` is unset, the marker's templates mapping is retained. An explicitly configured template name participates in the marker/settings chooser. Choosing settings does not rewrite the marker or move files. Open Vault uses the template setting when adding a new marker but does not install templates.
 
 Existing markers, explicit folder settings, notes, and templates are not migrated or renamed when defaults change. For an old markerless vault that relied on `zk/inbox/notes`, use **Open Vault** or set `stemlink.root=zk`, `stemlink.inbox=inbox`, and `stemlink.notes=notes`. The `notes` setting and marker key still refer to the permanent-note folder, now named `permanent` by default.
 
@@ -137,7 +152,7 @@ Search the files for a distinctive word, tag, or filename stem. Browse `permanen
 
 ## 10. Templates
 
-Stemlink copies these editable examples into the vault-level `templates/` folder during **Create Zettelkasten**. They are starting points, not enforced formats. Copy and rename a template before editing:
+Stemlink copies these editable examples into the configured templates folder (`templates/` by default) during **Create Zettelkasten**. They are starting points, not enforced formats. Copy and rename a template before editing:
 
 - `_template.md`: a complete permanent-note example.
 - `_fleeting.md`: a quick capture without front matter; its copy belongs in `inbox/`.

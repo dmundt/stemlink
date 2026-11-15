@@ -19,6 +19,7 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [026: Vault template folder](adr-026-vault-template-folder.md) — create editable examples in `templates/` and preserve legacy fleeting-template lookup.
 - [027: Templates folder mapping](adr-027-templates-folder-mapping.md) — optional portable template location and version 1 compatibility.
 - [029: Default vault layout](adr-029-default-vault-layout.md) — `notes/` containing `templates/`, `inbox/`, and `permanent/`; existing vault compatibility and configurable alternatives.
+- [030: Configurable folder settings](adr-030-configurable-folder-settings.md) — all four folder settings, configured creation defaults, and template mapping conflict resolution.
 
 ## Creating and processing notes
 

@@ -1,10 +1,12 @@
 ---
-status: Accepted; superseded in part by ADR 029
+status: Accepted; superseded in part by ADRs 029 and 030
 ---
 
 # ADR 002: Configurable vault creation
 
 [ADR 029](adr-029-default-vault-layout.md) replaces only the default folder names with `notes/inbox/permanent`; configurable creation and preservation rules below remain unchanged.
+
+[ADR 030](adr-030-configurable-folder-settings.md) prefills creation prompts from settings and makes the templates folder configurable.
 
 ## Context
 Users need an inbox and notes directory with a short, neutral default while retaining control over folder names.

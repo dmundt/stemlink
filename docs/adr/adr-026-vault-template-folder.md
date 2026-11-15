@@ -1,10 +1,12 @@
 ---
-status: Accepted; superseded in part by ADR 027
+status: Accepted; superseded in part by ADRs 027 and 030
 ---
 
 # ADR 026: Vault template folder
 
 [ADR 027](adr-027-templates-folder-mapping.md) adds an optional templates-folder mapping while retaining the default layout and legacy fallback.
+
+[ADR 030](adr-030-configurable-folder-settings.md) adds a templates folder setting and replaces the reserved literal name with distinct configured child-folder names.
 
 ## Context
 
