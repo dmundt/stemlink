@@ -28,6 +28,7 @@ Settings are resource-scoped and apply to the workspace folder containing each v
 | `stemlink.inbox` | `inbox` | Capture folder name inside the vault. |
 | `stemlink.notes` | `permanent` | Permanent-note folder name inside the vault. |
 | `stemlink.templates` | `templates` | Editable-example folder name inside the vault. |
+| `stemlink.showCounts` | `true` | Show counts in the sidebar views and reference groups; errors remain visible when counts are hidden. |
 | `stemlink.enableRouterIndexes` | `true` | Create routers on explicit Create/Open and refresh their generated counts after observed Markdown changes. Disabled leaves existing `INDEX.md` files untouched. |
 | `stemlink.offerAgentInstructions` | `true` | Ask before adding missing vault `AGENTS.md` files during Create/Open. Disabled skips prompts and installation. |
 

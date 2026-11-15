@@ -50,6 +50,12 @@
           "scope": "resource",
           "description": "Editable templates folder name inside the vault root."
         },
+        "stemlink.showCounts": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Show counts in vault, note, capture, and reference views. Errors remain visible."
+        },
         "stemlink.enableRouterIndexes": {
           "type": "boolean",
           "default": true,

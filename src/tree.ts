@@ -56,6 +56,9 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
       watcher.onDidDelete(uri => this.filesChanged(uri)),
       vscode.window.onDidChangeActiveTextEditor(() => this.refresh()),
       vscode.workspace.onDidChangeTextDocument(() => this.refresh()),
+      vscode.workspace.onDidChangeConfiguration(event => {
+        if (event.affectsConfiguration("stemlink.showCounts")) this.refresh();
+      }),
     ];
     this.syncVaults();
   }
@@ -175,6 +178,9 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
   async getChildren(element?: Item): Promise<Item[]> {
     try {
       const vault = this.activeVault();
+      const showCounts = vscode.workspace.getConfiguration("stemlink", vault?.paths.root).get<boolean>("showCounts", true);
+      const label = (name: string, count: number | string) =>
+        showCounts || count === "error" ? `${name} (${count})` : name;
       if (!element) {
         let fleeting: number | string = 0;
         let notes: number | string = 0;
@@ -187,10 +193,10 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
             : counts.inbound + counts.outbound;
         }
         return [
-          new Item(`Vaults (${this.vaults().length})`, "Vaults"),
-          new Item(`Fleeting (${fleeting})`, "Fleeting"),
-          new Item(`Notes (${notes})`, "Notes"),
-          new Item(`References (${references})`, "References"),
+          new Item(label("Vaults", this.vaults().length), "Vaults"),
+          new Item(label("Fleeting", fleeting), "Fleeting"),
+          new Item(label("Notes", notes), "Notes"),
+          new Item(label("References", references), "References"),
         ];
       }
       if (element.kind === "Vaults") return this.vaults().map(candidate => {
@@ -220,8 +226,8 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
       if (element.kind === "References") {
         const counts = this.referenceCounts(vault, document);
         return [
-          new Item(`Inbound (${counts.inbound ?? (vault.indexState === "failed" ? "error" : "...")})`, "Inbound"),
-          new Item(`Outbound (${counts.outbound})`, "Outbound"),
+          new Item(label("Inbound", counts.inbound ?? (vault.indexState === "failed" ? "error" : "...")), "Inbound"),
+          new Item(label("Outbound", counts.outbound), "Outbound"),
         ];
       }
       if (!document) return [];

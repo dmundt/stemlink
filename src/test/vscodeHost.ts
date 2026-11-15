@@ -349,7 +349,7 @@ async function testCommandFailures(
   }
 }
 
-async function testMultiRoot(): Promise<void> {
+async function testMultiRoot(views: Map<string, vscode.TreeView<Item>>): Promise<void> {
   const folders = vscode.workspace.workspaceFolders;
   assert.equal(folders?.length, 2, "multi-root fixture missing");
   assert.ok(folders);
@@ -395,6 +395,21 @@ async function testMultiRoot(): Promise<void> {
     assert.equal(vscode.workspace.getConfiguration("stemlink", folders[1].uri).get("root"), "second-vault");
     assert.equal(vscode.workspace.getConfiguration("stemlink", folders[0].uri).get("root"), "notes",
       "creating a second vault changed the first workspace's settings");
+    const secondConfig = vscode.workspace.getConfiguration("stemlink", folders[1].uri);
+    const previousCounts = secondConfig.inspect<boolean>("showCounts")?.workspaceFolderValue;
+    try {
+      await secondConfig.update("showCounts", false, vscode.ConfigurationTarget.WorkspaceFolder);
+      await waitFor(() => views.get("stemlink.vaults")?.title === "Vaults",
+        "second vault did not use its folder-scoped count setting");
+      await vscode.commands.executeCommand("stemlink.selectVault", vscode.Uri.joinPath(folders[0].uri, "notes"));
+      await waitFor(() => views.get("stemlink.vaults")?.title?.startsWith("Vaults (") === true,
+        "first vault did not retain its count setting");
+      await vscode.commands.executeCommand("stemlink.selectVault", vscode.Uri.joinPath(folders[1].uri, "second-vault"));
+      await waitFor(() => views.get("stemlink.vaults")?.title === "Vaults",
+        "switching back did not restore the second vault's count setting");
+    } finally {
+      await secondConfig.update("showCounts", previousCounts, vscode.ConfigurationTarget.WorkspaceFolder);
+    }
     const secondInboxIndex = vscode.Uri.joinPath(folders[1].uri, "second-vault", "captures", routerIndexName);
     assert.match(Buffer.from(await vscode.workspace.fs.readFile(secondInboxIndex)).toString("utf8"),
       /Markdown captures: 0/);
@@ -1276,9 +1291,11 @@ export async function run(): Promise<void> {
   const originalCreateTreeView = windowApi.createTreeView;
   let vaultView: vscode.TreeView<Item> | undefined;
   let vaultProvider: vscode.TreeDataProvider<Item> | undefined;
+  const views = new Map<string, vscode.TreeView<Item>>();
   windowApi.createTreeView = new Proxy(originalCreateTreeView, {
     apply: (target, thisArg, args: unknown[]) => {
       const view = Reflect.apply(target, thisArg, args) as vscode.TreeView<Item>;
+      views.set(String(args[0]), view);
       if (args[0] === "stemlink.vaults") {
         vaultView = view;
         vaultProvider = (args[1] as vscode.TreeViewOptions<Item>).treeDataProvider;
@@ -1298,7 +1315,7 @@ export async function run(): Promise<void> {
   for (const [key, value] of [
     ["stemlink.root", "notes"], ["stemlink.inbox", "inbox"], ["stemlink.notes", "permanent"],
     ["stemlink.templates", "templates"],
-    ["stemlink.enableRouterIndexes", true], ["stemlink.offerAgentInstructions", true],
+    ["stemlink.enableRouterIndexes", true], ["stemlink.offerAgentInstructions", true], ["stemlink.showCounts", true],
   ] as const) {
     assert.equal(settings[key]?.default, value, `${key} default changed`);
     assert.equal(settings[key]?.scope, "resource", `${key} must remain resource-scoped`);
@@ -1313,7 +1330,7 @@ export async function run(): Promise<void> {
     return;
   }
   if (process.env.STEMLINK_MULTI_ROOT === "1") {
-    await testMultiRoot();
+    await testMultiRoot(views);
     return;
   }
   const notes = vscode.Uri.joinPath(folder.uri, "notes", "permanent");
@@ -1508,6 +1525,38 @@ export async function run(): Promise<void> {
     const incomingName = process.env.STEMLINK_BENCHMARK === "1" ? "202601011200-note-9999.md" : "202601011200-note-2.md";
     assert.ok(incoming.some(item => item.label === incomingName), "tree incoming reference missing");
     if (process.env.STEMLINK_BENCHMARK !== "1") {
+      const config = vscode.workspace.getConfiguration("stemlink", folder.uri);
+      const previous = config.inspect<boolean>("showCounts")?.workspaceValue;
+      try {
+        await config.update("showCounts", false, vscode.ConfigurationTarget.Workspace);
+        const hidden = await tree.getChildren();
+        assert.deepEqual(hidden.map(item => item.label), ["Vaults", "Fleeting", "Notes", "References"]);
+        const noVault = new VaultTree(() => undefined, () => []);
+        try {
+          assert.deepEqual((await noVault.getChildren()).map(item => item.label),
+            ["Vaults", "Fleeting", "Notes", "References"]);
+        } finally {
+          noVault.dispose();
+        }
+        const hiddenReferences = await tree.getChildren(hidden[3]);
+        assert.deepEqual(hiddenReferences.map(item => item.label), ["Inbound", "Outbound"]);
+        assert.deepEqual((await tree.getChildren(hiddenReferences[0])).map(item => item.label),
+          incoming.map(item => item.label), "hiding counts changed backlinks");
+        assert.deepEqual((await tree.getChildren(hiddenReferences[1])).map(item => item.label),
+          outgoing.map(item => item.label), "hiding counts changed outgoing references");
+        await waitFor(() => ["vaults", "fleeting", "notes", "references"]
+          .every(name => views.get(`stemlink.${name}`)?.title?.toLowerCase() === name),
+        "view titles did not hide counts after changing the setting");
+      } finally {
+        await config.update("showCounts", previous, vscode.ConfigurationTarget.Workspace);
+      }
+      await waitFor(() => ["vaults", "fleeting", "notes", "references"]
+        .every(name => views.get(`stemlink.${name}`)?.title?.startsWith(`${name[0].toUpperCase()}${name.slice(1)} (`)),
+      "view titles did not restore counts after changing the setting");
+      const restored = await tree.getChildren();
+      assert.deepEqual((await tree.getChildren(restored[3])).map(item => item.label),
+        referenceSections.map(item => item.label), "reference counts were not restored");
+
       assert.equal(vault.get("202601011200-note-0")?.text, document.getText(), "index ignored unsaved text");
       const previousText = document.getText();
       const change = new vscode.WorkspaceEdit();

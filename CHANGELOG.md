@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add `stemlink.showCounts` to hide sidebar and reference-group counts; counts remain visible by default.
 - Show zero counts instead of dashes when no vault is selected.
 - Use a plus icon for both Fleeting and Notes creation actions.
 - Rename the **Create Zettelkasten** action to **Create Vault** and use consistent vault terminology in prompts and messages.
