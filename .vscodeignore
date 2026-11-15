@@ -1,8 +1,15 @@
 src/**
 dist/test/**
+docs/**
+AGENTS.md
+.github/**
+.gitignore
 .vscode/**
+.vscode-test/**
 zk/**
 example/**
+dist/**/*.map
+*.vsix
 node_modules/@types/**
 node_modules/typescript/**
 tsconfig.json

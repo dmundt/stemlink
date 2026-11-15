@@ -4,6 +4,8 @@ status: Accepted
 
 # ADR 009: Backlinks
 
+The tree section was renamed to Inbound by [ADR 019](adr-019-multiple-vaults.md).
+
 ## Context
 Users need references to a note without searching manually.
 
