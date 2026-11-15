@@ -196,3 +196,37 @@ test("vault manual personalizes configured folders and safely renders backticks"
   assert.ok(indexes.root.includes("`examples/`") && indexes.notes.includes("`examples/`"),
     "routers omitted configured templates folder");
 });
+
+test("router replacement rejects ambiguous marker pairs without changing user content", () => {
+  const generated = renderRouterIndexes("vault", "capture", "permanent", 1, 2).root;
+  for (const current of [
+    `${routerIndexEnd}\n${routerIndexStart}`,
+    `${routerIndexStart}\n${routerIndexStart}\n${routerIndexEnd}`,
+    `${routerIndexStart}\n${routerIndexEnd}\n${routerIndexEnd}`,
+    `User text\n${routerIndexEnd}`,
+  ]) {
+    assert.throws(() => replaceRouterIndexSection(current, generated), /Malformed/);
+  }
+  const current = `User prefix\n${routerIndexStart}\nOld content\n${routerIndexEnd}\nUser suffix\n`;
+  const updated = replaceRouterIndexSection(current, generated);
+  assert.ok(updated !== undefined);
+  assert.ok(updated.startsWith("User prefix\n"));
+  assert.ok(updated.endsWith("User suffix\n"));
+  assert.match(updated, /capture\/.*1 capture/);
+  assert.match(updated, /permanent\/.*2 Markdown files/);
+});
+
+test("promotion preserves nested metadata while replacing only title and tags", () => {
+  const capture = [
+    "---", "title: Old", "tags: [old]", "source:", "  author: Example",
+    "  pages: [2, 4]", "---", "", "Body", "---", "Not front matter", "",
+  ].join("\n");
+  const result = promoteNote(capture, "New", ["one", "two"]);
+  const matter = frontMatter(result);
+  assert.ok(matter);
+  assert.deepEqual(parseDocument(matter.yaml).toJS(), {
+    title: "New", tags: ["one", "two"], source: { author: "Example", pages: [2, 4] },
+  });
+  assert.equal(result.slice(matter.end), capture.slice(frontMatter(capture)?.end));
+  assert.throws(() => promoteNote("---\ntitle: first\ntitle: second\n---\nBody", "New", []), /invalid YAML/);
+});

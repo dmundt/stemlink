@@ -1,6 +1,8 @@
 # Stemlink
 
-Build a Zettelkasten in VS Code with plain Markdown files. Capture ideas, connect notes, and find backlinks without a database or account. Your notes remain usable without Stemlink.
+[![Local Extension Quality](https://github.com/dmundt/stemlink/actions/workflows/quality.yml/badge.svg)](https://github.com/dmundt/stemlink/actions/workflows/quality.yml)
+
+Build a Zettelkasten like vault in VS Code with plain Markdown files. Capture ideas, connect notes, and find backlinks without a database or account. Your notes remain usable without Stemlink.
 
 ## Get started
 
