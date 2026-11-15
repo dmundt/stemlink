@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Put bundled editable note, capture, and promotion examples in vault-level `templates/`; retain legacy fleeting-template lookup.
+
 - Add resource-scoped settings for router automation and agent-instruction prompts; both default to enabled.
 
 - Offer optional, scope-specific vault `AGENTS.md` instructions during creation and opening without overwriting existing files.
