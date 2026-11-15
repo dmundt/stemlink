@@ -1,8 +1,10 @@
 ---
-status: Accepted
+status: Superseded
 ---
 
 # ADR 004: Single tree view
+
+Superseded by [ADR 019](adr-019-multiple-vaults.md).
 
 ## Context
 Users need a simple workspace overview and references without extra UI.

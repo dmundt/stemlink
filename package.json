@@ -4,6 +4,7 @@
   "description": "Plain Markdown Zettelkasten navigation and note management.",
   "version": "0.1.0",
   "publisher": "dmundt",
+  "license": "MIT",
   "icon": "media/icon.png",
   "private": true,
   "engines": {
@@ -13,6 +14,7 @@
     "Other"
   ],
   "activationEvents": [
+    "onStartupFinished",
     "onLanguage:markdown",
     "onView:stemlink.vault"
   ],
@@ -42,6 +44,12 @@
       }
     },
     "commands": [
+      {
+        "command": "stemlink.openVault",
+        "title": "Open Vault",
+        "category": "Stemlink",
+        "icon": "$(folder-opened)"
+      },
       {
         "command": "stemlink.createVault",
         "title": "Create Zettelkasten",
@@ -98,6 +106,11 @@
     "menus": {
       "view/title": [
         {
+          "command": "stemlink.openVault",
+          "when": "view == stemlink.vault",
+          "group": "navigation"
+        },
+        {
           "command": "stemlink.createVault",
           "when": "view == stemlink.vault",
           "group": "navigation"
@@ -132,9 +145,12 @@
     "test": "npm run compile && node --test dist/test/*.test.js",
     "test:integration": "npm run compile && node dist/test/runIntegration.js",
     "test:multi-root": "npm run compile && node dist/test/runMultiRoot.js",
-    "test:coverage": "npm run compile && node --experimental-test-coverage --test --test-concurrency=1 --test-coverage-include=dist/*.js dist/test/core.test.js dist/test/runIntegration.js dist/test/runMultiRoot.js",
+    "test:discovery": "npm run compile && node dist/test/runDiscovery.js",
+    "test:coverage": "npm run compile && node --experimental-test-coverage --test --test-concurrency=1 --test-coverage-include=dist/*.js dist/test/core.test.js dist/test/runIntegration.js dist/test/runMultiRoot.js dist/test/runDiscovery.js",
     "benchmark:integration": "npm run compile && node dist/test/runIntegration.js --benchmark",
     "benchmark": "npm run compile && node dist/test/benchmark.js",
+    "build": "npm run compile",
+    "package": "vsce package --allow-missing-repository --no-rewrite-relative-links",
     "vscode:prepublish": "npm run compile"
   },
   "dependencies": {

@@ -1,37 +1,122 @@
 import * as vscode from "vscode";
 import { auditNotes, linksIn, makeNote, promoteNote, slug, timestamp } from "./core";
+import { readVaultMarker, resolveVaultPaths, samePaths } from "./discovery";
 import { Item, VaultTree } from "./tree";
-import { Vault, directChild, reportError, sameUri, validFolderName } from "./vault";
+import { Vault, VaultPaths, directChild, reportError, sameUri, validFolderName } from "./vault";
 
-export function activate(context: vscode.ExtensionContext): void {
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const vaults = new Map<string, Vault>();
   const diagnostics = vscode.languages.createDiagnosticCollection("Stemlink");
+  const background = new Map<Vault, Promise<void>>();
+  const selectionKey = "stemlink.selectedVault";
+  const pendingOpenKey = "stemlink.pendingOpenVault";
+  let selectedVault: Vault | undefined;
   let configuring = false;
   context.subscriptions.push(diagnostics);
+  context.subscriptions.push(new vscode.Disposable(() => {
+    vaults.forEach(vault => vault.dispose());
+    vaults.clear();
+  }));
 
-  const vaultFor = (uri?: vscode.Uri): Vault | undefined => {
-    const folder = uri ? vscode.workspace.getWorkspaceFolder(uri) : undefined;
-    const selected = folder ?? vscode.workspace.workspaceFolders?.[0];
-    if (!selected) return undefined;
-    let vault = vaults.get(selected.uri.toString());
-    if (!vault) {
-      vault = new Vault(selected);
-      vaults.set(selected.uri.toString(), vault);
-      context.subscriptions.push(vault);
-    }
-    return vault;
+  const allVaults = () => [...vaults.values()];
+  const activeVault = () => selectedVault;
+  const requireActiveVault = (): Vault => {
+    if (selectedVault) return selectedVault;
+    if (!vscode.workspace.workspaceFolders?.length) throw new Error("Open a workspace folder first.");
+    throw new Error("Select a Zettelkasten under Vaults first.");
   };
-  for (const folder of vscode.workspace.workspaceFolders ?? []) vaultFor(folder.uri);
-  const activeVault = () => vaultFor(vscode.window.activeTextEditor?.document.uri);
-  let tree = new VaultTree(activeVault, [...vaults.values()]);
+  const vaultFor = (uri?: vscode.Uri): Vault | undefined => {
+    if (!uri) return selectedVault;
+    const matches = allVaults().filter(vault => {
+      const root = vault.paths.root;
+      return root.scheme === uri.scheme && root.authority === uri.authority &&
+        (sameUri(root, uri) || uri.toString().startsWith(`${root.toString().replace(/\/$/, "")}/`));
+    }).sort((a, b) => b.paths.root.path.length - a.paths.root.path.length);
+    if (matches.length) return matches[0];
+    const folder = vscode.workspace.getWorkspaceFolder(uri);
+    return selectedVault && folder && sameUri(folder.uri, selectedVault.folder.uri) ? selectedVault : undefined;
+  };
+  const tree = new VaultTree(activeVault, allVaults);
   context.subscriptions.push(tree);
-  let treeView = vscode.window.createTreeView("stemlink.vault", { treeDataProvider: tree });
+  const treeView = vscode.window.createTreeView("stemlink.vault", { treeDataProvider: tree });
   context.subscriptions.push(treeView);
+
+  const warmIndex = (vault: Vault) => {
+    if (background.has(vault) || vault.indexState === "ready") return;
+    const work = vault.ensure().catch(reportError).finally(() => {
+      background.delete(vault);
+      tree.refresh();
+    });
+    background.set(vault, work);
+    tree.refresh();
+  };
+  const selectVault = async (vault: Vault | undefined): Promise<void> => {
+    await context.workspaceState.update(selectionKey, vault?.paths.root.toString());
+    selectedVault = vault;
+    treeView.message = vault ? undefined : "Select a vault in Vaults.";
+    if (vault) warmIndex(vault);
+    tree.refresh();
+  };
+  const syncVaults = async (preferred?: vscode.Uri): Promise<void> => {
+    const descriptors = new Map<string, { folder: vscode.WorkspaceFolder; paths: VaultPaths }>();
+    const folders = [...(vscode.workspace.workspaceFolders ?? [])].sort((a, b) => b.uri.path.length - a.uri.path.length);
+    for (const folder of folders) {
+      try {
+        for (const paths of await resolveVaultPaths(folder, context.workspaceState)) {
+          if (!descriptors.has(paths.root.toString())) descriptors.set(paths.root.toString(), { folder, paths });
+        }
+      } catch (error) { reportError(error); }
+    }
+    for (const [key, vault] of vaults) {
+      const descriptor = descriptors.get(key);
+      if (!descriptor || !sameUri(descriptor.folder.uri, vault.folder.uri)) {
+        vault.dispose();
+        vaults.delete(key);
+      }
+    }
+    for (const [key, descriptor] of descriptors) {
+      let vault = vaults.get(key);
+      if (!vault) {
+        vault = new Vault(descriptor.folder);
+        vaults.set(key, vault);
+      }
+      vault.selectPaths(descriptor.paths);
+    }
+    const wanted = preferred?.toString() ?? selectedVault?.paths.root.toString() ??
+      context.workspaceState.get<string>(selectionKey);
+    selectedVault = wanted ? vaults.get(wanted) : undefined;
+    if (!wanted && vaults.size === 1) {
+      selectedVault = allVaults()[0];
+      await context.workspaceState.update(selectionKey, selectedVault.paths.root.toString());
+    }
+    treeView.message = selectedVault ? undefined
+      : vaults.size ? "Select a vault in Vaults." : "Use Open Vault or Create Zettelkasten.";
+    tree.syncVaults();
+    if (selectedVault && selectedVault.indexState === "pending") warmIndex(selectedVault);
+    if (preferred && selectedVault) await context.workspaceState.update(selectionKey, selectedVault.paths.root.toString());
+  };
+  let pendingDiscovery = Promise.resolve();
+  const queueDiscovery = (preferred?: vscode.Uri): Promise<void> => {
+    const operation = pendingDiscovery.then(() => syncVaults(preferred));
+    pendingDiscovery = operation.catch(reportError);
+    return operation;
+  };
+  const pendingRoot = context.globalState.get<string>(pendingOpenKey);
+  const pendingOpen = pendingRoot && vscode.workspace.workspaceFolders?.some(folder => sameUri(folder.uri, vscode.Uri.parse(pendingRoot)))
+    ? pendingRoot : undefined;
+  await queueDiscovery(pendingOpen ? vscode.Uri.parse(pendingOpen) : undefined);
+  if (pendingOpen) await context.globalState.update(pendingOpenKey, undefined);
 
   const command = <T extends unknown[]>(name: string, handler: (...args: T) => Promise<void>) =>
     context.subscriptions.push(vscode.commands.registerCommand(name, async (...args: unknown[]) => {
       try { await handler(...args as T); } catch (error) { reportError(error); }
     }));
+
+  command("stemlink.selectVault", async (root: vscode.Uri) => {
+    const vault = vaults.get(root.toString());
+    if (!vault) throw new Error("The selected Zettelkasten is no longer available.");
+    await selectVault(vault);
+  });
 
   command("stemlink.openAt", async (uri: vscode.Uri, offset?: number) => {
     const document = await vscode.workspace.openTextDocument(uri);
@@ -43,7 +128,97 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   });
 
+  async function writeMarker(root: vscode.Uri, inbox: string, notes: string): Promise<void> {
+    if (!vscode.workspace.isTrusted) throw new Error("Trust the workspace before adding a vault marker.");
+    const marker = vscode.Uri.joinPath(root, ".stemlink.json");
+    const edit = new vscode.WorkspaceEdit();
+    edit.createFile(marker, { overwrite: false, ignoreIfExists: false });
+    edit.insert(marker, new vscode.Position(0, 0), `${JSON.stringify({ version: 1, inbox, notes }, null, 2)}\n`);
+    if (!await vscode.workspace.applyEdit(edit)) throw new Error(`Could not create ${marker.path}; no existing file was overwritten.`);
+    const document = await vscode.workspace.openTextDocument(marker);
+    if (!await document.save()) throw new Error(`Created ${marker.path} but could not save it.`);
+  }
+
+  command("stemlink.openVault", async () => {
+    if (!vscode.workspace.isTrusted) throw new Error("Trust the workspace before opening a Zettelkasten.");
+    const roots = await vscode.window.showOpenDialog({
+      title: "Open Zettelkasten", openLabel: "Open Vault",
+      canSelectFiles: false, canSelectFolders: true, canSelectMany: false,
+    });
+    const root = roots?.[0];
+    if (!root) return;
+    if (!((await vscode.workspace.fs.stat(root)).type & vscode.FileType.Directory)) {
+      throw new Error("Choose a Zettelkasten folder.");
+    }
+    if (!await readVaultMarker(root)) {
+      const answer = await vscode.window.showWarningMessage(
+        "This folder has no .stemlink.json. Add a marker using existing inbox and permanent-note folders?",
+        { modal: true }, "Add Marker",
+      );
+      if (answer !== "Add Marker") return;
+      const directories = (await vscode.workspace.fs.readDirectory(root))
+        .filter(([name, type]) => Boolean(type & vscode.FileType.Directory) && validFolderName(name))
+        .map(([label]) => ({ label })).sort((a, b) => a.label.localeCompare(b.label));
+      if (directories.length < 2) throw new Error("The vault needs two distinct existing folders for captures and permanent notes.");
+      const inbox = await vscode.window.showQuickPick(directories, { title: "Choose fleeting/capture folder" });
+      if (!inbox) return;
+      const noteDirectories = directories.filter(item => item.label.toLowerCase() !== inbox.label.toLowerCase());
+      if (!noteDirectories.length) throw new Error("The vault needs two distinct existing folders for captures and permanent notes.");
+      const notes = await vscode.window.showQuickPick(noteDirectories, { title: "Choose permanent-note folder" });
+      if (!notes) return;
+      for (const name of [inbox.label, notes.label]) {
+        if (!((await vscode.workspace.fs.stat(vscode.Uri.joinPath(root, name))).type & vscode.FileType.Directory)) {
+          throw new Error(`The selected ${name} is no longer a directory.`);
+        }
+      }
+      await writeMarker(root, inbox.label, notes.label);
+    }
+    if (!vscode.workspace.isTrusted) throw new Error("Trust the workspace before opening a Zettelkasten.");
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    if (folders.some(folder => sameUri(root, folder.uri) || directChild(root, folder.uri))) {
+      await queueDiscovery(root);
+      return;
+    }
+    if (!folders.length) {
+      await context.globalState.update(pendingOpenKey, root.toString());
+      try {
+        await vscode.commands.executeCommand("vscode.openFolder", root, false);
+      } catch (error) {
+        await context.globalState.update(pendingOpenKey, undefined);
+        throw error;
+      }
+      return;
+    }
+    if (!vscode.workspace.workspaceFile) {
+      await context.globalState.update(pendingOpenKey, root.toString());
+      if (!vscode.workspace.updateWorkspaceFolders(folders.length, 0, { uri: root })) {
+        await context.globalState.update(pendingOpenKey, undefined);
+        throw new Error("Could not add the vault folder to the workspace.");
+      }
+      return;
+    }
+    let subscription: vscode.Disposable | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const added = new Promise<void>((resolve, reject) => {
+      subscription = vscode.workspace.onDidChangeWorkspaceFolders(event => {
+        if (event.added.some(folder => sameUri(folder.uri, root))) resolve();
+      });
+      timer = setTimeout(() => reject(new Error("Adding the vault folder to the workspace timed out.")), 5000);
+    });
+    try {
+      if (!vscode.workspace.updateWorkspaceFolders(folders.length, 0, { uri: root })) {
+        throw new Error("Could not add the vault folder to the workspace.");
+      }
+      await added;
+    } finally {
+      subscription?.dispose();
+      if (timer) clearTimeout(timer);
+    }
+    await queueDiscovery(root);
+  });
+
   command("stemlink.createVault", async () => {
+    if (!vscode.workspace.isTrusted) throw new Error("Trust the workspace before creating a Zettelkasten.");
     const folders = vscode.workspace.workspaceFolders ?? [];
     if (!folders.length) throw new Error("Open a workspace folder first.");
     const selected = folders.length === 1 ? folders[0] : await vscode.window.showWorkspaceFolderPick({ placeHolder: "Choose a workspace for the Zettelkasten" });
@@ -77,9 +252,15 @@ export function activate(context: vscode.ExtensionContext): void {
       );
       if (answer !== "Continue") return;
     }
+    const existingMarker = await readVaultMarker(rootUri);
+    const desiredPaths = { root: rootUri, inbox: vscode.Uri.joinPath(rootUri, inbox), notes: vscode.Uri.joinPath(rootUri, notes) };
+    if (existingMarker && !samePaths(existingMarker, desiredPaths)) {
+      throw new Error(`The existing ${rootUri.path}/.stemlink.json specifies different folders. Update it before reusing this vault.`);
+    }
     await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(rootUri, inbox));
     await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(rootUri, notes));
     const preserved: string[] = [];
+    if (existingMarker) preserved.push(".stemlink.json");
     for (const [name, directory] of [
       ["README.md", rootUri],
       ...["_template.md", "_fleeting.md", "_promotion.md"].map(name => [name, vscode.Uri.joinPath(rootUri, notes)] as const),
@@ -106,6 +287,9 @@ export function activate(context: vscode.ExtensionContext): void {
     configuring = true;
     try {
       for (let i = 0; i < keys.length; i++) await config.update(keys[i], values[i], target);
+      if (!existingMarker) {
+        await writeMarker(rootUri, inbox, notes);
+      }
     } catch (error) {
       try {
         for (let i = 0; i < keys.length; i++) await config.update(keys[i], previous[i], target);
@@ -116,7 +300,7 @@ export function activate(context: vscode.ExtensionContext): void {
     } finally {
       configuring = false;
     }
-    await vaultFor(selected.uri)?.configurationChanged();
+    await queueDiscovery(rootUri);
     tree.refresh();
     if (preserved.length) void vscode.window.showWarningMessage(`Stemlink: Zettelkasten ready; existing ${preserved.join(", ")} ${preserved.length === 1 ? "was" : "were"} preserved.`);
     else void vscode.window.showInformationMessage("Stemlink: Zettelkasten ready.");
@@ -154,8 +338,7 @@ export function activate(context: vscode.ExtensionContext): void {
   }
 
   command("stemlink.addFleetingNote", async () => {
-    const vault = activeVault();
-    if (!vault) throw new Error("Open a workspace folder first.");
+    const vault = requireActiveVault();
     const template = vscode.Uri.joinPath(vault.paths.notes, "_fleeting.md");
     let text: string;
     try {
@@ -172,19 +355,18 @@ export function activate(context: vscode.ExtensionContext): void {
   });
 
   command("stemlink.addNote", async () => {
-    const vault = activeVault();
-    if (!vault) throw new Error("Open a workspace folder first.");
+    const vault = requireActiveVault();
     const metadata = await askMetadata();
     if (!metadata) return;
     const uri = await createFile(vault.paths.notes, metadata.title, makeNote(metadata.title, metadata.tags));
-    await vault.refresh();
+    await vault.recordFile(uri);
     await vscode.window.showTextDocument(uri);
   });
 
   command("stemlink.promote", async (item?: Item) => {
     const uri = item?.uri ?? vscode.window.activeTextEditor?.document.uri;
-    const vault = vaultFor(uri);
-    if (!vault || !uri || !directChild(uri, vault.paths.inbox) || !uri.path.endsWith(".md")) {
+    const vault = requireActiveVault();
+    if (!uri || !directChild(uri, vault.paths.inbox) || !uri.path.endsWith(".md")) {
       throw new Error("Select an inbox Markdown capture to promote.");
     }
     const name = uri.path.slice(uri.path.lastIndexOf("/") + 1, -3).replace(/^\d{12}-/, "").replace(/-/g, " ");
@@ -206,21 +388,19 @@ export function activate(context: vscode.ExtensionContext): void {
     catch (error) {
       throw new Error(`Note created at ${target.path}, but capture could not be removed: ${error instanceof Error ? error.message : String(error)}`);
     }
-    await vault.refresh();
+    await vault.recordFile(target);
     tree.refresh();
     await vscode.window.showTextDocument(target);
   });
 
   command("stemlink.refresh", async () => {
-    const vault = activeVault();
-    if (!vault) throw new Error("Open a workspace folder first.");
+    const vault = requireActiveVault();
     await vault.refresh();
     tree.refresh();
   });
 
   command("stemlink.checkReferences", async () => {
-    const vault = activeVault();
-    if (!vault) throw new Error("Open a workspace folder first.");
+    const vault = requireActiveVault();
     diagnostics.clear();
     await vault.refresh();
     const notes = vault.all.filter(note => !note.name.startsWith("_"));
@@ -319,26 +499,28 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }
   }));
+  let discoveryTimer: ReturnType<typeof setTimeout> | undefined;
+  const scheduleDiscovery = () => {
+    if (discoveryTimer) clearTimeout(discoveryTimer);
+    discoveryTimer = setTimeout(() => {
+      if (configuring) { scheduleDiscovery(); return; }
+      void queueDiscovery();
+    }, 100);
+  };
+  const markerWatcher = vscode.workspace.createFileSystemWatcher("**/.stemlink.json");
+  const markerChanged = (uri: vscode.Uri) => {
+    const folder = vscode.workspace.getWorkspaceFolder(uri);
+    const parent = uri.with({ path: uri.path.slice(0, uri.path.lastIndexOf("/")) });
+    if (folder && (sameUri(parent, folder.uri) || directChild(parent, folder.uri))) scheduleDiscovery();
+  };
+  context.subscriptions.push(markerWatcher, markerWatcher.onDidCreate(markerChanged), markerWatcher.onDidChange(markerChanged),
+    markerWatcher.onDidDelete(markerChanged),
+    new vscode.Disposable(() => { if (discoveryTimer) clearTimeout(discoveryTimer); }));
   context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
-    if (!configuring && event.affectsConfiguration("stemlink")) {
-      for (const vault of vaults.values()) void vault.configurationChanged().catch(reportError);
-      tree.refresh();
-    }
+    if (!configuring && event.affectsConfiguration("stemlink")) scheduleDiscovery();
   }));
   context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => {
-    const activeFolders = new Set((vscode.workspace.workspaceFolders ?? []).map(folder => folder.uri.toString()));
-    for (const [key, vault] of vaults) {
-      if (!activeFolders.has(key)) {
-        vault.dispose();
-        vaults.delete(key);
-      }
-    }
-    for (const folder of vscode.workspace.workspaceFolders ?? []) vaultFor(folder.uri);
-    treeView.dispose();
-    tree.dispose();
-    tree = new VaultTree(activeVault, [...vaults.values()]);
-    treeView = vscode.window.createTreeView("stemlink.vault", { treeDataProvider: tree });
-    context.subscriptions.push(tree, treeView);
+    scheduleDiscovery();
   }));
 }
 
