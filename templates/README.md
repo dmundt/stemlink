@@ -14,6 +14,18 @@ zk/
 
 These are the default names; use your configured names if they differ. Keep permanent notes in one folder. Use tags and links instead of topic subfolders.
 
+### Folder naming options
+
+Stemlink defaults to short, neutral names. Other Zettelkasten folder schemes can be configured:
+
+| Scheme | Vault root | Inbox/capture | Permanent notes | Rationale |
+|---|---|---|---|---|
+| Stemlink default | `zk/` | `inbox/` | `notes/` | Short paths without specialized terminology. |
+| Ahrens-inspired | `Zettelkasten/` | `Fleeting/` | `Permanent/` | Uses fleeting and permanent note terms. |
+| Lifecycle labels | `vault/` | `Inbox/` | `Knowledge/` | Names the capture and durable-knowledge stages. |
+
+These are folder names, not note IDs. Stemlink's permanent-note filenames still use timestamps and remain stable after creation; generic `notes/` does not provide note identity. Choose folder names during **Create Zettelkasten** or configure paths for an existing vault.
+
 ## 2. Setup
 
 Create the root, inbox, and notes folders, put this manual in the root, and open the folder in a text editor. Put it somewhere your normal backups cover. With Stemlink, **Create Zettelkasten** creates the folders and copies this manual and the templates.

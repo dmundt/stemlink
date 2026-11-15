@@ -8,6 +8,8 @@ Build a Zettelkasten in VS Code with plain Markdown files. Capture ideas, connec
 2. Run **Stemlink: Create Zettelkasten**. Choose folder names or accept `zk/inbox` and `zk/notes`.
 3. If several vaults are found, select one under **Vaults**. Use **Add Fleeting Note**, **Add Note**, or **Promote Capture to Note**.
 
+The defaults use short, neutral folder names. The bundled manual lists configurable alternatives, including `Fleeting/Permanent` and `Inbox/Knowledge`.
+
 Vault creation includes a manual and editable templates. Existing files are preserved. Promotion preserves the capture's content; rewrite it as needed.
 
 Existing vaults can be recognized by a `.stemlink.json` file in the workspace root or an immediate child folder:
