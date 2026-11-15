@@ -22,15 +22,15 @@ Create Vault and Open Vault also ask before adding minimal `AGENTS.md` instructi
 
 Settings are resource-scoped and apply to the workspace folder containing each vault. Defaults:
 
-| Setting | Default | Purpose |
-|---|---:|---|
-| `stemlink.root` | `notes` | Workspace-relative vault root for settings-based discovery. |
-| `stemlink.inbox` | `inbox` | Capture folder name inside the vault. |
-| `stemlink.notes` | `permanent` | Permanent-note folder name inside the vault. |
-| `stemlink.templates` | `templates` | Editable-example folder name inside the vault. |
-| `stemlink.showCounts` | `true` | Show counts in the sidebar views and reference groups; errors remain visible when counts are hidden. |
-| `stemlink.enableRouterIndexes` | `true` | Create routers on explicit Create/Open and refresh their generated counts after observed Markdown changes. Disabled leaves existing `INDEX.md` files untouched. |
-| `stemlink.offerAgentInstructions` | `true` | Ask before adding missing vault `AGENTS.md` files during Create/Open. Disabled skips prompts and installation. |
+| Setting                           |     Default | Purpose                                                                                                                                                         |
+| --------------------------------- | ----------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `stemlink.root`                   |     `notes` | Workspace-relative vault root for settings-based discovery.                                                                                                     |
+| `stemlink.inbox`                  |     `inbox` | Capture folder name inside the vault.                                                                                                                           |
+| `stemlink.notes`                  | `permanent` | Permanent-note folder name inside the vault.                                                                                                                    |
+| `stemlink.templates`              | `templates` | Editable-example folder name inside the vault.                                                                                                                  |
+| `stemlink.showCounts`             |      `true` | Show counts in the sidebar views and reference groups; errors remain visible when counts are hidden.                                                            |
+| `stemlink.enableRouterIndexes`    |      `true` | Create routers on explicit Create/Open and refresh their generated counts after observed Markdown changes. Disabled leaves existing `INDEX.md` files untouched. |
+| `stemlink.offerAgentInstructions` |      `true` | Ask before adding missing vault `AGENTS.md` files during Create/Open. Disabled skips prompts and installation.                                                  |
 
 To share user-level Stemlink settings across devices, enable [VS Code Settings Sync](https://code.visualstudio.com/docs/configure/settings-sync) on each device, sign in, and include **Settings**. Excluded settings do not sync. Workspace and workspace-folder overrides, including paths saved by Create Vault, do not sync through Settings Sync. Vault files and workspace selection are not synced by Stemlink.
 

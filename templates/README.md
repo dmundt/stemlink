@@ -24,14 +24,14 @@ These are the default names; use your configured names if they differ. Capture, 
 
 Stemlink defaults distinguish the collection from its capture and permanent-note folders. Other Zettelkasten folder schemes can be configured:
 
-| Scheme | Vault root | Inbox/capture | Permanent notes | Rationale |
-|---|---|---|---|---|
-| Stemlink default | `notes/` | `inbox/` | `permanent/` | Separates the collection, captures, and permanent notes. |
-| Previous default | `zk/` | `inbox/` | `notes/` | Short, neutral labels; inbox is also common in GTD workflows. |
-| Ahrens-inspired | `Zettelkasten/` | `Fleeting/` | `Permanent/` | Uses fleeting and permanent note terms. |
-| Capture labels | `vault/` | `capture/` | `notes/` | Keeps unprocessed captures separate from permanent notes. |
-| Lifecycle labels | `vault/` | `inbox/` | `permanent/` | Names the raw-capture and permanent-note stages. |
-| Knowledge labels | `vault/` | `Inbox/` | `Knowledge/` | An alternative vocabulary for capture and durable knowledge. |
+| Scheme           | Vault root      | Inbox/capture | Permanent notes | Rationale                                                     |
+| ---------------- | --------------- | ------------- | --------------- | ------------------------------------------------------------- |
+| Stemlink default | `notes/`        | `inbox/`      | `permanent/`    | Separates the collection, captures, and permanent notes.      |
+| Previous default | `zk/`           | `inbox/`      | `notes/`        | Short, neutral labels; inbox is also common in GTD workflows. |
+| Ahrens-inspired  | `Zettelkasten/` | `Fleeting/`   | `Permanent/`    | Uses fleeting and permanent note terms.                       |
+| Capture labels   | `vault/`        | `capture/`    | `notes/`        | Keeps unprocessed captures separate from permanent notes.     |
+| Lifecycle labels | `vault/`        | `inbox/`      | `permanent/`    | Names the raw-capture and permanent-note stages.              |
+| Knowledge labels | `vault/`        | `Inbox/`      | `Knowledge/`    | An alternative vocabulary for capture and durable knowledge.  |
 
 These are folder names, not note IDs. Stemlink's permanent-note filenames still use timestamps and remain stable after creation; folder names do not provide note identity. Choose folder names during **Create Vault**, use **Open Vault**, or configure paths for an existing vault. Stemlink does not infer alternative layouts from their names.
 
@@ -142,11 +142,11 @@ Copy `_fleeting.md` from `templates/` into `inbox/`, rename it, and replace the 
 
 Review the inbox regularly:
 
-| Capture | Action |
-|---|---|
-| Not worth keeping | Delete it. |
-| Worth keeping | Rewrite it as one permanent idea with front matter and useful links. |
-| Still unfinished | Leave it in the inbox for another review. |
+| Capture           | Action                                                               |
+| ----------------- | -------------------------------------------------------------------- |
+| Not worth keeping | Delete it.                                                           |
+| Worth keeping     | Rewrite it as one permanent idea with front matter and useful links. |
+| Still unfinished  | Leave it in the inbox for another review.                            |
 
 The rewrite is the thinking, not merely moving the file. Stemlink's **Promote Capture to Note** preserves the capture's content; edit it into a permanent note after promotion.
 
@@ -162,13 +162,13 @@ Stemlink copies these editable examples into the configured templates folder (`t
 - `_fleeting.md`: a quick capture without front matter; its copy belongs in `inbox/`.
 - `_promotion.md`: a skeleton for rewriting a capture as a permanent note.
 
-| Part | When copying |
-|---|---|
-| `title:` | Edit the living name freely. Quote it if it contains a colon. |
-| `tags:` | Choose 1–3 useful lowercase tags. |
-| Body | Rewrite in your own words as one idea. |
-| `[[link]]` | Replace examples with full stems of real notes, in context. |
-| Filename | Give a permanent note a new timestamp and slug; keep it stable afterward. |
+| Part       | When copying                                                              |
+| ---------- | ------------------------------------------------------------------------- |
+| `title:`   | Edit the living name freely. Quote it if it contains a colon.             |
+| `tags:`    | Choose 1–3 useful lowercase tags.                                         |
+| Body       | Rewrite in your own words as one idea.                                    |
+| `[[link]]` | Replace examples with full stems of real notes, in context.               |
+| Filename   | Give a permanent note a new timestamp and slug; keep it stable afterward. |
 
 Templates in `templates/` are outside the Notes tree and reference audit. Legacy underscore-prefixed Markdown files left in the configured permanent-note folder are excluded from **Check References**, but remain visible in Notes and their outgoing links can appear in backlinks; their names are not valid wiki-link targets.
 

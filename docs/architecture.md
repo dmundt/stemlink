@@ -4,15 +4,15 @@ Stemlink is a VS Code extension for plain Markdown vaults. It uses native views,
 
 ## Components
 
-| File | Responsibility |
-|---|---|
-| [core.ts](../src/core.ts) | VS Code-independent metadata, note creation and promotion, links, audits, manual and router rendering. |
-| [extension.ts](../src/extension.ts) | Activation, vault selection, commands, language providers, diagnostics, and workspace events. |
-| [discovery.ts](../src/discovery.ts) | Marker parsing, workspace discovery, and marker/settings conflict selection. |
-| [vault.ts](../src/vault.ts) | Configured paths, in-memory note and backlink indexes, filesystem and document updates. |
-| [tree.ts](../src/tree.ts) | Shared tree model and native Vaults, Fleeting, Notes, and References views. |
-| [router.ts](../src/router.ts) | Optional generated `INDEX.md` sections and count refreshes. |
-| [agentInstructions.ts](../src/agentInstructions.ts) | Consent-based installation of missing vault `AGENTS.md` files. |
+| File                                                | Responsibility                                                                                         |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| [core.ts](../src/core.ts)                           | VS Code-independent metadata, note creation and promotion, links, audits, manual and router rendering. |
+| [extension.ts](../src/extension.ts)                 | Activation, vault selection, commands, language providers, diagnostics, and workspace events.          |
+| [discovery.ts](../src/discovery.ts)                 | Marker parsing, workspace discovery, and marker/settings conflict selection.                           |
+| [vault.ts](../src/vault.ts)                         | Configured paths, in-memory note and backlink indexes, filesystem and document updates.                |
+| [tree.ts](../src/tree.ts)                           | Shared tree model and native Vaults, Fleeting, Notes, and References views.                            |
+| [router.ts](../src/router.ts)                       | Optional generated `INDEX.md` sections and count refreshes.                                            |
+| [agentInstructions.ts](../src/agentInstructions.ts) | Consent-based installation of missing vault `AGENTS.md` files.                                         |
 
 ## Data flow
 

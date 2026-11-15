@@ -10,8 +10,14 @@ export interface VaultPaths {
 }
 
 export function validFolderName(value: string): boolean {
-  return value.trim() === value && value.length > 0 && value !== "." && value !== ".." &&
-    !/[\\/:*?"<>|\x00-\x1f]/.test(value) && !/[. ]$/.test(value);
+  return (
+    value.trim() === value &&
+    value.length > 0 &&
+    value !== "." &&
+    value !== ".." &&
+    !/[\\/:*?"<>|\x00-\x1f]/.test(value) &&
+    !/[. ]$/.test(value)
+  );
 }
 
 export function pathsFor(folder: vscode.WorkspaceFolder): VaultPaths {
@@ -20,13 +26,17 @@ export function pathsFor(folder: vscode.WorkspaceFolder): VaultPaths {
   const inboxName = config.get<string>("inbox", "inbox");
   const notesName = config.get<string>("notes", "permanent");
   const templatesName = config.get<string>("templates", "templates");
-  if (![rootName, inboxName, notesName, templatesName].every(validFolderName) ||
-      new Set([inboxName, notesName, templatesName].map(name => name.toLowerCase())).size !== 3) {
+  if (
+    ![rootName, inboxName, notesName, templatesName].every(validFolderName) ||
+    new Set([inboxName, notesName, templatesName].map((name) => name.toLowerCase())).size !== 3
+  ) {
     throw new Error("Stemlink folder settings must be distinct valid folder names.");
   }
   const root = vscode.Uri.joinPath(folder.uri, rootName);
   return {
-    root, inbox: vscode.Uri.joinPath(root, inboxName), notes: vscode.Uri.joinPath(root, notesName),
+    root,
+    inbox: vscode.Uri.joinPath(root, inboxName),
+    notes: vscode.Uri.joinPath(root, notesName),
     templates: vscode.Uri.joinPath(root, templatesName),
   };
 }
@@ -73,24 +83,35 @@ export class Vault implements vscode.Disposable {
   private selectedPaths: VaultPaths | undefined;
 
   constructor(readonly folder: vscode.WorkspaceFolder) {
-    const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, "**/*.md"));
-    this.disposables.push(watcher,
-      watcher.onDidCreate(uri => void this.onFile(uri, false)),
-      watcher.onDidChange(uri => void this.onFile(uri, false)),
-      watcher.onDidDelete(uri => void this.onFile(uri, true)),
-      vscode.workspace.onDidChangeTextDocument(event => {
+    const watcher = vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(folder, "**/*.md"),
+    );
+    this.disposables.push(
+      watcher,
+      watcher.onDidCreate((uri) => void this.onFile(uri, false)),
+      watcher.onDidChange((uri) => void this.onFile(uri, false)),
+      watcher.onDidDelete((uri) => void this.onFile(uri, true)),
+      vscode.workspace.onDidChangeTextDocument((event) => {
         if (event.document.uri.scheme === this.folder.uri.scheme) {
           void this.onDocument(event.document);
         }
       }),
-      vscode.workspace.onDidCloseTextDocument(document => void this.onFile(document.uri, false)));
+      vscode.workspace.onDidCloseTextDocument((document) => void this.onFile(document.uri, false)),
+    );
   }
 
-  get paths(): VaultPaths { return this.selectedPaths ?? pathsFor(this.folder); }
+  get paths(): VaultPaths {
+    return this.selectedPaths ?? pathsFor(this.folder);
+  }
   selectPaths(paths: VaultPaths): void {
-    if (this.selectedPaths && sameUri(this.selectedPaths.root, paths.root) &&
-        sameUri(this.selectedPaths.inbox, paths.inbox) && sameUri(this.selectedPaths.notes, paths.notes) &&
-        sameUri(this.selectedPaths.templates, paths.templates)) return;
+    if (
+      this.selectedPaths &&
+      sameUri(this.selectedPaths.root, paths.root) &&
+      sameUri(this.selectedPaths.inbox, paths.inbox) &&
+      sameUri(this.selectedPaths.notes, paths.notes) &&
+      sameUri(this.selectedPaths.templates, paths.templates)
+    )
+      return;
     this.selectedPaths = paths;
     this.revision++;
     this.namesRevision++;
@@ -102,20 +123,40 @@ export class Vault implements vscode.Disposable {
     this.incoming.clear();
     this.changed.fire();
   }
-  get all(): VaultNote[] { return [...this.notes.values()]; }
-  get namesReady(): boolean { return this.namesInitialized && !this.namesPromise; }
-  get indexState(): "ready" | "indexing" | "failed" | "pending" {
-    return this.refreshPromise ? "indexing" : this.indexFailed ? "failed" : this.initialized ? "ready" : "pending";
+  get all(): VaultNote[] {
+    return [...this.notes.values()];
   }
-  get(stem: string): VaultNote | undefined { return this.notes.get(stem); }
-  get allTargets(): NoteTarget[] { return [...this.targets.values()]; }
-  target(stem: string): NoteTarget | undefined { return this.targets.get(stem); }
-  references(stem: string): Reference[] { return this.incoming.get(stem) ?? []; }
+  get namesReady(): boolean {
+    return this.namesInitialized && !this.namesPromise;
+  }
+  get indexState(): "ready" | "indexing" | "failed" | "pending" {
+    return this.refreshPromise
+      ? "indexing"
+      : this.indexFailed
+        ? "failed"
+        : this.initialized
+          ? "ready"
+          : "pending";
+  }
+  get(stem: string): VaultNote | undefined {
+    return this.notes.get(stem);
+  }
+  get allTargets(): NoteTarget[] {
+    return [...this.targets.values()];
+  }
+  target(stem: string): NoteTarget | undefined {
+    return this.targets.get(stem);
+  }
+  references(stem: string): Reference[] {
+    return this.incoming.get(stem) ?? [];
+  }
 
   async ensureNames(): Promise<void> {
     if (this.namesInitialized && !this.namesPromise) return;
     if (!this.namesPromise) {
-      this.namesPromise = this.loadNames().finally(() => { this.namesPromise = undefined; });
+      this.namesPromise = this.loadNames().finally(() => {
+        this.namesPromise = undefined;
+      });
     }
     await this.namesPromise;
   }
@@ -135,7 +176,7 @@ export class Vault implements vscode.Disposable {
     if (revision !== this.namesRevision) return this.loadNames();
     const targets = new Map<string, NoteTarget>();
     for (const [name, type] of entries) {
-      if (name.endsWith(".md") && !isVaultInstructionFile(name) && (type & vscode.FileType.File)) {
+      if (name.endsWith(".md") && !isVaultInstructionFile(name) && type & vscode.FileType.File) {
         const stem = name.slice(0, -3);
         targets.set(stem, { stem, name, uri: vscode.Uri.joinPath(notes, name) });
       }
@@ -155,14 +196,16 @@ export class Vault implements vscode.Disposable {
     this.namesRevision++;
     this.indexFailed = false;
     const status = vscode.window.setStatusBarMessage("Stemlink: indexing notes...");
-    this.refreshPromise = this.load().catch(error => {
-      this.initialized = false;
-      this.indexFailed = true;
-      throw error;
-    }).finally(() => {
-      status.dispose();
-      this.refreshPromise = undefined;
-    });
+    this.refreshPromise = this.load()
+      .catch((error) => {
+        this.initialized = false;
+        this.indexFailed = true;
+        throw error;
+      })
+      .finally(() => {
+        status.dispose();
+        this.refreshPromise = undefined;
+      });
     return this.refreshPromise;
   }
 
@@ -175,16 +218,20 @@ export class Vault implements vscode.Disposable {
     await this.ensureNames();
     const files = this.allTargets;
     const next = new Map<string, VaultNote>();
-    const openDocuments = new Map(vscode.workspace.textDocuments.map(document => [document.uri.toString(), document]));
+    const openDocuments = new Map(
+      vscode.workspace.textDocuments.map((document) => [document.uri.toString(), document]),
+    );
     for (let i = 0; i < files.length; i += 64) {
       if (this.disposed) return;
       const batch = files.slice(i, i + 64);
       let loaded: VaultNote[];
       try {
-        loaded = await Promise.all(batch.map(async target => {
-          const text = await this.read(target.uri, openDocuments);
-          return { ...target, text, links: linksIn(text) };
-        }));
+        loaded = await Promise.all(
+          batch.map(async (target) => {
+            const text = await this.read(target.uri, openDocuments);
+            return { ...target, text, links: linksIn(text) };
+          }),
+        );
       } catch (error) {
         if (this.disposed) return;
         if (revision !== this.revision) return this.load();
@@ -202,14 +249,19 @@ export class Vault implements vscode.Disposable {
     this.changed.fire();
   }
 
-  private async read(uri: vscode.Uri, openDocuments?: Map<string, vscode.TextDocument>): Promise<string> {
+  private async read(
+    uri: vscode.Uri,
+    openDocuments?: Map<string, vscode.TextDocument>,
+  ): Promise<string> {
     const document = openDocuments
       ? openDocuments.get(uri.toString())
-      : vscode.workspace.textDocuments.find(doc => sameUri(doc.uri, uri));
+      : vscode.workspace.textDocuments.find((doc) => sameUri(doc.uri, uri));
     if (document) return document.getText();
-    if (uri.scheme !== "file") return Buffer.from(await vscode.workspace.fs.readFile(uri)).toString("utf8");
-    try { return await readFile(uri.fsPath, "utf8"); }
-    catch (error) {
+    if (uri.scheme !== "file")
+      return Buffer.from(await vscode.workspace.fs.readFile(uri)).toString("utf8");
+    try {
+      return await readFile(uri.fsPath, "utf8");
+    } catch (error) {
       if (error instanceof Error && "code" in error && error.code === "ENOENT") {
         throw vscode.FileSystemError.FileNotFound(uri);
       }
@@ -242,8 +294,8 @@ export class Vault implements vscode.Disposable {
   }
 
   private removeReferences(note: VaultNote): void {
-    for (const stem of new Set(note.links.map(link => link.stem))) {
-      const refs = (this.incoming.get(stem) ?? []).filter(ref => ref.note.stem !== note.stem);
+    for (const stem of new Set(note.links.map((link) => link.stem))) {
+      const refs = (this.incoming.get(stem) ?? []).filter((ref) => ref.note.stem !== note.stem);
       if (refs.length) this.incoming.set(stem, refs);
       else this.incoming.delete(stem);
     }
@@ -253,8 +305,12 @@ export class Vault implements vscode.Disposable {
     try {
       if (this.disposed) return;
       const uri = document.uri;
-      if (!directChild(uri, this.paths.notes) || !uri.path.endsWith(".md") ||
-          isVaultInstructionFile(uri.path.slice(uri.path.lastIndexOf("/") + 1))) return;
+      if (
+        !directChild(uri, this.paths.notes) ||
+        !uri.path.endsWith(".md") ||
+        isVaultInstructionFile(uri.path.slice(uri.path.lastIndexOf("/") + 1))
+      )
+        return;
       this.revision++;
       this.fileRevisions.set(uri.toString(), this.revision);
       const name = uri.path.slice(uri.path.lastIndexOf("/") + 1);
@@ -263,14 +319,20 @@ export class Vault implements vscode.Disposable {
       this.targets.set(stem, { uri, name, stem });
       this.replace({ uri, name, stem, text, links: linksIn(text) });
       this.changed.fire();
-    } catch (error) { reportError(error); }
+    } catch (error) {
+      reportError(error);
+    }
   }
 
   private async onFile(uri: vscode.Uri, deleted: boolean): Promise<void> {
     try {
       if (this.disposed) return;
-      if (!directChild(uri, this.paths.notes) || !uri.path.endsWith(".md") ||
-          isVaultInstructionFile(uri.path.slice(uri.path.lastIndexOf("/") + 1))) return;
+      if (
+        !directChild(uri, this.paths.notes) ||
+        !uri.path.endsWith(".md") ||
+        isVaultInstructionFile(uri.path.slice(uri.path.lastIndexOf("/") + 1))
+      )
+        return;
       this.revision++;
       this.namesRevision++;
       const currentRevision = this.revision;
@@ -297,7 +359,7 @@ export class Vault implements vscode.Disposable {
 
   dispose(): void {
     this.disposed = true;
-    this.disposables.forEach(item => item.dispose());
+    this.disposables.forEach((item) => item.dispose());
     this.changed.dispose();
   }
 }

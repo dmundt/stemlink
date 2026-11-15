@@ -1,4 +1,4 @@
-name: Extension Quality
+name: Local Extension Quality
 
 on:
   push:
@@ -15,7 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        vscode-version: ['1.90.0', stable]
+        vscode-version: ["1.90.0", stable]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -24,8 +24,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm audit --omit=dev
-      - run: npm audit --audit-level=high
+      - run: npm audit
+      - run: npm run lint
+      - run: npm run format:check
       - run: xvfb-run -a npm run test:coverage
         if: runner.os == 'Linux'
         env:
@@ -34,6 +35,7 @@ jobs:
         if: runner.os != 'Linux'
         env:
           VSCODE_TEST_VERSION: ${{ matrix.vscode-version }}
+      - run: npm run build
       - run: xvfb-run -a npm run benchmark:integration
         if: matrix.os == 'ubuntu-latest' && matrix.vscode-version == 'stable'
         env:
@@ -46,5 +48,5 @@ jobs:
         if: matrix.os == 'ubuntu-latest' && matrix.vscode-version == 'stable'
         with:
           name: stemlink-package
-          path: '*.vsix'
+          path: "*.vsix"
           if-no-files-found: error
