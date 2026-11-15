@@ -28,7 +28,7 @@
       "properties": {
         "stemlink.root": {
           "type": "string",
-          "default": "zk",
+          "default": "notes",
           "scope": "resource",
           "description": "Workspace-relative Zettelkasten root."
         },
@@ -40,7 +40,7 @@
         },
         "stemlink.notes": {
           "type": "string",
-          "default": "notes",
+          "default": "permanent",
           "scope": "resource",
           "description": "Permanent notes folder name inside the Zettelkasten root."
         },

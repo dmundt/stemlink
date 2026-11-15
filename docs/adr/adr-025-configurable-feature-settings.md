@@ -1,8 +1,10 @@
 ---
-status: Accepted
+status: Accepted; superseded in part by ADR 029
 ---
 
 # ADR 025: Configurable feature settings
+
+[ADR 029](adr-029-default-vault-layout.md) replaces only the path defaults with `stemlink.root=notes`, `stemlink.inbox=inbox`, and `stemlink.notes=permanent`.
 
 ## Context
 

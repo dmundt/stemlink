@@ -288,11 +288,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       title: `Create Zettelkasten: ${label}`, value,
       validateInput: input => validFolderName(input) ? undefined : "Enter a single valid folder name.",
     });
-    const root = await prompt("root folder", "zk");
+    const root = await prompt("root folder", "notes");
     if (root === undefined) return;
     const inbox = await prompt("inbox folder", "inbox");
     if (inbox === undefined) return;
-    const notes = await prompt("notes folder", "notes");
+    const notes = await prompt("permanent-note folder", "permanent");
     if (notes === undefined) return;
     if (inbox.toLowerCase() === notes.toLowerCase()) throw new Error("Inbox and notes must be different folders.");
     if ([inbox, notes].some(name => name.toLowerCase() === "templates")) {

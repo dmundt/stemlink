@@ -18,6 +18,7 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [025: Configurable feature settings](adr-025-configurable-feature-settings.md) — resource-scoped router and agent-instruction settings with behavior-preserving defaults.
 - [026: Vault template folder](adr-026-vault-template-folder.md) — create editable examples in `templates/` and preserve legacy fleeting-template lookup.
 - [027: Templates folder mapping](adr-027-templates-folder-mapping.md) — optional portable template location and version 1 compatibility.
+- [029: Default vault layout](adr-029-default-vault-layout.md) — `notes/` containing `templates/`, `inbox/`, and `permanent/`; existing vault compatibility and configurable alternatives.
 
 ## Creating and processing notes
 
