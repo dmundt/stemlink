@@ -1924,10 +1924,27 @@ export async function run(): Promise<void> {
   const commands = extension.packageJSON.contributes.commands as {
     command: string;
     title: string;
+    icon?: string;
   }[];
   assert.equal(
     commands.find((command) => command.command === "stemlink.createVault")?.title,
     "Create Vault",
+  );
+  const settingsCommand = commands.find((command) => command.command === "stemlink.openSettings");
+  assert.equal(settingsCommand?.icon, "$(gear)");
+  const titleMenus = extension.packageJSON.contributes.menus["view/title"] as {
+    command: string;
+    when: string;
+    group: string;
+  }[];
+  assert.ok(
+    titleMenus.some(
+      (item) =>
+        item.command === "stemlink.openSettings" &&
+        item.when === "view == stemlink.vaults" &&
+        item.group.startsWith("navigation"),
+    ),
+    "settings action is not in the Vaults view title",
   );
   for (const [key, value] of [
     ["stemlink.root", "notes"],
@@ -1958,6 +1975,24 @@ export async function run(): Promise<void> {
   const first = vscode.Uri.joinPath(notes, "202601011200-note-0.md");
   const second = vscode.Uri.joinPath(notes, "202601011200-note-1.md");
   if (process.env.STEMLINK_BENCHMARK !== "1") {
+    const commandApi = vscode.commands as { executeCommand: typeof vscode.commands.executeCommand };
+    const originalExecuteCommand = commandApi.executeCommand;
+    const settingsCalls: unknown[][] = [];
+    commandApi.executeCommand = new Proxy(originalExecuteCommand, {
+      apply: (target, thisArg, args: unknown[]) => {
+        if (args[0] === "workbench.action.openSettings") {
+          settingsCalls.push(args);
+          return Promise.resolve();
+        }
+        return Reflect.apply(target, thisArg, args);
+      },
+    });
+    try {
+      await originalExecuteCommand("stemlink.openSettings");
+      assert.deepEqual(settingsCalls, [["workbench.action.openSettings", "@ext:dmundt.stemlink"]]);
+    } finally {
+      commandApi.executeCommand = originalExecuteCommand;
+    }
     await testVirtualVault();
     await testMockVaultFiles(extension.extensionUri);
     const emptyTree = new VaultTree(

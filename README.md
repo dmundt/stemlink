@@ -22,6 +22,8 @@ Create Vault and Open Vault also ask before adding minimal `AGENTS.md` instructi
 
 ## Extension settings
 
+Use the gear in the **Vaults** view or **Stemlink: Settings** to open Stemlink settings.
+
 Settings are resource-scoped and apply to the workspace folder containing each vault. Defaults:
 
 | Setting                           |     Default | Purpose                                                                                                                                                         |

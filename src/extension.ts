@@ -250,6 +250,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }),
     );
 
+  command("stemlink.openSettings", async () => {
+    await vscode.commands.executeCommand("workbench.action.openSettings", "@ext:dmundt.stemlink");
+  });
+
   command("stemlink.selectVault", async (root: vscode.Uri) => {
     const vault = vaults.get(root.toString());
     if (!vault) throw new Error("The selected vault is no longer available.");
