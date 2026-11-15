@@ -1,8 +1,10 @@
 ---
-status: Accepted
+status: Superseded by ADR 037
 ---
 
 # ADR 022: AI routing indexes
+
+[ADR 037](adr-037-file-description-routers.md) retains the ownership and navigation rules and replaces count-only folder routers with live file-description mappings.
 
 ## Context
 

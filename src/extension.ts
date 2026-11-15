@@ -724,6 +724,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   command("stemlink.refresh", async () => {
     const vault = requireActiveVault();
     await vault.refresh();
+    if (routerIndexesEnabled(vault.paths)) await routerIndexes.refresh(vault.paths);
     tree.refresh();
   });
 
