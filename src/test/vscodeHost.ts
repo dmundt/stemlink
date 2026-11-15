@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as vscode from "vscode";
 import { discoverVaults, readVaultMarker, resolveVaultPaths } from "../discovery";
 import { Vault, directChild, pathsFor, sameUri, validFolderName } from "../vault";
+import { isVaultInstructionFile } from "../core";
 import { VaultTree, VaultTreeSection } from "../tree";
 
 async function waitFor(condition: () => boolean, message: string): Promise<void> {
@@ -185,7 +186,7 @@ async function testMultiRoot(): Promise<void> {
     assert.ok(vscode.workspace.workspaceFolders?.some(candidate => sameUri(candidate.uri, external)),
       "external vault was not added to the workspace");
     await vscode.commands.executeCommand("stemlink.addFleetingNote");
-    assert.equal((await vscode.workspace.fs.readDirectory(vscode.Uri.joinPath(external, "inbox"))).length, 1,
+    assert.equal((await vscode.workspace.fs.readDirectory(vscode.Uri.joinPath(external, "inbox"))).filter(([name]) => !isVaultInstructionFile(name)).length, 1,
       "external vault was not selected after adding it");
     await vscode.commands.executeCommand("stemlink.openVault");
     assert.equal(vscode.workspace.workspaceFolders?.length, 3, "external folder was added twice");
@@ -260,7 +261,7 @@ async function testDiscovery(folder: vscode.WorkspaceFolder): Promise<void> {
   const otherCaptures = await vscode.workspace.fs.readDirectory(vscode.Uri.joinPath(otherRoot, "inbox"));
   assert.equal(otherCaptures.filter(([name]) => name.endsWith(".md")).length, 1,
     "active editor changed the manually selected vault");
-  assert.equal((await vscode.workspace.fs.readDirectory(vscode.Uri.joinPath(root, "fleeting"))).length, 1,
+  assert.equal((await vscode.workspace.fs.readDirectory(vscode.Uri.joinPath(root, "fleeting"))).filter(([name]) => !isVaultInstructionFile(name)).length, 1,
     "capture was written to the wrong vault");
   links = await vscode.commands.executeCommand<vscode.DocumentLink[]>("vscode.executeLinkProvider", first);
   assert.ok(links?.some(link => link.target?.toString() === second.toString()),
@@ -500,7 +501,7 @@ async function testOpenVault(folder: vscode.WorkspaceFolder): Promise<void> {
       "opening a vault changed legacy settings");
     await vscode.commands.executeCommand("stemlink.addFleetingNote");
     assert.equal(errors.length, 0, `opening or using the vault reported an error: ${errors.join("; ")}`);
-    assert.equal((await vscode.workspace.fs.readDirectory(inbox)).length, 1, "opened vault was not selected");
+    assert.equal((await vscode.workspace.fs.readDirectory(inbox)).filter(([name]) => !isVaultInstructionFile(name)).filter(([name]) => !isVaultInstructionFile(name)).length, 1, "opened vault was not selected");
     const bytes = await vscode.workspace.fs.readFile(marker);
     const warningCount = warnings;
     await vscode.commands.executeCommand("stemlink.openVault");
@@ -511,7 +512,7 @@ async function testOpenVault(folder: vscode.WorkspaceFolder): Promise<void> {
     await vscode.commands.executeCommand("stemlink.openVault");
     assert.equal(vscode.workspace.workspaceFolders?.length, 1, "discoverable child was added unnecessarily");
     await vscode.commands.executeCommand("stemlink.addFleetingNote");
-    assert.equal((await vscode.workspace.fs.readDirectory(vscode.Uri.joinPath(chosen, "inbox"))).length, 2,
+    assert.equal((await vscode.workspace.fs.readDirectory(vscode.Uri.joinPath(chosen, "inbox"))).filter(([name]) => !isVaultInstructionFile(name)).length, 2,
       "existing discovered vault was not selected");
     chosen = vscode.Uri.joinPath(folder.uri, "test-data", "bad-vault");
     await vscode.workspace.fs.createDirectory(chosen);
@@ -923,7 +924,7 @@ export async function run(): Promise<void> {
 
       answers.push("A: title", "alpha, beta");
       await vscode.commands.executeCommand("stemlink.addNote");
-      const created = (await vscode.workspace.fs.readDirectory(permanent)).filter(([name]) => !name.startsWith("_"));
+      const created = (await vscode.workspace.fs.readDirectory(permanent)).filter(([name]) => !name.startsWith("_") && !isVaultInstructionFile(name));
       assert.equal(created.length, 1, "Add Note did not create a file");
       const firstText = Buffer.from(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(permanent, created[0][0]))).toString("utf8");
       assert.match(firstText, /A: title/);
@@ -932,7 +933,7 @@ export async function run(): Promise<void> {
       const createdUri = vscode.Uri.joinPath(permanent, created[0][0]);
       answers.push("A: title", "other");
       await vscode.commands.executeCommand("stemlink.addNote");
-      const afterCollision = (await vscode.workspace.fs.readDirectory(permanent)).filter(([name]) => !name.startsWith("_"));
+      const afterCollision = (await vscode.workspace.fs.readDirectory(permanent)).filter(([name]) => !name.startsWith("_") && !isVaultInstructionFile(name));
       assert.equal(afterCollision.length, 2, "second note overwrote the first");
       const secondCreated = afterCollision.find(([name]) => name !== created[0][0]);
       assert.ok(secondCreated);
@@ -1030,7 +1031,7 @@ export async function run(): Promise<void> {
         await vscode.commands.executeCommand("stemlink.addFleetingNote");
         assert.ok(errors.some(message => message.includes("Fleeting template not found") && message.includes("_fleeting.md")),
           "missing fleeting template was not reported");
-        assert.equal((await vscode.workspace.fs.readDirectory(inbox)).length, 2, "missing template created a capture");
+        assert.equal((await vscode.workspace.fs.readDirectory(inbox)).filter(([name]) => !isVaultInstructionFile(name)).filter(([name]) => !isVaultInstructionFile(name)).length, 2, "missing template created a capture");
         await vscode.workspace.fs.createDirectory(fleetingTemplate);
         const previousErrors = errors.length;
         try {
@@ -1038,7 +1039,7 @@ export async function run(): Promise<void> {
           assert.ok(errors.length > previousErrors, "unreadable fleeting template was not reported");
           assert.ok(!errors[errors.length - 1].includes("Fleeting template not found"),
             "non-missing template error was misreported");
-          assert.equal((await vscode.workspace.fs.readDirectory(inbox)).length, 2, "unreadable template created a capture");
+          assert.equal((await vscode.workspace.fs.readDirectory(inbox)).filter(([name]) => !isVaultInstructionFile(name)).filter(([name]) => !isVaultInstructionFile(name)).length, 2, "unreadable template created a capture");
         } finally {
           await vscode.workspace.fs.delete(fleetingTemplate);
         }
@@ -1052,7 +1053,7 @@ export async function run(): Promise<void> {
       await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(capture));
       answers.push("Promoted title", "ideas");
       await vscode.commands.executeCommand("stemlink.promote");
-      const after = (await vscode.workspace.fs.readDirectory(permanent)).filter(([name]) => !name.startsWith("_"));
+      const after = (await vscode.workspace.fs.readDirectory(permanent)).filter(([name]) => !name.startsWith("_") && !isVaultInstructionFile(name));
       assert.equal(after.length, 2, "promotion did not create a file");
       const promoted = after.find(([name]) => name.includes("promoted-title"));
       assert.ok(promoted);
@@ -1080,7 +1081,7 @@ export async function run(): Promise<void> {
 
       answers.push(undefined);
       await vscode.commands.executeCommand("stemlink.addNote");
-      assert.equal((await vscode.workspace.fs.readDirectory(permanent)).filter(([name]) => !name.startsWith("_")).length, 3, "cancelled note was created");
+      assert.equal((await vscode.workspace.fs.readDirectory(permanent)).filter(([name]) => !name.startsWith("_") && !isVaultInstructionFile(name)).filter(([name]) => !isVaultInstructionFile(name)).length, 3, "cancelled note was created");
       assert.equal(answers.length, 0);
 
       const warningApi = vscode.window as { showWarningMessage: typeof vscode.window.showWarningMessage };

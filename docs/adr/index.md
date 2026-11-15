@@ -17,6 +17,8 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 
 - [023: Separate native tree views](adr-023-separated-tree-views.md) — native view separators and section-specific commands.
 
+- [022: AI routing indexes](adr-022-ai-routing-indexes.md) — generated `INDEX.md` routers and observed state counts.
+
 ## Creating and processing notes
 
 - [005: Add Note](adr-005-add-note.md) — permanent-note creation.
