@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.0 - 2026-11-16
+
 - Preserve active-vault selection while tree refreshes are in progress.
 - Rename the bundled manual to **Stemlink Vault Manual** and use Stemlink vault terminology.
 - Give the Vaults view a compact initial height; let VS Code scroll when vault rows exceed it.
