@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Show zero counts instead of dashes when no vault is selected.
 - Use a plus icon for both Fleeting and Notes creation actions.
 - Rename the **Create Zettelkasten** action to **Create Vault** and use consistent vault terminology in prompts and messages.
 - Show the active vault with native row selection instead of a checkmark or Selected label. Restore the last available vault or select the first listed vault automatically; keep selection across editor changes and refreshes.

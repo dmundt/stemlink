@@ -1322,6 +1322,13 @@ export async function run(): Promise<void> {
   if (process.env.STEMLINK_BENCHMARK !== "1") {
     await testVirtualVault();
     await testMockVaultFiles(extension.extensionUri);
+    const emptyTree = new VaultTree(() => undefined, () => []);
+    try {
+      assert.deepEqual((await emptyTree.getChildren()).map(item => item.label),
+        ["Vaults (0)", "Fleeting (0)", "Notes (0)", "References (0)"]);
+    } finally {
+      emptyTree.dispose();
+    }
     for (const name of ["", ".", "..", " note", "note ", "note.", "a/b", "a\\b", "a:b", "a?b"]) {
       assert.equal(validFolderName(name), false, `accepted invalid folder name ${JSON.stringify(name)}`);
     }
