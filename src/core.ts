@@ -34,6 +34,25 @@ export function markdownCodeSpan(value: string): string {
   return `${delimiter}${value}${delimiter}`;
 }
 
+export function renderVaultReadme(
+  template: string, rootName: string, inboxName: string, notesName: string,
+): string {
+  const marker = "<!-- stemlink:configured-folders -->";
+  const markerIndex = template.indexOf(marker);
+  if (markerIndex < 0 || template.indexOf(marker, markerIndex + marker.length) >= 0) {
+    throw new Error("Vault manual must contain exactly one configured-folder marker.");
+  }
+  const folders = [
+    "## This vault's folders",
+    "",
+    `- Vault root: ${markdownCodeSpan(`${rootName}/`)}`,
+    `- Captures: ${markdownCodeSpan(`${inboxName}/`)}`,
+    `- Permanent notes: ${markdownCodeSpan(`${notesName}/`)}`,
+    `- Editable examples: ${markdownCodeSpan("templates/")}`,
+  ].join("\n");
+  return template.replace(marker, () => folders);
+}
+
 export function renderRouterIndexes(
   rootName: string,
   inboxName: string,

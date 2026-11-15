@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseDocument } from "yaml";
-import { auditNotes, frontMatter, linksIn, makeNote, metadataProblem, promoteNote, slug, timestamp,
-  isRouterIndex, isVaultInstructionFile, renderRouterIndexes, replaceRouterIndexSection, routerIndexStart, routerIndexEnd } from "../core";
+import {
+  auditNotes, frontMatter, isRouterIndex, isVaultInstructionFile, linksIn, makeNote, metadataProblem, promoteNote,
+  markdownCodeSpan, renderRouterIndexes, renderVaultReadme, replaceRouterIndexSection, routerIndexEnd, routerIndexStart,
+  slug, timestamp,
+} from "../core";
 
 test("parses references in prose, not front matter or Markdown code", () => {
   const text = [
@@ -146,6 +149,7 @@ test("router indexes route by folder and replace only their generated section", 
   assert.match(indexes.inbox, /not authoritative.*in-memory note\/reference index/);
   assert.match(indexes.notes, /excludes INDEX\.md and AGENTS\.md/);
   assert.match(indexes.notes, /Notes router: `stable\/`/);
+  assert.match(indexes.root, /Templates live in the vault-level templates folder/);
   assert.match(indexes.notes, /not authoritative.*in-memory note\/reference index/);
   assert.equal(isRouterIndex("index.md"), true);
   assert.equal(isRouterIndex("_index.md"), false);
@@ -172,4 +176,18 @@ test("router indexes route by folder and replace only their generated section", 
   assert.deepEqual(auditNotes([router]), [], "router file must not create note audit findings");
   assert.deepEqual(auditNotes([{ ...router, name: "AGENTS.md", stem: "AGENTS" }]), [],
     "agent instructions must not create note audit findings");
+});
+
+test("vault manual personalizes configured folders and safely renders backticks", () => {
+  const template = [
+    "# Manual",
+    "<!-- stemlink:configured-folders -->",
+  ].join("\n");
+  const rendered = renderVaultReadme(template, "Zettelkasten", "Fleeting", "Permanent`Notes");
+  assert.match(rendered, /Vault root: `Zettelkasten\/`/);
+  assert.match(rendered, /Captures: `Fleeting\/`/);
+  assert.match(rendered, /Permanent notes: ``Permanent`Notes\/``/);
+  assert.match(rendered, /Editable examples: `templates\/`/);
+  assert.throws(() => renderVaultReadme("# Manual", "zk", "inbox", "notes"), /exactly one/);
+  assert.equal(markdownCodeSpan("a``b"), "```a``b```");
 });

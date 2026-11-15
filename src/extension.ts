@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { VaultAgentInstructions } from "./agentInstructions";
 import {
-  auditNotes, isVaultInstructionFile, linksIn, makeNote, promoteNote, slug, timestamp,
+  auditNotes, isVaultInstructionFile, linksIn, makeNote, promoteNote, renderVaultReadme, slug, timestamp,
 } from "./core";
 import { readVaultMarker, resolveVaultPaths, samePaths } from "./discovery";
 import { VaultRouterIndexes } from "./router";
@@ -323,11 +323,42 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     await vscode.workspace.fs.createDirectory(templateDirectory);
     const preserved: string[] = [];
     if (existingMarker) preserved.push(".stemlink.json");
-    for (const [name, directory] of [
-      ["README.md", rootUri],
-      ...["_template.md", "_fleeting.md", "_promotion.md"].map(name => [name, templateDirectory] as const),
-    ] as const) {
-      const destination = vscode.Uri.joinPath(directory, name);
+    const manualSource = vscode.Uri.joinPath(context.extensionUri, "templates", "README.md");
+    const manualText = Buffer.from(await vscode.workspace.fs.readFile(manualSource)).toString("utf8");
+    const manual = vscode.Uri.joinPath(rootUri, "README.md");
+    let manualExists = false;
+    try {
+      manualExists = Boolean((await vscode.workspace.fs.stat(manual)).type & vscode.FileType.File);
+      if (!manualExists) throw new Error("Vault README.md path is not a file.");
+    } catch (error) {
+      if (!(error instanceof vscode.FileSystemError && error.code === "FileNotFound")) throw error;
+    }
+    if (manualExists) {
+      preserved.push("README.md");
+    } else {
+      const manualEdit = new vscode.WorkspaceEdit();
+      manualEdit.createFile(manual, {
+        overwrite: false,
+        ignoreIfExists: false,
+        contents: Buffer.from(
+          renderVaultReadme(manualText, rootUri.path.slice(rootUri.path.lastIndexOf("/") + 1), inbox, notes),
+          "utf8",
+        ),
+      });
+      let manualCreated = false;
+      try {
+        manualCreated = await vscode.workspace.applyEdit(manualEdit);
+      } catch (error) {
+        if (!(error instanceof vscode.FileSystemError && error.code === "FileExists")) throw error;
+      }
+      if (!manualCreated) {
+        const stat = await vscode.workspace.fs.stat(manual);
+        if (!(stat.type & vscode.FileType.File)) throw new Error("Vault README.md path is not a file.");
+        preserved.push("README.md");
+      }
+    }
+    for (const name of ["_template.md", "_fleeting.md", "_promotion.md"]) {
+      const destination = vscode.Uri.joinPath(templateDirectory, name);
       const template = vscode.Uri.joinPath(context.extensionUri, "templates", name);
       try {
         await vscode.workspace.fs.copy(template, destination, { overwrite: false });
@@ -336,7 +367,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         if (!((await vscode.workspace.fs.stat(destination)).type & vscode.FileType.File)) {
           throw new Error(`The vault's ${name} exists but is not a file.`);
         }
-        preserved.push(directory === templateDirectory ? `templates/${name}` : name);
+        preserved.push(`${templatesName}/${name}`);
       }
     }
     if (routerIndexesEnabled(desiredPaths)) preserved.push(...await routerIndexes.initialize(desiredPaths));
