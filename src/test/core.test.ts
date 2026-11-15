@@ -12,6 +12,7 @@ import {
   promoteNote,
   markdownCodeSpan,
   renderRouterIndexes,
+  routerDescription,
   renderVaultReadme,
   replaceRouterIndexSection,
   routerIndexEnd,
@@ -185,9 +186,49 @@ test("audit handles duplicate, self, broken, and malformed links", () => {
   assert.ok(invalidFindings.some((f) => f.message === "No outgoing references."));
 });
 
+test("router descriptions use YAML description, then title, and reject invalid metadata", () => {
+  assert.equal(
+    routerDescription("---\ntitle: Title\ndescription: >-\n  First line\n  second line\n---\nBody"),
+    "First line second line",
+  );
+  assert.equal(routerDescription("---\ntitle: Title\ndescription: ''\n---\n"), "Title");
+  assert.equal(routerDescription("Capture without metadata"), "No description or title.");
+  assert.throws(() => routerDescription("---\ntitle: Unclosed"), /Unclosed/);
+  assert.throws(() => routerDescription("---\ntitle: [\n---\n"), /Invalid YAML/);
+  assert.throws(() => routerDescription("---\ntitle: One\ntitle: Two\n---\n"), /Invalid YAML/);
+  assert.throws(
+    () => routerDescription("---\ndescription: [one, two]\n---\n"),
+    /description must be text/,
+  );
+});
+
+test("folder routers map local files to escaped descriptions with stable ordering", () => {
+  const indexes = renderRouterIndexes(
+    "vault",
+    "fleeting",
+    "notes",
+    [
+      { name: "b [draft].md", description: "Text | [link](target) <script>" },
+      { name: "a.md", description: "First" },
+    ],
+    [{ name: "note.md", description: "Note title" }],
+  );
+  assert.ok(indexes.inbox.includes("| [a.md](./a.md) | First |"));
+  assert.ok(indexes.inbox.includes("[b &#91;draft&#93;.md](./b%20%5Bdraft%5D.md)"));
+  assert.ok(indexes.inbox.includes("Text &#124; &#91;link&#93;(target) &#60;script&#62;"));
+  assert.ok(indexes.inbox.indexOf("./a.md") < indexes.inbox.indexOf("./b%20"));
+  assert.ok(indexes.notes.includes("| [note.md](./note.md) | Note title |"));
+  assert.ok(!indexes.root.includes("./note.md"), "root router duplicated the folder listing");
+});
+
 test("router indexes route by folder and replace only their generated section", () => {
-  const indexes = renderRouterIndexes("zk", "in box", "stable", 2, 4);
-  assert.match(indexes.root, /Zettelkasten router: `zk\/`/);
+  const entries = (count: number) =>
+    Array.from({ length: count }, (_, index) => ({
+      name: `${index}.md`,
+      description: `Note ${index}`,
+    }));
+  const indexes = renderRouterIndexes("zk", "in box", "stable", entries(2), entries(4));
+  assert.match(indexes.root, /Stemlink vault router: `zk\/`/);
   assert.match(indexes.root, /\[Inbox `in box\/` \(2 captures\)\]\(\.\/in%20box\/INDEX\.md\)/);
   assert.match(indexes.root, /\[Notes `stable\/` \(4 Markdown files\)\]\(\.\/stable\/INDEX\.md\)/);
   assert.match(indexes.root, /not authoritative.*in-memory note\/reference index/);
@@ -236,8 +277,8 @@ test("router indexes route by folder and replace only their generated section", 
 
 test("vault manual personalizes configured folders and safely renders backticks", () => {
   const template = ["# Manual", "<!-- stemlink:configured-folders -->"].join("\n");
-  const rendered = renderVaultReadme(template, "Zettelkasten", "Fleeting", "Permanent`Notes");
-  assert.match(rendered, /Vault root: `Zettelkasten\/`/);
+  const rendered = renderVaultReadme(template, "Stemlink vault", "Fleeting", "Permanent`Notes");
+  assert.match(rendered, /Vault root: `Stemlink vault\/`/);
   assert.match(rendered, /Captures: `Fleeting\/`/);
   assert.match(rendered, /Permanent notes: ``Permanent`Notes\/``/);
   assert.match(rendered, /Editable examples: `templates\/`/);
@@ -247,7 +288,7 @@ test("vault manual personalizes configured folders and safely renders backticks"
     renderVaultReadme(template, "vault", "capture", "notes", "examples"),
     /Editable examples: `examples\/`/,
   );
-  const indexes = renderRouterIndexes("vault", "capture", "notes", 0, 0, "examples");
+  const indexes = renderRouterIndexes("vault", "capture", "notes", [], [], "examples");
   assert.ok(
     indexes.root.includes("`examples/`") && indexes.notes.includes("`examples/`"),
     "routers omitted configured templates folder",
@@ -255,7 +296,16 @@ test("vault manual personalizes configured folders and safely renders backticks"
 });
 
 test("router replacement rejects ambiguous marker pairs without changing user content", () => {
-  const generated = renderRouterIndexes("vault", "capture", "permanent", 1, 2).root;
+  const generated = renderRouterIndexes(
+    "vault",
+    "capture",
+    "permanent",
+    [{ name: "capture.md", description: "Capture" }],
+    [
+      { name: "one.md", description: "One" },
+      { name: "two.md", description: "Two" },
+    ],
+  ).root;
   for (const current of [
     `${routerIndexEnd}\n${routerIndexStart}`,
     `${routerIndexStart}\n${routerIndexStart}\n${routerIndexEnd}`,

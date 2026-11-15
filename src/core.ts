@@ -1,4 +1,4 @@
-import { Document, parseDocument } from "yaml";
+import { Document, isMap, parseDocument } from "yaml";
 
 export interface Link {
   stem: string;
@@ -26,6 +26,30 @@ export interface RouterIndexContent {
   root: string;
   inbox: string;
   notes: string;
+}
+
+export interface RouterEntry {
+  name: string;
+  description: string;
+}
+
+export function routerDescription(text: string): string {
+  const matter = frontMatter(text);
+  if (!matter) {
+    if (/^(?:\uFEFF)?---[ \t]*\r?\n/.test(text)) throw new Error("Unclosed YAML front matter.");
+    return "No description or title.";
+  }
+  const document = parseDocument(matter.yaml, { uniqueKeys: true });
+  if (document.errors.length)
+    throw new Error(`Invalid YAML front matter: ${document.errors[0].message}`);
+  if (!isMap(document.contents)) throw new Error("Front matter must be a YAML mapping.");
+  for (const field of ["description", "title"]) {
+    const value: unknown = document.get(field);
+    if (value === undefined || value === null) continue;
+    if (typeof value !== "string") throw new Error(`Front matter ${field} must be text.`);
+    if (value.trim()) return value.replace(/\s+/g, " ").trim();
+  }
+  return "No description or title.";
 }
 
 export function markdownCodeSpan(value: string): string {
@@ -61,17 +85,31 @@ export function renderRouterIndexes(
   rootName: string,
   inboxName: string,
   notesName: string,
-  inboxCount: number,
-  notesCount: number,
+  inboxEntries: readonly RouterEntry[],
+  notesEntries: readonly RouterEntry[],
   templatesName = "templates",
 ): RouterIndexContent {
   const path = (name: string) => encodeURIComponent(name);
+  const inboxCount = inboxEntries.length;
+  const notesCount = notesEntries.length;
+  const escape = (text: string) =>
+    text.replace(/[&<>"'\\`*_[\]{}|]/g, (character) => `&#${character.charCodeAt(0)};`);
+  const listing = (entries: readonly RouterEntry[]) => [
+    "| File | Description |",
+    "| --- | --- |",
+    ...[...entries]
+      .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+      .map(
+        (entry) =>
+          `| [${escape(entry.name)}](./${path(entry.name)}) | ${escape(entry.description)} |`,
+      ),
+  ];
   const section = (lines: string[]) => [routerIndexStart, ...lines, routerIndexEnd, ""].join("\n");
   const authorityRule =
     "Navigation only, not authoritative. Stemlink's in-memory note/reference index is authoritative for live vault state.";
   return {
     root: section([
-      `# Zettelkasten router: ${markdownCodeSpan(`${rootName}/`)}`,
+      `# Stemlink vault router: ${markdownCodeSpan(`${rootName}/`)}`,
       "",
       "Start here. Use the folder indexes to route work, then read the relevant Markdown files directly.",
       "",
@@ -93,6 +131,10 @@ export function renderRouterIndexes(
       `- [Notes ${markdownCodeSpan(`${notesName}/`)} (${notesCount} Markdown files)](../${path(notesName)}/${routerIndexName})`,
       "",
       `Markdown captures: ${inboxCount}`,
+      "",
+      "Use the file descriptions below to choose captures to read. Descriptions come from YAML description, then title; read each file for its full content.",
+      "",
+      ...listing(inboxEntries),
     ]),
     notes: section([
       `# Notes router: ${markdownCodeSpan(`${notesName}/`)}`,
@@ -105,6 +147,10 @@ export function renderRouterIndexes(
       `- [Inbox ${markdownCodeSpan(`${inboxName}/`)} (${inboxCount} captures)](../${path(inboxName)}/${routerIndexName})`,
       "",
       `Markdown files: ${notesCount} (excludes INDEX.md and AGENTS.md).`,
+      "",
+      "Use the file descriptions below to choose notes to read. Descriptions come from YAML description, then title; read each file for its full content.",
+      "",
+      ...listing(notesEntries),
     ]),
   };
 }
