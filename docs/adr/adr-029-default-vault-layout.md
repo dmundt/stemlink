@@ -16,12 +16,12 @@ Use `notes/` as the workspace-relative vault root, containing `templates/`, `inb
 
 Keep all folder names configurable. Document these alternatives without automatically inferring their layout:
 
-| Layout            | Vault root      | Captures    | Permanent notes |
-| ----------------- | --------------- | ----------- | --------------- |
-| Previous defaults | `zk/`           | `inbox/`    | `notes/`        |
-| Ahrens-inspired   | `Zettelkasten/` | `Fleeting/` | `Permanent/`    |
-| Capture labels    | `vault/`        | `capture/`  | `notes/`        |
-| Lifecycle labels  | `vault/`        | `inbox/`    | `permanent/`    |
+| Layout            | Vault root        | Captures    | Permanent notes |
+| ----------------- | ----------------- | ----------- | --------------- |
+| Previous defaults | `zk/`             | `inbox/`    | `notes/`        |
+| Ahrens-inspired   | `Stemlink vault/` | `Fleeting/` | `Permanent/`    |
+| Capture labels    | `vault/`          | `capture/`  | `notes/`        |
+| Lifecycle labels  | `vault/`          | `inbox/`    | `permanent/`    |
 
 Use Open Vault to select existing folders and confirm marker creation, or configure the paths explicitly. Preserve existing markers, explicit setting values, Markdown files, and templates. Do not migrate, rename, or rewrite existing vaults. Marker/settings conflicts retain the existing confirmation and remembered-choice behavior; cancellation skips the conflicting vault.
 

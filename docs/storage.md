@@ -18,7 +18,7 @@ Notes are ordinary Markdown files. The [vault manual template](../templates/READ
 
 ## Generated files
 
-- Optional `INDEX.md` files route readers and contain observed Markdown counts. Stemlink updates only its marked generated section; files without that section are preserved. User content outside the section is retained, including in dirty editors.
+- Optional `INDEX.md` files route readers and contain observed Markdown counts. Folder routers map local files to YAML `description`, falling back to `title`. Stemlink refreshes on discovery, observed edits and filesystem changes, and explicit Refresh. Only its marked generated section changes; files without that section are preserved. User content outside the section is retained, including in dirty editors. Generated mappings can reflect unsaved note metadata.
 - Optional `AGENTS.md` files are offered on Create/Open and installed only after consent. Existing files are preserved.
 - `INDEX.md` and `AGENTS.md` are excluded from note targets and router counts. Underscore-prefixed files are excluded from manual audits.
 - `stemlink.enableRouterIndexes` and `stemlink.offerAgentInstructions` control those features. Disabling them does not delete existing files.

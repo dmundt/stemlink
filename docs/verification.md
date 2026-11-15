@@ -22,6 +22,8 @@ Linting requires Node.js 22.13 or newer in the Node 22 line. Host tests and cove
 
 Core tests exercise metadata, promotion, references, audits, routing, and manual rendering. Host tests exercise commands, providers, custom paths, generated files, native selection, concurrent edits, error handling, and mocked filesystem behavior. Host runners launch with Workspace Trust disabled; they do not establish Restricted Mode behavior.
 
+Router tests verify YAML description/title selection, escaped local-file mappings, discovery refresh, unsaved metadata and revert, file creation/rename/deletion, filesystem failures, and preservation of deleted or user-owned indexes. Refreshes rely on delivered events and are debounced; they are not instantaneous.
+
 The host test checks each contributed Stemlink setting's resource scope and default. This confirms manifest eligibility for user-level VS Code Settings Sync, not an actual cross-device sync; the test hosts do not sign in or enable Settings Sync.
 
 The [quality workflow](../.github/workflows/quality.yml) runs the full dependency audit, lint, formatting check, coverage, and build on Windows, Linux, and macOS against VS Code 1.90.0 and stable. It runs the host benchmark on Linux stable. Benchmark timings are observations, not enforced latency guarantees. Tests do not establish correctness for every filesystem, theme, platform configuration, or concurrent race.

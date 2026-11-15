@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 16 16" fill="none"
     stroke="#ffffff" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
-    role="img" aria-label="Stemlink Zettelkasten">
-    <title>Stemlink Zettelkasten</title>
+    role="img" aria-label="Stemlink vault">
+    <title>Stemlink vault</title>
     <rect x="2" y="2" width="12" height="12" rx="1.5" />
     <path d="M5 5v6M8 5v6M11 5v6" />
 </svg>
