@@ -4,6 +4,8 @@ This is a collection of plain Markdown files: one idea per permanent note, conne
 
 Restricted Mode supports browsing, navigation, tag filtering, validation, and read-only refresh. Trust the workspace before changing files, generating indexes or agent instructions, or rendering wiki links in Markdown preview. The empty Vaults welcome links to existing open/create actions and explains workspace prerequisites.
 
+Use Refresh in Vaults to rediscover vaults and retry failed lists. View messages distinguish empty notes, no tag matches, and loading errors. References explains when the active editor is not a permanent note in the selected vault; editor changes never select another vault automatically.
+
 <!-- stemlink:configured-folders -->
 
 ## 1. Folder layout

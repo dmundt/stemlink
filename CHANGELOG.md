@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Support read-only vault browsing, tag filtering, and validation in Restricted Mode; keep writes and preview trust-gated. Add native Vaults onboarding and disable creation actions when prerequisites are missing.
+- Make Refresh rediscover vaults and retry failed counts. Explain empty, filtered, failed, and out-of-scope reference views without changing vault selection.
 
 - Request a smaller initial Vaults allocation in fresh layouts, retaining native manual resizing, overflow scrolling, and existing saved sizes.
 - Filter Notes by tags through a native multi-select picker with note counts, search-preserved selections, per-vault session state, and a conditional clear action. Show matching counts and active tags; matching ignores case and surrounding whitespace without changing metadata.

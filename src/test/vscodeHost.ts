@@ -154,12 +154,29 @@ async function testVirtualVault(): Promise<void> {
     index: 0,
   };
   const vault = new Vault(folder);
+  const tree = new VaultTree(
+    () => vault,
+    () => [vault],
+  );
   try {
+    await tree.getChildren();
+    await waitFor(
+      () => tree.message("Fleeting")?.includes("Unable to load captures") === true,
+      "capture count failure was not explained",
+    );
     await assert.rejects(() => vault.ensure(), /Cannot read notes/);
     assert.equal(vault.indexState, "failed");
     state = "ready";
+    tree.reset(vault);
+    await tree.getChildren();
+    await waitFor(
+      () => tree.message("Fleeting") === undefined,
+      "reset did not recover failed capture count",
+    );
     await vault.ensure();
     assert.equal(vault.indexState, "ready");
+    assert.match(tree.message("References") ?? "", /Open a permanent note/);
+    assert.deepEqual(await tree.getChildren(new Item("References", "References")), []);
     state = "denied";
     await assert.rejects(() => vault.refresh(), /Cannot read notes/);
     assert.equal(vault.indexState, "failed", "failed refresh retained a success-shaped index");
@@ -321,6 +338,7 @@ async function testVirtualVault(): Promise<void> {
       emptyVault.dispose();
     }
   } finally {
+    tree.dispose();
     vault.dispose();
     registration.dispose();
     changes.dispose();
@@ -2079,8 +2097,10 @@ async function testDiscovery(folder: vscode.WorkspaceFolder): Promise<void> {
     }
     assert.deepEqual(
       sections.map((item) => item.label),
-      ["Vaults (2)", "inbox (1)", "notes (1)", "References (0)"],
+      ["Vaults (2)", "inbox (1)", "notes (1)", "References"],
     );
+    assert.match(tree.message("References") ?? "", /belongs to.*existing-vault/);
+    assert.deepEqual(await tree.getChildren(sections[3]), []);
     assert.notEqual((await tree.getChildren(sections[0]))[1].description, "Selected");
   } finally {
     tree.dispose();
@@ -3562,7 +3582,7 @@ export async function run(): Promise<void> {
     try {
       assert.deepEqual(
         (await emptyTree.getChildren()).map((item) => item.label),
-        ["Vaults (0)", "Fleeting (0)", "Notes (0)", "References (0)"],
+        ["Vaults (0)", "Fleeting (0)", "Notes (0)", "References"],
       );
     } finally {
       emptyTree.dispose();

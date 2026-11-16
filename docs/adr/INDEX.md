@@ -71,6 +71,7 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [034: Quality and publication alignment](adr-034-quality-and-publication-alignment.md) — lint, formatting, strict audit, and independent release jobs.
 
 - [054: Restricted workspace onboarding](adr-054-restricted-workspace-onboarding.md) — limited Restricted Mode support, command prerequisites, and native welcome content.
+- [055: Tree recovery states](adr-055-tree-recovery-states.md) — reliable refresh, distinct empty/error feedback, and explicit reference scope.
 
 ## Maintenance rules
 
