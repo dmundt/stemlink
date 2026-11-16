@@ -339,20 +339,27 @@ export class Vault implements vscode.Disposable {
       this.fileRevisions.set(uri.toString(), currentRevision);
       const name = uri.path.slice(uri.path.lastIndexOf("/") + 1);
       const stem = name.slice(0, -3);
-      if (deleted) {
+      let text: string | undefined;
+      if (!deleted) {
+        try {
+          text = await this.read(uri);
+        } catch (error) {
+          if (!(error instanceof vscode.FileSystemError && error.code === "FileNotFound"))
+            throw error;
+        }
+      }
+      if (this.disposed || this.fileRevisions.get(uri.toString()) !== currentRevision) return;
+      if (text === undefined) {
         this.targets.delete(stem);
         const old = this.notes.get(stem);
         if (old) this.removeReferences(old);
         this.notes.delete(stem);
       } else {
         this.targets.set(stem, { uri, name, stem });
-        const text = await this.read(uri);
-        if (this.disposed || this.fileRevisions.get(uri.toString()) !== currentRevision) return;
         this.replace({ uri, name, stem, text, links: linksIn(text) });
       }
       this.changed.fire();
     } catch (error) {
-      if (error instanceof vscode.FileSystemError && error.code === "FileNotFound") return;
       reportError(error);
     }
   }
