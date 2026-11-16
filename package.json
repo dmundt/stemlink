@@ -256,23 +256,28 @@
     "viewsWelcome": [
       {
         "view": "stemlink.vaults",
-        "when": "!stemlink.hasVault && workspaceFolderCount == 0",
+        "when": "!stemlink.hasVault && !stemlink.discoveryFailed && workspaceFolderCount == 0",
         "contents": "Open a workspace folder to create a vault.\n[Open folder](command:vscode.openFolder)"
       },
       {
         "view": "stemlink.vaults",
-        "when": "!stemlink.hasVault && isWorkspaceTrusted",
+        "when": "!stemlink.hasVault && !stemlink.discoveryFailed && isWorkspaceTrusted",
         "contents": "[Open vault](command:stemlink.openVault)"
       },
       {
         "view": "stemlink.vaults",
-        "when": "!stemlink.hasVault && isWorkspaceTrusted && workspaceFolderCount != 0",
+        "when": "!stemlink.hasVault && !stemlink.discoveryFailed && isWorkspaceTrusted && workspaceFolderCount != 0",
         "contents": "[Create vault](command:stemlink.createVault)"
       },
       {
         "view": "stemlink.vaults",
-        "when": "!stemlink.hasVault && !isWorkspaceTrusted",
+        "when": "!stemlink.hasVault && !stemlink.discoveryFailed && !isWorkspaceTrusted",
         "contents": "Existing vaults can be browsed in Restricted Mode. Trust this workspace before opening or creating a vault."
+      },
+      {
+        "view": "stemlink.vaults",
+        "when": "!stemlink.hasVault && stemlink.discoveryFailed",
+        "contents": "Vault discovery failed. Check Stemlink configuration, then refresh.\n[Settings](command:stemlink.openSettings)\n[Refresh](command:stemlink.refresh)"
       }
     ],
     "menus": {

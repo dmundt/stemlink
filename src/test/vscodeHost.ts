@@ -11,7 +11,14 @@ import {
   routerIndexName,
   routerIndexStart,
 } from "../core";
-import { Vault, directChild, pathsFor, sameUri, validFolderName } from "../vault";
+import {
+  Vault,
+  VaultConfigurationError,
+  directChild,
+  pathsFor,
+  sameUri,
+  validFolderName,
+} from "../vault";
 import { Item, VaultTree, VaultTreeSection } from "../tree";
 import { VaultRouterIndexes } from "../router";
 import { VaultAgentInstructions } from "../agentInstructions";
@@ -2524,6 +2531,16 @@ async function testDiscovery(folder: vscode.WorkspaceFolder): Promise<void> {
       "multiple markers were not all retained",
     );
     assert.equal(prompts, 0, "multiple vaults triggered a selection prompt");
+    const configurationErrors: unknown[] = [];
+    legacyRoot = "../outside";
+    assert.equal(
+      (await resolveVaultPaths(testFolder, state, (error) => configurationErrors.push(error)))
+        .length,
+      2,
+      "invalid settings hid healthy marker vaults",
+    );
+    assert.ok(configurationErrors[0] instanceof VaultConfigurationError);
+    assert.equal(configurationErrors[0].repair, "settings");
     legacyRoot = "legacy";
     await vscode.workspace.fs.createDirectory(
       vscode.Uri.joinPath(fixture, legacyRoot, "legacy-inbox"),
@@ -3047,6 +3064,131 @@ async function testOpenVault(
     api.showWarningMessage = original.showWarningMessage;
     api.showQuickPick = original.showQuickPick;
     api.showErrorMessage = original.showErrorMessage;
+  }
+}
+
+async function testConfigurationRecovery(
+  folder: vscode.WorkspaceFolder,
+  view: vscode.TreeView<Item>,
+  provider: vscode.TreeDataProvider<Item>,
+): Promise<void> {
+  const root = vscode.Uri.joinPath(folder.uri, "configuration-recovery");
+  const marker = vscode.Uri.joinPath(root, ".stemlink.json");
+  const config = vscode.workspace.getConfiguration("stemlink", folder.uri);
+  const keys = ["root", "showCounts", "confirmPromotion", "offerAgentInstructions"] as const;
+  const previous = keys.map((key) => config.inspect(key)?.workspaceValue);
+  const api = vscode.window as { showErrorMessage: typeof vscode.window.showErrorMessage };
+  const commands = vscode.commands as { executeCommand: typeof vscode.commands.executeCommand };
+  const originalError = api.showErrorMessage;
+  const originalCommand = commands.executeCommand;
+  const originalPaths = Vault.prototype.selectPaths;
+  const errors: { message: string; actions: unknown[] }[] = [];
+  let choice: string | undefined;
+  let failed: unknown;
+  let hasVault: unknown;
+  let settingsOpened = 0;
+  let reconciliations = 0;
+  const rows = (await provider.getChildren()) ?? [];
+  const markers = await Promise.all(
+    rows.map(async (row) => {
+      assert.ok(row.vault);
+      const uri = vscode.Uri.joinPath(row.vault.paths.root, ".stemlink.json");
+      return { uri, bytes: await vscode.workspace.fs.readFile(uri) };
+    }),
+  );
+  api.showErrorMessage = new Proxy(originalError, {
+    apply: (_target, _thisArg, args: unknown[]) => {
+      errors.push({ message: String(args[0]), actions: args.slice(1) });
+      return Promise.resolve(choice);
+    },
+  });
+  commands.executeCommand = new Proxy(originalCommand, {
+    apply: (target, thisArg, args: unknown[]) => {
+      if (args[0] === "setContext" && args[1] === "stemlink.discoveryFailed") failed = args[2];
+      if (args[0] === "setContext" && args[1] === "stemlink.hasVault") hasVault = args[2];
+      if (args[0] === "stemlink.openSettings") {
+        settingsOpened++;
+        return Promise.resolve(undefined);
+      }
+      return Reflect.apply(target, thisArg, args);
+    },
+  });
+  Vault.prototype.selectPaths = function (paths) {
+    reconciliations++;
+    originalPaths.call(this, paths);
+  };
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const before = reconciliations;
+    for (const key of ["showCounts", "confirmPromotion", "offerAgentInstructions"] as const)
+      await config.update(key, !config.get<boolean>(key), vscode.ConfigurationTarget.Workspace);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    assert.equal(reconciliations, before, "unrelated preferences rediscovered vaults");
+    await vscode.workspace.fs.createDirectory(root);
+    await vscode.workspace.fs.writeFile(marker, Buffer.from("{"));
+    choice = "Open configuration";
+    await vscode.commands.executeCommand("stemlink.refresh");
+    await waitFor(
+      () => vscode.window.activeTextEditor?.document.uri.toString() === marker.toString(),
+      "configuration repair did not open the invalid marker",
+    );
+    assert.ok(errors.some((error) => error.actions.includes("Open configuration")));
+    assert.equal(
+      (await provider.getChildren())?.length,
+      rows.length,
+      "invalid marker hid healthy vaults",
+    );
+    choice = undefined;
+    for (const original of markers)
+      await vscode.workspace.fs.writeFile(original.uri, Buffer.from("{"));
+    await vscode.commands.executeCommand("stemlink.refresh");
+    assert.equal(failed, true);
+    assert.equal(hasVault, false);
+    assert.equal(view.message, undefined, "failure message suppressed native welcome");
+    for (const original of markers)
+      await vscode.workspace.fs.writeFile(original.uri, original.bytes);
+    await vscode.workspace.fs.writeFile(
+      marker,
+      Buffer.from(
+        JSON.stringify({
+          version: 1,
+          inbox: "inbox",
+          notes: "notes",
+        }),
+      ),
+    );
+    await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(root, "inbox"));
+    await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(root, "notes"));
+    await vscode.commands.executeCommand("stemlink.refresh");
+    assert.equal(failed, false, "successful recovery retained failed discovery state");
+    assert.equal(hasVault, true);
+    const beforePathChange = reconciliations;
+    choice = "Settings";
+    await config.update("root", "missing-configured-vault", vscode.ConfigurationTarget.Workspace);
+    await waitFor(
+      () => settingsOpened > 0 && failed === true,
+      "configured path error lacked Settings repair",
+    );
+    assert.ok(reconciliations > beforePathChange, "folder setting did not rediscover vaults");
+    assert.equal(failed, true);
+    assert.ok(
+      errors.some(
+        (error) =>
+          error.message.includes("Configured vault folder") && error.actions.includes("Settings"),
+      ),
+    );
+  } finally {
+    choice = undefined;
+    for (const original of markers)
+      await vscode.workspace.fs.writeFile(original.uri, original.bytes);
+    for (const [index, key] of keys.entries())
+      await config.update(key, previous[index], vscode.ConfigurationTarget.Workspace);
+    await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor");
+    await vscode.workspace.fs.delete(root, { recursive: true });
+    await vscode.commands.executeCommand("stemlink.refresh");
+    api.showErrorMessage = originalError;
+    commands.executeCommand = originalCommand;
+    Vault.prototype.selectPaths = originalPaths;
   }
 }
 
@@ -3793,6 +3935,17 @@ export async function run(): Promise<void> {
     when: string;
     contents: string;
   }[];
+  const recovery = welcome.find(
+    (entry) => entry.when === "!stemlink.hasVault && stemlink.discoveryFailed",
+  );
+  assert.ok(recovery?.contents.includes("command:stemlink.refresh"));
+  assert.ok(recovery?.contents.includes("command:stemlink.openSettings"));
+  assert.ok(
+    welcome
+      .filter((entry) => entry !== recovery)
+      .every((entry) => entry.when.includes("!stemlink.discoveryFailed")),
+    "first-run content remains visible during failed discovery",
+  );
   assert.ok(
     welcome
       .find((entry) => entry.contents.includes("command:stemlink.createVault"))
@@ -3946,6 +4099,7 @@ export async function run(): Promise<void> {
   if (process.env.STEMLINK_DISCOVERY === "1") {
     assert.ok(vaultView && vaultProvider, "vault view was not captured during activation");
     await testNativeVaultSelection(folder, vaultView, vaultProvider);
+    await testConfigurationRecovery(folder, vaultView, vaultProvider);
     await testDiscovery(folder);
     await testOpenVault(folder, extension.extensionUri);
     await testFeatureSettings(folder);

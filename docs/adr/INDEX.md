@@ -75,6 +75,7 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [062: Deleted open notes](adr-062-deleted-open-notes.md) — exclude deleted cached documents from indexes without discarding editor buffers.
 - [063: Capture template recovery](adr-063-capture-template-recovery.md) — explicit one-time bundled fallback without installing files.
 - [064: Vault scope feedback](adr-064-vault-scope-feedback.md) — selected-vault descriptions and hidden-note creation feedback.
+- [065: Configuration recovery](adr-065-configuration-recovery.md) — typed repair actions, failure welcome, and preference isolation.
 
 - [054: Restricted workspace onboarding](adr-054-restricted-workspace-onboarding.md) — limited Restricted Mode support, command prerequisites, and native welcome content.
 - [055: Tree recovery states](adr-055-tree-recovery-states.md) — reliable refresh, distinct empty/error feedback, and explicit reference scope.

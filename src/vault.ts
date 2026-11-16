@@ -9,6 +9,16 @@ export interface VaultPaths {
   templates: vscode.Uri;
 }
 
+export class VaultConfigurationError extends Error {
+  constructor(
+    message: string,
+    readonly repair: vscode.Uri | "settings",
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+  }
+}
+
 export function validFolderName(value: string): boolean {
   return (
     value.trim() === value &&
@@ -30,7 +40,10 @@ export function pathsFor(folder: vscode.WorkspaceFolder): VaultPaths {
     ![rootName, inboxName, notesName, templatesName].every(validFolderName) ||
     new Set([inboxName, notesName, templatesName].map((name) => name.toLowerCase())).size !== 3
   ) {
-    throw new Error("Stemlink folder settings must be distinct valid folder names.");
+    throw new VaultConfigurationError(
+      "Stemlink folder settings must be distinct valid folder names.",
+      "settings",
+    );
   }
   const root = vscode.Uri.joinPath(folder.uri, rootName);
   return {
@@ -387,5 +400,18 @@ export class Vault implements vscode.Disposable {
 
 export function reportError(error: unknown): void {
   const message = error instanceof Error ? error.message : String(error);
+  if (error instanceof VaultConfigurationError) {
+    const action = error.repair === "settings" ? "Settings" : "Open configuration";
+    void vscode.window
+      .showErrorMessage(`Stemlink: ${message}`, action)
+      .then(async (choice) => {
+        if (choice !== action) return;
+        if (error.repair === "settings")
+          await vscode.commands.executeCommand("stemlink.openSettings");
+        else await vscode.window.showTextDocument(error.repair);
+      })
+      .then(undefined, reportError);
+    return;
+  }
   void vscode.window.showErrorMessage(`Stemlink: ${message}`);
 }

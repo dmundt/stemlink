@@ -5,6 +5,7 @@
 - Remove deleted open notes from navigation and reference indexes without discarding editor buffers; index them again when recreated on disk.
 - Offer a one-time bundled template when an existing vault has no fleeting template.
 - Identify selected vaults in view descriptions and capture prompts; explain notes hidden by active tag filters.
+- Offer direct configuration repair, distinguish discovery failures from first-run emptiness, and avoid rediscovery for unrelated preferences.
 
 - Support read-only vault browsing, tag filtering, and validation in Restricted Mode; keep writes and preview trust-gated. Add native Vaults onboarding and disable creation actions when prerequisites are missing.
 - Make Refresh rediscover vaults and retry failed counts. Explain empty, filtered, failed, and out-of-scope reference views without changing vault selection.

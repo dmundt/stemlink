@@ -18,6 +18,8 @@ Restricted Mode supports browsing, navigation, tag filtering, validation, and re
 
 Refresh rediscovers vaults and retries the selected vault's note index and failed listing counts. Views distinguish empty lists, no tag matches, and loading failures. References explains when the active note belongs to another vault; selecting that vault remains manual.
 
+Marker errors offer **Open configuration**; invalid folder settings offer **Settings**. Healthy vaults remain available when another configuration fails. If discovery leaves no vaults, Vaults shows recovery guidance rather than first-run setup. Display, capture, and instruction preferences do not rediscover vaults.
+
 Right-click a vault under **Vaults** for **New permanent note** or **Validate vault**. Both use that vault without changing the selection. Creation asks for title and optional tags, opens the new note, and requires Workspace Trust. Validation checks permanent notes, including unsaved content, and offers **Show Problems**. Successful validation replaces previous Stemlink validation results across vaults; failure preserves them. Validation does not change files.
 
 The default root holds the collection; `inbox/` holds captures, `permanent/` holds permanent notes, and `templates/` holds editable examples. The bundled manual lists alternatives: `zk/inbox/notes`, `Stemlink vault/Fleeting/Permanent`, `vault/capture/notes`, and `vault/inbox/permanent`. Use Open vault or settings for these layouts; Stemlink does not infer a layout from its folder names.
