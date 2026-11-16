@@ -1355,14 +1355,14 @@ async function testDiscovery(folder: vscode.WorkspaceFolder): Promise<void> {
     let sections = await tree.getChildren();
     assert.equal(sections[0].label, "Vaults (2)", "vault selection waited for counts");
     const countsDeadline = Date.now() + 5000;
-    while (sections[1].label !== "fleeting (1)" || sections[2].label !== "stable (4)") {
+    while (sections[1].label !== "fleeting (1)" || sections[2].label !== "stable (3)") {
       if (Date.now() >= countsDeadline) throw new Error("vault counts did not become ready");
       await new Promise((resolve) => setTimeout(resolve, 25));
       sections = await tree.getChildren();
     }
     assert.deepEqual(
       sections.map((item) => item.label),
-      ["Vaults (2)", "fleeting (1)", "stable (4)", "References (...)"],
+      ["Vaults (2)", "fleeting (1)", "stable (3)", "References (...)"],
     );
     const vaultItems = await tree.getChildren(sections[0]);
     assert.deepEqual(
@@ -1416,7 +1416,7 @@ async function testDiscovery(folder: vscode.WorkspaceFolder): Promise<void> {
     }
     assert.deepEqual(
       sections.map((item) => item.label),
-      ["Vaults (2)", "inbox (1)", "notes (2)", "References (0)"],
+      ["Vaults (2)", "inbox (1)", "notes (1)", "References (0)"],
     );
     assert.notEqual((await tree.getChildren(sections[0]))[1].description, "Selected");
   } finally {
