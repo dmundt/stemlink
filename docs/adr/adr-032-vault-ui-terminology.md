@@ -1,5 +1,5 @@
 ---
-status: Accepted; view-heading rule superseded by ADR 040
+status: Superseded in part by ADRs 040 and 060
 ---
 
 # ADR 032: Vault UI terminology

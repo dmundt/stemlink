@@ -1,5 +1,5 @@
 ---
-status: Accepted
+status: Superseded in part by ADR 060
 ---
 
 # ADR 036: Settings action

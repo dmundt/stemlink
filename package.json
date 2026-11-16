@@ -112,7 +112,7 @@
             "type": "boolean",
             "default": true,
             "scope": "resource",
-            "description": "Ask before adding missing AGENTS.md files during Create Vault or Open Vault. Existing files are never overwritten."
+            "description": "Ask before adding missing AGENTS.md files during Create vault or Open vault. Existing files are never overwritten."
           }
         }
       }
@@ -120,25 +120,25 @@
     "commands": [
       {
         "command": "stemlink.openVault",
-        "title": "Open Vault",
+        "title": "Open vault",
         "category": "Stemlink",
         "icon": "$(folder-opened)"
       },
       {
         "command": "stemlink.createVault",
-        "title": "Create Vault",
+        "title": "Create vault",
         "category": "Stemlink",
         "icon": "$(new-folder)"
       },
       {
         "command": "stemlink.addFleetingNote",
-        "title": "Add Fleeting Note",
+        "title": "New fleeting note",
         "category": "Stemlink",
         "icon": "$(add)"
       },
       {
         "command": "stemlink.addNote",
-        "title": "Add Note",
+        "title": "New permanent note",
         "category": "Stemlink",
         "icon": "$(add)"
       },
@@ -154,32 +154,32 @@
       },
       {
         "command": "stemlink.promote",
-        "title": "Promote to Note...",
+        "title": "Promote to permanent note…",
         "category": "Stemlink"
       },
       {
         "command": "stemlink.editCaptureMetadata",
-        "title": "Edit Metadata...",
+        "title": "Edit metadata…",
         "category": "Stemlink"
       },
       {
         "command": "stemlink.discardCapture",
-        "title": "Discard...",
+        "title": "Discard…",
         "category": "Stemlink"
       },
       {
         "command": "stemlink.editNoteMetadata",
-        "title": "Edit Metadata...",
+        "title": "Edit metadata…",
         "category": "Stemlink"
       },
       {
         "command": "stemlink.deleteNote",
-        "title": "Delete...",
+        "title": "Delete…",
         "category": "Stemlink"
       },
       {
         "command": "stemlink.checkReferences",
-        "title": "Check References",
+        "title": "Validate vault",
         "category": "Stemlink"
       },
       {
@@ -275,7 +275,7 @@
         {
           "command": "stemlink.openSettings",
           "when": "view == stemlink.vaults",
-          "group": "navigation@4"
+          "group": "settings@1"
         }
       ],
       "commandPalette": [

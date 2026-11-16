@@ -268,7 +268,7 @@ export async function activate(
         section === "Vaults"
           ? vaults.size
             ? undefined
-            : "Use Open Vault or Create Vault."
+            : "Use Open vault or Create vault."
           : selectedVault
             ? undefined
             : "Select a vault in Vaults.";
@@ -519,8 +519,8 @@ export async function activate(
   command("stemlink.openVault", async () => {
     if (!vscode.workspace.isTrusted) throw new Error("Trust the workspace before opening a vault.");
     const roots = await vscode.window.showOpenDialog({
-      title: "Open Vault",
-      openLabel: "Open Vault",
+      title: "Open vault",
+      openLabel: "Open vault",
       canSelectFiles: false,
       canSelectFolders: true,
       canSelectMany: false,
@@ -650,7 +650,7 @@ export async function activate(
     const config = vscode.workspace.getConfiguration("stemlink", selected.uri);
     const prompt = async (label: string, value: string) =>
       vscode.window.showInputBox({
-        title: `Create Vault: ${label}`,
+        title: `Create vault: ${label}`,
         value,
         validateInput: (input) =>
           validFolderName(input) ? undefined : "Enter a single valid folder name.",
@@ -1297,7 +1297,7 @@ export async function activate(
             sameUri(file.oldUri, vault.paths.root))
         ) {
           void vscode.window.showWarningMessage(
-            "Stemlink: a permanent note or vault folder was renamed. References may be broken; run Check References.",
+            "Stemlink: a permanent note or vault folder was renamed. References may be broken; run Validate vault.",
           );
         }
       }
