@@ -963,8 +963,12 @@ async function testDragPromotion(inbox: vscode.Uri, notes: vscode.Uri): Promise<
       assert.ok(fourthTarget);
       targets.push(vscode.Uri.joinPath(notes, fourthTarget[0]));
       assert.equal(
-        errors.length,
-        replayErrors + 2,
+        errors
+          .slice(replayErrors)
+          .filter(
+            (message) => message !== "Stemlink: Trust the workspace before writing vault indexes.",
+          ).length,
+        2,
         `unexpected drag transport errors: ${errors.slice(replayErrors).join("; ")}`,
       );
     } finally {
@@ -1579,9 +1583,9 @@ async function testVaultActions(
       }
     }
     untrust();
-    await error("stemlink.newFleetingNote", "Trust the workspace");
-    await error("stemlink.newPermanentNote", "Trust the workspace");
-    await error("stemlink.addNote", "Trust the workspace");
+    await error("stemlink.newFleetingNote", "Trust the workspace before creating a capture.");
+    await error("stemlink.newPermanentNote", "Trust the workspace before creating a note.");
+    await error("stemlink.addNote", "Trust the workspace before creating a note.");
     Object.defineProperty(vscode.workspace, "isTrusted", trust);
     await captureConfig.update(
       "promptForCaptureHeadline",
@@ -1601,7 +1605,7 @@ async function testVaultActions(
     assert.equal(answers.length, 0, "capture cancellation did not consume headline prompt");
     answers.push("Trust changed");
     duringPrompt = untrust;
-    await error("stemlink.newFleetingNote", "Trust the workspace");
+    await error("stemlink.newFleetingNote", "Trust the workspace before creating a capture.");
     duringPrompt = undefined;
     Object.defineProperty(vscode.workspace, "isTrusted", trust);
     answers.push("Destination changed");
@@ -1634,7 +1638,7 @@ async function testVaultActions(
     }
     answers.push("Trust changed", "idea");
     duringPrompt = untrust;
-    await error("stemlink.newPermanentNote", "Trust the workspace");
+    await error("stemlink.newPermanentNote", "Trust the workspace before creating a note.");
     duringPrompt = undefined;
     Object.defineProperty(vscode.workspace, "isTrusted", trust);
     answers.push("Destination changed", "idea");
