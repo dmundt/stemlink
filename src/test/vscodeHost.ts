@@ -11,7 +11,14 @@ import {
   routerIndexName,
   routerIndexStart,
 } from "../core";
-import { Vault, directChild, pathsFor, sameUri, validFolderName } from "../vault";
+import {
+  Vault,
+  VaultConfigurationError,
+  directChild,
+  pathsFor,
+  sameUri,
+  validFolderName,
+} from "../vault";
 import { Item, VaultTree, VaultTreeSection } from "../tree";
 import { VaultRouterIndexes } from "../router";
 import { VaultAgentInstructions } from "../agentInstructions";
@@ -154,12 +161,45 @@ async function testVirtualVault(): Promise<void> {
     index: 0,
   };
   const vault = new Vault(folder);
+  const tree = new VaultTree(
+    () => vault,
+    () => [vault],
+  );
   try {
+    const otherFolder = { uri: vscode.Uri.parse("stemlink-test:/other"), name: "Other", index: 1 };
+    const otherVault = new Vault(otherFolder);
+    const labels = new VaultTree(
+      () => vault,
+      () => [vault, otherVault],
+    );
+    try {
+      assert.equal(labels.vaultLabel(vault), "notes (virtual)");
+      assert.equal(labels.vaultLabel(otherVault), "notes (Other)");
+      otherFolder.name = folder.name;
+      assert.notEqual(labels.vaultLabel(vault), labels.vaultLabel(otherVault));
+      assert.ok(labels.vaultLabel(otherVault).includes(otherFolder.uri.fsPath));
+    } finally {
+      labels.dispose();
+      otherVault.dispose();
+    }
+    await tree.getChildren();
+    await waitFor(
+      () => tree.message("Fleeting")?.includes("Unable to load captures") === true,
+      "capture count failure was not explained",
+    );
     await assert.rejects(() => vault.ensure(), /Cannot read notes/);
     assert.equal(vault.indexState, "failed");
     state = "ready";
+    tree.reset(vault);
+    await tree.getChildren();
+    await waitFor(
+      () => tree.message("Fleeting") === undefined,
+      "reset did not recover failed capture count",
+    );
     await vault.ensure();
     assert.equal(vault.indexState, "ready");
+    assert.match(tree.message("References") ?? "", /Open a permanent note/);
+    assert.deepEqual(await tree.getChildren(new Item("References", "References")), []);
     state = "denied";
     await assert.rejects(() => vault.refresh(), /Cannot read notes/);
     assert.equal(vault.indexState, "failed", "failed refresh retained a success-shaped index");
@@ -321,6 +361,7 @@ async function testVirtualVault(): Promise<void> {
       emptyVault.dispose();
     }
   } finally {
+    tree.dispose();
     vault.dispose();
     registration.dispose();
     changes.dispose();
@@ -395,10 +436,11 @@ async function testMockVaultFiles(extensionUri: vscode.Uri): Promise<void> {
   };
   const originalWarning = windowApi.showWarningMessage;
   let prompts = 0;
+  let instructionAnswer: string | undefined = "Skip";
   windowApi.showWarningMessage = new Proxy(originalWarning, {
     apply: () => {
       prompts++;
-      return Promise.resolve("Skip");
+      return Promise.resolve(instructionAnswer);
     },
   });
   try {
@@ -408,6 +450,20 @@ async function testMockVaultFiles(extensionUri: vscode.Uri): Promise<void> {
     deniedReadFile = "/vault/.stemlink.json";
     await assert.rejects(() => readVaultMarker(root), /Injected read failure/);
     deniedReadFile = undefined;
+
+    files.set(
+      "/vault/.stemlink.json",
+      JSON.stringify({
+        version: 1,
+        inbox: "CON",
+        notes: "NUL.txt",
+        templates: "AUX",
+      }),
+    );
+    const compatible = await readVaultMarker(root);
+    assert.equal(compatible?.inbox.path, "/vault/CON");
+    assert.equal(compatible?.notes.path, "/vault/NUL.txt");
+    files.delete("/vault/.stemlink.json");
 
     assert.deepEqual(await router.initialize(paths), ["INDEX.md"]);
     assert.equal(files.get("/vault/INDEX.md"), "User-owned index\n");
@@ -427,16 +483,118 @@ async function testMockVaultFiles(extensionUri: vscode.Uri): Promise<void> {
 
     await instructions.offer(paths);
     assert.equal(prompts, 1, "missing instructions did not prompt");
+    await instructions.offer(paths);
+    assert.equal(prompts, 1, "Skip did not suppress the next offer in this session");
+    const otherRoot = vscode.Uri.parse("stemlink-mock:/other-vault");
+    const otherPaths = {
+      root: otherRoot,
+      inbox: vscode.Uri.joinPath(otherRoot, "capture"),
+      notes: vscode.Uri.joinPath(otherRoot, "permanent"),
+      templates: vscode.Uri.joinPath(otherRoot, "examples"),
+    };
+    for (const uri of [otherPaths.root, otherPaths.inbox, otherPaths.notes])
+      directories.add(uri.path);
+    await instructions.offer(otherPaths);
+    assert.equal(prompts, 2, "Skip leaked into another vault");
+    await new VaultAgentInstructions(extensionUri).offer(paths);
+    assert.equal(prompts, 3, "Skip persisted into a new session");
+    instructionAnswer = undefined;
+    const dismissed = new VaultAgentInstructions(extensionUri);
+    await dismissed.offer(paths);
+    await dismissed.offer(paths);
+    assert.equal(prompts, 5, "dismissal was treated as explicit Skip");
     assert.ok(
       ![...files.keys()].some((name) => name.endsWith("/AGENTS.md")),
       "skip created instructions",
     );
     for (const directory of [root, inbox, notes])
       files.set(`${directory.path}/AGENTS.md`, "Existing instructions\n");
-    await instructions.offer(paths);
-    assert.equal(prompts, 1, "existing instructions prompted again");
+    await new VaultAgentInstructions(extensionUri).offer(paths);
+    assert.equal(prompts, 5, "existing instructions prompted again");
     for (const directory of [root, inbox, notes]) {
       assert.equal(files.get(`${directory.path}/AGENTS.md`), "Existing instructions\n");
+    }
+    {
+      const deleted = vscode.Uri.joinPath(notes, "202601021234-delete-race.md");
+      const stem = "202601021234-delete-race";
+      files.set(deleted.path, "References [[202601011200-note]].\n");
+      const vault = new Vault({ uri: root, name: "Synthetic vault", index: 0 });
+      vault.selectPaths(paths);
+      const doc = await vscode.workspace.openTextDocument(deleted);
+      try {
+        await vscode.window.showTextDocument(doc);
+        await vault.recordFile(deleted);
+        assert.ok(vault.target(stem));
+        files.delete(deleted.path);
+        await vault.recordFile(deleted);
+        assert.equal(vault.target(stem), undefined, "late read resurrected deleted open note");
+        assert.equal(vault.get(stem), undefined);
+        assert.equal(vault.references("202601011200-note").length, 0);
+        const edit = new vscode.WorkspaceEdit();
+        edit.insert(deleted, doc.positionAt(doc.getText().length), "Preserved buffer\n");
+        assert.ok(await vscode.workspace.applyEdit(edit));
+        await vault.recordFile(deleted);
+        assert.equal(vault.target(stem), undefined, "editing orphaned buffer restored target");
+        assert.ok(doc.isDirty, "deletion handling discarded editor contents");
+        files.set(deleted.path, "Recreated on disk\n");
+        await vault.recordFile(deleted);
+        assert.ok(vault.target(stem), "legitimate recreation was not indexed");
+        assert.equal(vault.get(stem)?.text, doc.getText(), "recreation lost unsaved precedence");
+      } finally {
+        files.set(deleted.path, "Fixture restored\n");
+        await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor");
+        vault.dispose();
+        files.delete(deleted.path);
+      }
+    }
+    {
+      const targetStem = "202601021230-target";
+      const sourceStem = "202601021231-source";
+      const target = vscode.Uri.joinPath(notes, `${targetStem}.md`);
+      const source = vscode.Uri.joinPath(notes, `${sourceStem}.md`);
+      const sourceText = `First\t [[${targetStem}]]\r\n第二  [[${targetStem}]] ${"word ".repeat(30)}\r\n`;
+      files.set(source.path, sourceText);
+      const targetText = `[[${sourceStem}]]\nMissing [[202601021232-missing]].\n`;
+      files.set(target.path, targetText);
+      const vault = new Vault({ uri: root, name: "Synthetic vault", index: 0 });
+      vault.selectPaths(paths);
+      const tree = new VaultTree(
+        () => vault,
+        () => [vault],
+      );
+      try {
+        await vault.ensure();
+        await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(target));
+        const inbound = await tree.getChildren(new Item("Inbound", "Inbound"));
+        assert.equal(inbound.length, 2);
+        assert.equal(inbound[0].description, `1: First [[${targetStem}]]`);
+        assert.equal(typeof inbound[1].description, "string");
+        assert.equal(String(inbound[1].description).slice(3).length, 80);
+        assert.ok(String(inbound[1].description).startsWith("2: 第二 "));
+        for (const [index, item] of inbound.entries()) {
+          const offset = index === 0 ? sourceText.indexOf("[[") : sourceText.lastIndexOf("[[");
+          assert.equal(item.command?.arguments?.[0]?.toString(), source.toString());
+          assert.equal(item.command?.arguments?.[1], offset);
+        }
+        const outbound = await tree.getChildren(new Item("Outbound", "Outbound"));
+        assert.equal(outbound[0].command?.arguments?.[0]?.toString(), source.toString());
+        assert.equal(outbound[0].command?.arguments?.[1], undefined);
+        assert.equal(outbound[1].description, "Missing");
+        const missingOffset = targetText.lastIndexOf("[[");
+        assert.equal(outbound[1].command?.arguments?.[0]?.toString(), target.toString());
+        assert.equal(outbound[1].command?.arguments?.[1], missingOffset);
+        const command = outbound[1].command;
+        assert.ok(command);
+        await vscode.commands.executeCommand(command.command, ...(command.arguments ?? []));
+        const editor = vscode.window.activeTextEditor;
+        assert.ok(editor);
+        assert.equal(editor.document.uri.toString(), target.toString());
+        assert.ok(editor.selection.active.isEqual(editor.document.positionAt(missingOffset)));
+      } finally {
+        tree.dispose();
+        vault.dispose();
+        await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor");
+      }
     }
   } finally {
     windowApi.showWarningMessage = originalWarning;
@@ -560,9 +718,27 @@ async function testDragPromotion(inbox: vscode.Uri, notes: vscode.Uri): Promise<
   const api = vscode.window as {
     showWarningMessage: typeof vscode.window.showWarningMessage;
     showErrorMessage: typeof vscode.window.showErrorMessage;
+    showInformationMessage: typeof vscode.window.showInformationMessage;
+    showTextDocument: typeof vscode.window.showTextDocument;
   };
   const originalWarning = api.showWarningMessage;
   const originalError = api.showErrorMessage;
+  const originalInfo = api.showInformationMessage;
+  const originalShow = api.showTextDocument;
+  const feedback: string[] = [];
+  let openings = 0;
+  api.showInformationMessage = new Proxy(originalInfo, {
+    apply: (_target, _receiver, args: unknown[]) => {
+      feedback.push(String(args[0]));
+      return Promise.resolve(undefined);
+    },
+  });
+  api.showTextDocument = new Proxy(originalShow, {
+    apply: (target, receiver, args) => {
+      openings++;
+      return Reflect.apply(target, receiver, args);
+    },
+  });
   const errors: string[] = [];
   const answers: (string | undefined)[] = [];
   let confirmations = 0;
@@ -622,9 +798,19 @@ async function testDragPromotion(inbox: vscode.Uri, notes: vscode.Uri): Promise<
     await vscode.commands.executeCommand("stemlink.promote", first);
     assert.ok(await exists(first.uri!));
     const before = confirmations;
+    const beforeOpen = openings;
     answers.push("Promote", undefined);
-    await drop.handleDrop(undefined, await transfer([first, first, second]), cancellation.token);
+    for (const command of ["stemlink.editCaptureMetadata", "stemlink.discardCapture"]) {
+      await vscode.commands.executeCommand(command, first, [first, second]);
+      assert.match(errors[errors.length - 1], /Select one capture/);
+    }
+    await vscode.commands.executeCommand("stemlink.promote", first, [first, first, second]);
     collectTarget();
+    assert.equal(openings - beforeOpen, 1, "batch opened more than its final created note");
+    assert.ok(
+      feedback.some((message) => message.includes("cancelled: 1 of 2")),
+      "partial batch did not report completed and remaining work",
+    );
     assert.equal(confirmations - before, 2, "duplicates were promoted or cancellation ignored");
     assert.ok(!(await exists(first.uri!)));
     assert.ok(await exists(second.uri!));
@@ -700,6 +886,8 @@ async function testDragPromotion(inbox: vscode.Uri, notes: vscode.Uri): Promise<
     cancellation.dispose();
     api.showWarningMessage = originalWarning;
     api.showErrorMessage = originalError;
+    api.showInformationMessage = originalInfo;
+    api.showTextDocument = originalShow;
     await config.update("confirmPromotion", previous, vscode.ConfigurationTarget.WorkspaceFolder);
     for (const uri of [...sources, ...targets]) {
       if (await exists(uri)) await vscode.workspace.fs.delete(uri);
@@ -774,6 +962,7 @@ async function testPermanentNoteActions(
     await vscode.commands.executeCommand("stemlink.editNoteMetadata", { uri });
     assert.equal(await read(), initial);
     assert.equal(inputs[0].value, "Old title");
+    assert.ok(inputs[0].title?.includes(uri.fsPath), "metadata prompt omitted edited file");
     assert.equal(inputs[1].value, "idea");
     answers.push("Changed", "two");
     await vscode.commands.executeCommand("stemlink.editNoteMetadata", { uri });
@@ -788,7 +977,9 @@ async function testPermanentNoteActions(
     assert.ok(await vscode.workspace.applyEdit(unsaved));
     answers.push("Dirty title", "idea");
     await vscode.commands.executeCommand("stemlink.editNoteMetadata", { uri });
-    assert.ok((await read()).endsWith("Unsaved body\n"), "metadata edit lost unsaved content");
+    assert.ok(doc.getText().endsWith("Unsaved body\n"), "metadata edit lost unsaved content");
+    assert.ok(doc.isDirty, "metadata edit saved unrelated body changes");
+    assert.equal(await read(), updated, "metadata edit changed dirty note's disk content");
 
     answers.push("Ignored", "two");
     duringPrompt = async () => {
@@ -841,9 +1032,26 @@ async function testPermanentNoteActions(
     };
     await expectError("stemlink.deleteNote", "changed");
     assert.equal(await read(), "Changed during confirmation\n");
+    await waitFor(
+      () =>
+        doc.getText().replace(/\r\n/g, "\n") === "Changed during confirmation\n" && !doc.isDirty,
+      "concurrent deletion fixture did not finish reloading",
+    );
     await vault.ensureNames();
     assert.ok(vault.target("202601021234-context-note"));
+    const workspaceApi = vscode.workspace as { applyEdit: typeof vscode.workspace.applyEdit };
+    const originalApplyEdit = workspaceApi.applyEdit;
+    try {
+      workspaceApi.applyEdit = async () => false;
+      await expectError("stemlink.deleteNote", "could not be deleted");
+      assert.ok((await vscode.workspace.fs.stat(uri)).type & vscode.FileType.File);
+      assert.ok(vault.target("202601021234-context-note"));
+    } finally {
+      workspaceApi.applyEdit = originalApplyEdit;
+    }
+    const errorsBeforeDelete = errors.length;
     await vscode.commands.executeCommand("stemlink.deleteNote", { uri });
+    assert.deepEqual(errors.slice(errorsBeforeDelete), [], "confirmed deletion reported an error");
     await assert.rejects(async () => vscode.workspace.fs.stat(uri));
     await waitFor(
       () => !vault.target("202601021234-context-note"),
@@ -947,6 +1155,7 @@ async function testCaptureActions(
     await vscode.commands.executeCommand("stemlink.editCaptureMetadata", { uri });
     assert.equal(await read(), text, "cancelled metadata edit changed capture");
     assert.equal(prompts[0].value, "Existing title");
+    assert.ok(prompts[0].title?.includes(uri.fsPath), "capture prompt omitted edited file");
     assert.equal(prompts[1].value, "idea");
     answers.push("Changed", "one, two");
     await vscode.commands.executeCommand("stemlink.editCaptureMetadata", { uri });
@@ -973,7 +1182,9 @@ async function testCaptureActions(
     assert.ok(await vscode.workspace.applyEdit(unsaved));
     answers.push("Dirty metadata", "idea");
     await vscode.commands.executeCommand("stemlink.editCaptureMetadata", { uri });
-    assert.ok((await read()).endsWith("Unsaved content\n"), "metadata edit lost unsaved content");
+    assert.ok(dirty.getText().endsWith("Unsaved content\n"), "metadata edit lost unsaved content");
+    assert.ok(dirty.isDirty, "metadata edit saved unrelated capture changes");
+    assert.equal(await read(), text, "metadata edit changed dirty capture's disk content");
 
     await write(text);
     answers.push("Ignored", "idea");
@@ -1222,6 +1433,22 @@ async function testVaultActions(
   let duringPrompt: (() => void) | undefined;
   const probe = vscode.Uri.joinPath(paths.notes, "vault-action-probe.md");
   const otherProbe = vscode.Uri.joinPath(selected.vault.paths.notes, "vault-action-other.md");
+  const summaries: string[] = [];
+  const commandApi = vscode.commands as { executeCommand: typeof vscode.commands.executeCommand };
+  const originalExecute = commandApi.executeCommand;
+  let problemsOpened = 0;
+  let rejectNavigation = false;
+  commandApi.executeCommand = new Proxy(originalExecute, {
+    apply: (target, receiver, args: unknown[]) => {
+      if (args[0] === "workbench.actions.view.problems") {
+        problemsOpened++;
+        return rejectNavigation
+          ? Promise.reject(new Error("Problems navigation rejected"))
+          : Promise.resolve();
+      }
+      return Reflect.apply(target, receiver, args);
+    },
+  });
   const error = async (command: string, message: string, item: unknown = target) => {
     const before = errors.length;
     await vscode.commands.executeCommand(command, item);
@@ -1242,7 +1469,11 @@ async function testVaultActions(
     },
   });
   api.showInformationMessage = new Proxy(original.info, {
-    apply: () => Promise.resolve(undefined),
+    apply: (_target, _receiver, args: unknown[]) => {
+      summaries.push(String(args[0]));
+      assert.equal(args[1], "Show Problems");
+      return Promise.resolve("Show Problems");
+    },
   });
   const untrust = () =>
     Object.defineProperty(vscode.workspace, "isTrusted", {
@@ -1350,10 +1581,40 @@ async function testVaultActions(
     );
     assert.ok(document.isDirty, "validation saved an unsaved document");
     if (selected !== target) assert.equal(stemlinkProblems(otherProbe).length, 0);
+    assert.ok(
+      summaries.some(
+        (message) => message.includes(paths.root.fsPath) && message.includes("permanent notes"),
+      ),
+      "validation summary omitted vault or scope",
+    );
+    await waitFor(() => problemsOpened > 0, "Show Problems did not navigate");
+    rejectNavigation = true;
+    await vscode.commands.executeCommand("stemlink.validateVault", target);
+    await waitFor(
+      () => errors.some((message) => message.includes("Problems navigation rejected")),
+      "Problems navigation failure was not reported",
+    );
+    rejectNavigation = false;
+    const previousProblems = stemlinkProblems(probe);
+    const originalRefresh = vault.refresh;
+    vault.refresh = async () => {
+      throw new Error("validation refresh rejected");
+    };
+    try {
+      await error("stemlink.validateVault", "validation refresh rejected");
+      assert.deepEqual(
+        stemlinkProblems(probe),
+        previousProblems,
+        "failed validation erased results",
+      );
+    } finally {
+      vault.refresh = originalRefresh;
+    }
     assert.equal(view.selection[0], selected, "vault actions changed selection");
     assert.equal(answers.length, 0);
   } finally {
     duringPrompt = undefined;
+    commandApi.executeCommand = originalExecute;
     Object.defineProperty(vscode.workspace, "isTrusted", trust);
     vault.selectPaths(paths);
     api.showInputBox = original.input;
@@ -1396,6 +1657,9 @@ async function testNoteTagFiltering(
   const nestedFolder = vscode.Uri.joinPath(paths.notes, "tag-filter-nested");
   const nested = vscode.Uri.joinPath(nestedFolder, "202601021203-tag-filter-nested.md");
   const added = vscode.Uri.joinPath(paths.notes, "202601021204-tag-filter-added.md");
+  const problemFixtures: vscode.Uri[] = [];
+  const tagProblems = (uri: vscode.Uri) =>
+    vscode.languages.getDiagnostics(uri).filter((entry) => entry.source === "Stemlink tags");
   const otherVault = vaultItems[1]?.vault;
   const otherNote = otherVault
     ? vscode.Uri.joinPath(otherVault.paths.notes, "202601021205-tag-filter-other.md")
@@ -1403,8 +1667,17 @@ async function testNoteTagFiltering(
   const api = vscode.window as {
     createQuickPick: typeof vscode.window.createQuickPick;
     showWarningMessage: typeof vscode.window.showWarningMessage;
+    showInputBox: typeof vscode.window.showInputBox;
+    showInformationMessage: typeof vscode.window.showInformationMessage;
   };
-  const original = { picker: api.createQuickPick, warning: api.showWarningMessage };
+  const original = {
+    picker: api.createQuickPick,
+    warning: api.showWarningMessage,
+    input: api.showInputBox,
+    information: api.showInformationMessage,
+  };
+  const created: vscode.Uri[] = [];
+  let scopeDescription: string | undefined;
   type TagItem = vscode.QuickPickItem & { tag: string };
   const pickers: vscode.QuickPick<TagItem>[] = [];
   const warnings: string[] = [];
@@ -1453,6 +1726,16 @@ async function testNoteTagFiltering(
     },
   });
   try {
+    const tagChoices = VaultTree.prototype.tagChoices;
+    try {
+      VaultTree.prototype.tagChoices = async () => [];
+      const empty = await open();
+      assert.equal(empty.items.length, 0);
+      assert.match(empty.placeholder ?? "", /No tags.*tags: \[idea\]/);
+      empty.hide();
+    } finally {
+      VaultTree.prototype.tagChoices = tagChoices;
+    }
     await vscode.workspace.fs.writeFile(
       first,
       Buffer.from(`---\ntitle: First\ntags: [' TagFilter-ALPHA ', ${alpha}, ${beta}]\n---\nBody\n`),
@@ -1461,7 +1744,10 @@ async function testNoteTagFiltering(
       second,
       Buffer.from(`---\ntitle: [invalid, title]\ntags: [${beta}, ${gamma}]\n---\nBody\n`),
     );
-    await vscode.workspace.fs.writeFile(invalid, Buffer.from("---\ntags: [valid, 42]\n---\n"));
+    await vscode.workspace.fs.writeFile(
+      invalid,
+      Buffer.from("\uFEFF---\r\ntags: [valid, 42]\r\n---\r\n"),
+    );
     await vscode.workspace.fs.writeFile(
       excluded,
       Buffer.from("---\ntags: [tagfilter-excluded]\n---\n"),
@@ -1481,6 +1767,10 @@ async function testNoteTagFiltering(
         Buffer.from("---\ntags: [tagfilter-other]\n---\n"),
       );
     await vscode.commands.executeCommand("stemlink.selectVault", paths.root);
+    scopeDescription = view.description;
+    assert.ok(scopeDescription?.includes(String(item.label)), "view omitted selected vault");
+    for (const id of ["stemlink.fleeting", "stemlink.references"])
+      assert.equal(views.get(id)?.description, scopeDescription);
     await vault.refresh();
     const snapshot = vault.get("202601021200-tag-filter-first");
     assert.ok(snapshot);
@@ -1524,15 +1814,23 @@ async function testNoteTagFiltering(
         [gamma, "1 note"],
       ],
     );
-    assert.ok(warnings.some((warning) => warning.includes("tag-filter-invalid.md")));
+    assert.ok(warnings.some((warning) => warning.includes("1 note has invalid tag metadata")));
+    assert.equal(tagProblems(invalid).length, 1, "tag error omitted file-level diagnostic");
+    assert.ok(
+      tagProblems(invalid)[0].range.isEqual(new vscode.Range(1, 0, 1, 4)),
+      "tag problem did not identify the tags key",
+    );
     const warningCount = warnings.length;
     await choose(picker, alpha);
     await choose(picker, beta);
     await search(picker, gamma);
     assert.deepEqual(picker.selectedItems.map((entry) => entry.tag).sort(), [alpha, beta]);
-    assert.equal(view.description, undefined, "pending selection changed active filter");
+    assert.equal(view.description, scopeDescription, "pending selection changed active filter");
     await accept();
-    await waitFor(() => view.description === `Tags: ${alpha}, ${beta}`, "filter did not apply");
+    await waitFor(
+      () => view.description === `${scopeDescription} · Tags: ${alpha}, ${beta}`,
+      "filter did not apply",
+    );
     assert.deepEqual(
       (await rows()).map((row) => row.uri?.toString()),
       [first.toString(), second.toString()],
@@ -1548,11 +1846,18 @@ async function testNoteTagFiltering(
     assert.deepEqual(cancel.selectedItems.map((entry) => entry.tag).sort(), [alpha, beta]);
     cancel.selectedItems = cancel.items.filter((entry) => entry.tag === gamma);
     await vscode.commands.executeCommand("workbench.action.closeQuickOpen");
-    assert.equal(view.description, `Tags: ${alpha}, ${beta}`, "Escape changed filter");
+    assert.equal(
+      view.description,
+      `${scopeDescription} · Tags: ${alpha}, ${beta}`,
+      "Escape changed filter",
+    );
     const onlyAlpha = await open();
     onlyAlpha.selectedItems = onlyAlpha.items.filter((entry) => entry.tag === alpha);
     await accept();
-    await waitFor(() => view.description === `Tags: ${alpha}`, "single filter did not apply");
+    await waitFor(
+      () => view.description === `${scopeDescription} · Tags: ${alpha}`,
+      "single filter did not apply",
+    );
     const document = await vscode.workspace.openTextDocument(first);
     const edit = new vscode.WorkspaceEdit();
     const start = document.positionAt(0);
@@ -1577,7 +1882,9 @@ async function testNoteTagFiltering(
       const stale = await open();
       stale.selectedItems = stale.items.filter((entry) => entry.tag === gamma);
       await vscode.commands.executeCommand("stemlink.selectVault", otherVault.paths.root);
-      assert.equal(view.description, undefined, "filter leaked to another vault");
+      const otherScope = view.description;
+      assert.ok(otherScope && !otherScope.includes("Tags:"), "filter leaked to another vault");
+      assert.notEqual(otherScope, scopeDescription, "different vaults share a description");
       const otherPicker = await open();
       assert.deepEqual(otherPicker.selectedItems, []);
       assert.deepEqual(
@@ -1591,13 +1898,21 @@ async function testNoteTagFiltering(
       );
       await accept();
       await waitFor(
-        () => view.description === "Tags: tagfilter-other",
+        () => view.description === `${otherScope} · Tags: tagfilter-other`,
         "second vault filter did not apply",
       );
       await vscode.commands.executeCommand("stemlink.selectVault", paths.root);
-      assert.equal(view.description, `Tags: ${alpha}`, "switching lost vault filter");
+      assert.equal(
+        view.description,
+        `${scopeDescription} · Tags: ${alpha}`,
+        "switching lost vault filter",
+      );
       await vscode.commands.executeCommand("stemlink.selectVault", otherVault.paths.root);
-      assert.equal(view.description, "Tags: tagfilter-other", "second vault selection was lost");
+      assert.equal(
+        view.description,
+        `${otherScope} · Tags: tagfilter-other`,
+        "second vault selection was lost",
+      );
       await vscode.commands.executeCommand("stemlink.clearTagFilter");
       await vscode.commands.executeCommand("stemlink.selectVault", paths.root);
     }
@@ -1605,7 +1920,10 @@ async function testNoteTagFiltering(
     const untrusted = await open();
     untrusted.selectedItems = [];
     await accept();
-    await waitFor(() => view.description === undefined, "empty selection did not clear filter");
+    await waitFor(
+      () => view.description === scopeDescription,
+      "empty selection did not clear filter",
+    );
     assert.deepEqual(
       (await rows()).map((row) => row.uri?.toString()),
       allRows.map((row) => row.uri?.toString()),
@@ -1619,7 +1937,10 @@ async function testNoteTagFiltering(
     const again = await open();
     again.selectedItems = again.items.filter((entry) => entry.tag === gamma);
     await accept();
-    await waitFor(() => view.description === `Tags: ${gamma}`, "gamma filter did not apply");
+    await waitFor(
+      () => view.description === `${scopeDescription} · Tags: ${gamma}`,
+      "gamma filter did not apply",
+    );
     Object.defineProperty(vscode.workspace, "isTrusted", trust);
     await vscode.workspace.fs.writeFile(added, Buffer.from(`---\ntags: [${gamma}]\n---\n`));
     await waitFor(
@@ -1631,15 +1952,97 @@ async function testNoteTagFiltering(
     await waitFor(() => !vault.get("202601021204-tag-filter-added"), "deleted note stayed indexed");
     assert.equal((await rows()).length, 2, "deleted note stayed in active filter");
     await vscode.commands.executeCommand("stemlink.clearTagFilter");
-    assert.equal(view.description, undefined);
+    assert.equal(view.description, scopeDescription);
+    await vscode.commands.executeCommand("stemlink.checkReferences");
+    assert.equal(tagProblems(invalid).length, 1, "manual validation cleared tag diagnostics");
+    await vscode.workspace.fs.writeFile(invalid, Buffer.from("---\ntags: []\n---\n"));
+    await waitFor(() => tagProblems(invalid).length === 0, "fixed metadata retained diagnostics");
+    for (let i = 0; i < 8; i++) {
+      const uri = vscode.Uri.joinPath(
+        paths.notes,
+        `202601021209-tag-error-${i}-${"long".repeat(12)}.md`,
+      );
+      problemFixtures.push(uri);
+      await vscode.workspace.fs.writeFile(uri, Buffer.from("---\ntags: 1\n---\n"));
+    }
+    await waitFor(
+      () => problemFixtures.every((uri) => tagProblems(uri).length === 1),
+      "tag diagnostics did not cover all invalid notes",
+    );
+    assert.ok(
+      warnings
+        .filter((message) => message.includes("invalid tag metadata"))
+        .every((message) => message.length <= paths.root.fsPath.length + 100),
+      "tag notification grew with per-file details",
+    );
+    const filter = await open();
+    filter.selectedItems = filter.items.filter((entry) => entry.tag === gamma);
+    await accept();
+    const metadata: string[] = [];
+    const notices: string[] = [];
+    let clear = false;
+    api.showInputBox = async () => {
+      assert.ok(metadata.length);
+      return metadata.shift();
+    };
+    api.showInformationMessage = new Proxy(original.information, {
+      apply: (target, thisArg, args: unknown[]) => {
+        if (!String(args[0]).includes("not shown by the active tag filter"))
+          return Reflect.apply(target, thisArg, args);
+        notices.push(String(args[0]));
+        assert.equal(args[1], "Clear tag filter");
+        return Promise.resolve(clear ? "Clear tag filter" : undefined);
+      },
+    });
+    for (const [tags, clearFilter] of [
+      [gamma, false],
+      ["", false],
+      ["", true],
+    ] as const) {
+      clear = clearFilter;
+      metadata.push("Filtered creation", tags);
+      await vscode.commands.executeCommand("stemlink.newPermanentNote", item);
+      const createdDocument: vscode.TextDocument | undefined =
+        vscode.window.activeTextEditor?.document;
+      assert.ok(createdDocument && directChild(createdDocument.uri, paths.notes));
+      created.push(createdDocument.uri);
+      assert.equal(
+        (await rows()).some((row) => row.uri?.toString() === createdDocument.uri.toString()),
+        Boolean(tags) || clearFilter,
+      );
+      assert.equal(
+        view.description,
+        clearFilter ? scopeDescription : `${scopeDescription} · Tags: ${gamma}`,
+      );
+    }
+    assert.equal(
+      notices.length,
+      2,
+      "matching creation notified or hidden creation lacked feedback",
+    );
   } finally {
     Object.defineProperty(vscode.workspace, "isTrusted", trust);
     pickers.forEach((picker) => picker.hide());
     await vscode.commands.executeCommand("stemlink.clearTagFilter");
     api.createQuickPick = original.picker;
     api.showWarningMessage = original.warning;
-    for (const uri of [first, second, invalid, excluded, capture, nested])
+    api.showInputBox = original.input;
+    api.showInformationMessage = original.information;
+    for (const uri of [
+      first,
+      second,
+      invalid,
+      excluded,
+      capture,
+      nested,
+      ...problemFixtures,
+      ...created,
+    ])
       await vscode.workspace.fs.delete(uri);
+    await waitFor(
+      () => [invalid, ...problemFixtures].every((uri) => tagProblems(uri).length === 0),
+      "deleted notes retained tag diagnostics",
+    );
     if (otherNote) await vscode.workspace.fs.delete(otherNote);
     await vscode.workspace.fs.delete(nestedFolder);
     if (previous?.vault)
@@ -1845,7 +2248,7 @@ async function testMultiRoot(
     await vscode.commands.executeCommand("stemlink.openVault");
     await waitFor(
       () => skippedInstructionPrompts === 2,
-      "Open Vault did not finish its optional instructions prompt",
+      "Open vault did not finish its optional instructions prompt",
     );
     await assert.rejects(
       async () => vscode.workspace.fs.stat(vscode.Uri.joinPath(external, "AGENTS.md")),
@@ -1855,7 +2258,7 @@ async function testMultiRoot(
     assert.equal(
       skippedInstructionPrompts,
       2,
-      "Open Vault did not offer optional agent instructions",
+      "Open vault did not offer optional agent instructions",
     );
     assert.ok(
       vscode.workspace.workspaceFolders?.some((candidate) => sameUri(candidate.uri, external)),
@@ -2040,7 +2443,7 @@ async function testDiscovery(folder: vscode.WorkspaceFolder): Promise<void> {
       assert.notEqual(item.description, "Selected", "vault row still has Selected text");
     }
     assert.equal(vaultItems[1].command?.command, "stemlink.selectVault");
-    assert.equal(vaultItems[1].command?.title, "Select Vault");
+    assert.equal(vaultItems[1].command?.title, "Select vault");
     await firstVault.ensure();
     sections = await tree.getChildren();
     assert.equal(sections[3].label, "References (2)");
@@ -2079,8 +2482,10 @@ async function testDiscovery(folder: vscode.WorkspaceFolder): Promise<void> {
     }
     assert.deepEqual(
       sections.map((item) => item.label),
-      ["Vaults (2)", "inbox (1)", "notes (1)", "References (0)"],
+      ["Vaults (2)", "inbox (1)", "notes (1)", "References"],
     );
+    assert.match(tree.message("References") ?? "", /belongs to.*existing-vault/);
+    assert.deepEqual(await tree.getChildren(sections[3]), []);
     assert.notEqual((await tree.getChildren(sections[0]))[1].description, "Selected");
   } finally {
     tree.dispose();
@@ -2215,6 +2620,16 @@ async function testDiscovery(folder: vscode.WorkspaceFolder): Promise<void> {
       "multiple markers were not all retained",
     );
     assert.equal(prompts, 0, "multiple vaults triggered a selection prompt");
+    const configurationErrors: unknown[] = [];
+    legacyRoot = "../outside";
+    assert.equal(
+      (await resolveVaultPaths(testFolder, state, (error) => configurationErrors.push(error)))
+        .length,
+      2,
+      "invalid settings hid healthy marker vaults",
+    );
+    assert.ok(configurationErrors[0] instanceof VaultConfigurationError);
+    assert.equal(configurationErrors[0].repair, "settings");
     legacyRoot = "legacy";
     await vscode.workspace.fs.createDirectory(
       vscode.Uri.joinPath(fixture, legacyRoot, "legacy-inbox"),
@@ -2232,6 +2647,32 @@ async function testDiscovery(folder: vscode.WorkspaceFolder): Promise<void> {
       3,
       "existing default vault was hidden by unrelated markers",
     );
+    const fs = vscode.workspace.fs;
+    const fsDescriptor = Object.getOwnPropertyDescriptor(vscode.workspace, "fs");
+    assert.ok(fsDescriptor?.configurable);
+    try {
+      Object.defineProperty(vscode.workspace, "fs", {
+        configurable: true,
+        value: {
+          ...fs,
+          stat: (uri: vscode.Uri) => {
+            if (uri.path === `${fixture.path}/legacy/legacy-inbox`)
+              throw vscode.FileSystemError.NoPermissions("Legacy inbox denied");
+            return fs.stat(uri);
+          },
+        },
+      });
+      const failures: unknown[] = [];
+      assert.equal(
+        (await resolveVaultPaths(testFolder, state, (error) => failures.push(error))).length,
+        2,
+        "unreadable legacy folders hid healthy marker vaults",
+      );
+      assert.ok(failures[0] instanceof vscode.FileSystemError);
+      assert.equal(failures[0].code, "NoPermissions");
+    } finally {
+      Object.defineProperty(vscode.workspace, "fs", fsDescriptor);
+    }
     legacyRoot = "child";
     hasSettings = true;
     assert.equal(
@@ -2328,7 +2769,10 @@ async function testDiscovery(folder: vscode.WorkspaceFolder): Promise<void> {
   await vscode.workspace.fs.writeFile(fixtureMarker, marker);
 }
 
-async function testOpenVault(folder: vscode.WorkspaceFolder): Promise<void> {
+async function testOpenVault(
+  folder: vscode.WorkspaceFolder,
+  extensionUri: vscode.Uri,
+): Promise<void> {
   const root = vscode.Uri.joinPath(folder.uri, "open-vault");
   const inbox = vscode.Uri.joinPath(root, "captures");
   const notes = vscode.Uri.joinPath(root, "permanent");
@@ -2369,6 +2813,9 @@ async function testOpenVault(folder: vscode.WorkspaceFolder): Promise<void> {
   let confirm = false;
   let answers: (string | undefined)[] = [];
   let warnings = 0;
+  let templateChoice: string | undefined;
+  let templatePrompts = 0;
+  let duringTemplatePrompt: (() => void) | undefined;
   const instructionPrompts: string[] = [];
   const errors: string[] = [];
   const settings = vscode.workspace.getConfiguration("stemlink", folder.uri).get("root");
@@ -2394,12 +2841,18 @@ async function testOpenVault(folder: vscode.WorkspaceFolder): Promise<void> {
       },
     });
     api.showOpenDialog = async (options) => {
-      assert.equal(options?.title, "Open Vault");
+      assert.equal(options?.title, "Open vault");
       return chosen ? [chosen] : undefined;
     };
     api.showWarningMessage = new Proxy(original.showWarningMessage, {
       apply: (_target, _thisArg, args: unknown[]) => {
         const message = String(args[0]);
+        if (message.includes("Fleeting template not found")) {
+          templatePrompts++;
+          assert.equal(args[1], "Use bundled template once");
+          duringTemplatePrompt?.();
+          return Promise.resolve(templateChoice);
+        }
         if (message.includes("AGENTS.md")) {
           instructionPrompts.push(message);
           return Promise.resolve("Add");
@@ -2484,16 +2937,16 @@ async function testOpenVault(folder: vscode.WorkspaceFolder): Promise<void> {
     assert.match(
       notesInstructions,
       /permanent\/.*one idea per note/,
-      "Open Vault instructions omitted configured notes folder",
+      "Open vault instructions omitted configured notes folder",
     );
     assert.ok(
       notesInstructions.includes("`examples/`"),
-      "Open Vault ignored configured templates folder",
+      "Open vault ignored configured templates folder",
     );
     await assert.rejects(
       async () => vscode.workspace.fs.stat(vscode.Uri.joinPath(root, "examples")),
       (error: unknown) => error instanceof vscode.FileSystemError && error.code === "FileNotFound",
-      "Open Vault installed templates in an existing vault",
+      "Open vault installed templates in an existing vault",
     );
     assert.equal(instructionPrompts.length, 1);
     const inputApi = vscode.window as { showInputBox: typeof vscode.window.showInputBox };
@@ -2539,7 +2992,7 @@ async function testOpenVault(folder: vscode.WorkspaceFolder): Promise<void> {
     assert.equal(
       vscode.window.activeTextEditor?.document.getText().replace(/\r\n/g, "\n"),
       "Preserved template.\n",
-      "Open Vault did not fall back to the legacy notes template",
+      "Open vault did not fall back to the legacy notes template",
     );
     assert.equal(
       errors.length,
@@ -2553,6 +3006,90 @@ async function testOpenVault(folder: vscode.WorkspaceFolder): Promise<void> {
       1,
       "opened vault was not selected",
     );
+    const legacyTemplate = vscode.Uri.joinPath(notes, "_fleeting.md");
+    const templateBytes = await vscode.workspace.fs.readFile(legacyTemplate);
+    await vscode.workspace.fs.delete(legacyTemplate);
+    try {
+      const before = (await vscode.workspace.fs.readDirectory(inbox)).map(([name]) => name).sort();
+      await vscode.commands.executeCommand("stemlink.addFleetingNote");
+      assert.equal(templatePrompts, 1);
+      assert.deepEqual(
+        (await vscode.workspace.fs.readDirectory(inbox)).map(([name]) => name).sort(),
+        before,
+        "cancelled recovery created a capture",
+      );
+      templateChoice = "Use bundled template once";
+      await vscode.commands.executeCommand("stemlink.addFleetingNote");
+      const recovered = vscode.window.activeTextEditor?.document;
+      assert.ok(recovered && directChild(recovered.uri, inbox));
+      assert.equal(
+        recovered.getText().replace(/\r\n/g, "\n"),
+        Buffer.from(
+          await vscode.workspace.fs.readFile(
+            vscode.Uri.joinPath(extensionUri, "templates", "_fleeting.md"),
+          ),
+        )
+          .toString("utf8")
+          .replace(/\r\n/g, "\n"),
+      );
+      await assert.rejects(async () => vscode.workspace.fs.stat(legacyTemplate));
+      await assert.rejects(async () =>
+        vscode.workspace.fs.stat(vscode.Uri.joinPath(root, "examples")),
+      );
+      await vscode.workspace.fs.delete(recovered.uri);
+      const trust = Object.getOwnPropertyDescriptor(vscode.workspace, "isTrusted");
+      assert.ok(trust);
+      const errorsBeforeTrust = errors.length;
+      try {
+        duringTemplatePrompt = () =>
+          Object.defineProperty(vscode.workspace, "isTrusted", {
+            configurable: true,
+            get: () => false,
+          });
+        await vscode.commands.executeCommand("stemlink.addFleetingNote");
+        assert.ok(
+          errors
+            .slice(errorsBeforeTrust)
+            .some((message) => message.includes("Trust the workspace")),
+        );
+        assert.deepEqual(
+          (await vscode.workspace.fs.readDirectory(inbox)).map(([name]) => name).sort(),
+          before,
+          "recovery wrote after trust was revoked",
+        );
+      } finally {
+        duringTemplatePrompt = undefined;
+        Object.defineProperty(vscode.workspace, "isTrusted", trust);
+        errors.splice(errorsBeforeTrust);
+      }
+      const fsApi = vscode.workspace.fs;
+      const fsDescriptor = Object.getOwnPropertyDescriptor(vscode.workspace, "fs");
+      assert.ok(fsDescriptor?.configurable);
+      const errorsBefore = errors.length;
+      try {
+        Object.defineProperty(vscode.workspace, "fs", {
+          configurable: true,
+          value: {
+            ...fsApi,
+            readFile: (uri: vscode.Uri) => {
+              if (uri.path.endsWith("_fleeting.md"))
+                throw vscode.FileSystemError.NoPermissions("Template read denied");
+              return fsApi.readFile(uri);
+            },
+          },
+        });
+        await vscode.commands.executeCommand("stemlink.addFleetingNote");
+        assert.ok(
+          errors.slice(errorsBefore).some((message) => message.includes("Template read denied")),
+        );
+        assert.equal(templatePrompts, 3, "permission failure offered a template fallback");
+      } finally {
+        Object.defineProperty(vscode.workspace, "fs", fsDescriptor);
+        errors.splice(errorsBefore);
+      }
+    } finally {
+      await vscode.workspace.fs.writeFile(legacyTemplate, templateBytes);
+    }
     const incompleteRoot = vscode.Uri.joinPath(folder.uri, "incomplete-vault");
     const incompleteInbox = vscode.Uri.joinPath(incompleteRoot, "inbox");
     await vscode.workspace.fs.createDirectory(incompleteInbox);
@@ -2570,7 +3107,7 @@ async function testOpenVault(folder: vscode.WorkspaceFolder): Promise<void> {
     await assert.rejects(
       async () => vscode.workspace.fs.stat(vscode.Uri.joinPath(incompleteRoot, "notes")),
       (error: unknown) => error instanceof vscode.FileSystemError && error.code === "FileNotFound",
-      "Open Vault created a missing configured folder",
+      "Open vault created a missing configured folder",
     );
     assert.ok(
       (await vscode.workspace.fs.stat(vscode.Uri.joinPath(incompleteInbox, "AGENTS.md"))).type &
@@ -2642,6 +3179,131 @@ async function testOpenVault(folder: vscode.WorkspaceFolder): Promise<void> {
     api.showWarningMessage = original.showWarningMessage;
     api.showQuickPick = original.showQuickPick;
     api.showErrorMessage = original.showErrorMessage;
+  }
+}
+
+async function testConfigurationRecovery(
+  folder: vscode.WorkspaceFolder,
+  view: vscode.TreeView<Item>,
+  provider: vscode.TreeDataProvider<Item>,
+): Promise<void> {
+  const root = vscode.Uri.joinPath(folder.uri, "configuration-recovery");
+  const marker = vscode.Uri.joinPath(root, ".stemlink.json");
+  const config = vscode.workspace.getConfiguration("stemlink", folder.uri);
+  const keys = ["root", "showCounts", "confirmPromotion", "offerAgentInstructions"] as const;
+  const previous = keys.map((key) => config.inspect(key)?.workspaceValue);
+  const api = vscode.window as { showErrorMessage: typeof vscode.window.showErrorMessage };
+  const commands = vscode.commands as { executeCommand: typeof vscode.commands.executeCommand };
+  const originalError = api.showErrorMessage;
+  const originalCommand = commands.executeCommand;
+  const originalPaths = Vault.prototype.selectPaths;
+  const errors: { message: string; actions: unknown[] }[] = [];
+  let choice: string | undefined;
+  let failed: unknown;
+  let hasVault: unknown;
+  let settingsOpened = 0;
+  let reconciliations = 0;
+  const rows = (await provider.getChildren()) ?? [];
+  const markers = await Promise.all(
+    rows.map(async (row) => {
+      assert.ok(row.vault);
+      const uri = vscode.Uri.joinPath(row.vault.paths.root, ".stemlink.json");
+      return { uri, bytes: await vscode.workspace.fs.readFile(uri) };
+    }),
+  );
+  api.showErrorMessage = new Proxy(originalError, {
+    apply: (_target, _thisArg, args: unknown[]) => {
+      errors.push({ message: String(args[0]), actions: args.slice(1) });
+      return Promise.resolve(choice);
+    },
+  });
+  commands.executeCommand = new Proxy(originalCommand, {
+    apply: (target, thisArg, args: unknown[]) => {
+      if (args[0] === "setContext" && args[1] === "stemlink.discoveryFailed") failed = args[2];
+      if (args[0] === "setContext" && args[1] === "stemlink.hasVault") hasVault = args[2];
+      if (args[0] === "stemlink.openSettings") {
+        settingsOpened++;
+        return Promise.resolve(undefined);
+      }
+      return Reflect.apply(target, thisArg, args);
+    },
+  });
+  Vault.prototype.selectPaths = function (paths) {
+    reconciliations++;
+    originalPaths.call(this, paths);
+  };
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const before = reconciliations;
+    for (const key of ["showCounts", "confirmPromotion", "offerAgentInstructions"] as const)
+      await config.update(key, !config.get<boolean>(key), vscode.ConfigurationTarget.Workspace);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    assert.equal(reconciliations, before, "unrelated preferences rediscovered vaults");
+    await vscode.workspace.fs.createDirectory(root);
+    await vscode.workspace.fs.writeFile(marker, Buffer.from("{"));
+    choice = "Open configuration";
+    await vscode.commands.executeCommand("stemlink.refresh");
+    await waitFor(
+      () => vscode.window.activeTextEditor?.document.uri.toString() === marker.toString(),
+      "configuration repair did not open the invalid marker",
+    );
+    assert.ok(errors.some((error) => error.actions.includes("Open configuration")));
+    assert.equal(
+      (await provider.getChildren())?.length,
+      rows.length,
+      "invalid marker hid healthy vaults",
+    );
+    choice = undefined;
+    for (const original of markers)
+      await vscode.workspace.fs.writeFile(original.uri, Buffer.from("{"));
+    await vscode.commands.executeCommand("stemlink.refresh");
+    assert.equal(failed, true);
+    assert.equal(hasVault, false);
+    assert.equal(view.message, undefined, "failure message suppressed native welcome");
+    for (const original of markers)
+      await vscode.workspace.fs.writeFile(original.uri, original.bytes);
+    await vscode.workspace.fs.writeFile(
+      marker,
+      Buffer.from(
+        JSON.stringify({
+          version: 1,
+          inbox: "inbox",
+          notes: "notes",
+        }),
+      ),
+    );
+    await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(root, "inbox"));
+    await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(root, "notes"));
+    await vscode.commands.executeCommand("stemlink.refresh");
+    assert.equal(failed, false, "successful recovery retained failed discovery state");
+    assert.equal(hasVault, true);
+    const beforePathChange = reconciliations;
+    choice = "Settings";
+    await config.update("root", "missing-configured-vault", vscode.ConfigurationTarget.Workspace);
+    await waitFor(
+      () => settingsOpened > 0 && failed === true,
+      "configured path error lacked Settings repair",
+    );
+    assert.ok(reconciliations > beforePathChange, "folder setting did not rediscover vaults");
+    assert.equal(failed, true);
+    assert.ok(
+      errors.some(
+        (error) =>
+          error.message.includes("Configured vault folder") && error.actions.includes("Settings"),
+      ),
+    );
+  } finally {
+    choice = undefined;
+    for (const original of markers)
+      await vscode.workspace.fs.writeFile(original.uri, original.bytes);
+    for (const [index, key] of keys.entries())
+      await config.update(key, previous[index], vscode.ConfigurationTarget.Workspace);
+    await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor");
+    await vscode.workspace.fs.delete(root, { recursive: true });
+    await vscode.commands.executeCommand("stemlink.refresh");
+    api.showErrorMessage = originalError;
+    commands.executeCommand = originalCommand;
+    Vault.prototype.selectPaths = originalPaths;
   }
 }
 
@@ -2732,7 +3394,7 @@ async function testFeatureSettings(folder: vscode.WorkspaceFolder): Promise<void
     await waitForFileText(
       rootIndex,
       (text) => text.includes("Inbox `inbox/` (1 captures)"),
-      "enabling router setting did not initialize the router on Open Vault",
+      "enabling router setting did not initialize the router on Open vault",
     );
     for (const uri of [inboxIndex, notesIndex]) {
       assert.ok(
@@ -2868,6 +3530,23 @@ async function testDynamicVaultFiles(
       api.showInputBox = async (options) => {
         assert.ok(answers.length, "unexpected input prompt during synthetic vault creation");
         const answer = answers.shift();
+        assert.ok(await options?.validateInput?.("CON.md"), "reserved folder accepted inline");
+        if (options?.title === "Create vault: inbox folder")
+          assert.ok(
+            await options.validateInput?.(templatesName.toUpperCase()),
+            "template collision accepted inline",
+          );
+        if (options?.title === "Create vault: permanent-note folder") {
+          assert.ok(
+            await options.validateInput?.(scenario.inbox.toUpperCase()),
+            "inbox collision accepted inline",
+          );
+          assert.ok(
+            await options.validateInput?.(templatesName.toUpperCase()),
+            "template collision accepted inline",
+          );
+        }
+        assert.equal(await options?.validateInput?.(answer ?? ""), undefined);
         if (scenario.root === "notes" || "templates" in scenario) {
           assert.equal(options?.value, answer, "new-vault prompt did not offer the default layout");
           return options?.value;
@@ -2983,6 +3662,41 @@ async function testDynamicVaultFiles(
         );
       }
     }
+    const workspaceApi = vscode.workspace as {
+      getConfiguration: typeof vscode.workspace.getConfiguration;
+    };
+    const originalConfig = workspaceApi.getConfiguration;
+    const errorCount = errors.length;
+    const inputBeforeValidation = api.showInputBox;
+    const prompts: string[] = [];
+    try {
+      workspaceApi.getConfiguration = new Proxy(originalConfig, {
+        apply: (target, thisArg, args: Parameters<typeof vscode.workspace.getConfiguration>) => {
+          const current = Reflect.apply(target, thisArg, args) as vscode.WorkspaceConfiguration;
+          if (args[0] !== "stemlink" || args[1]?.toString() !== folder.uri.toString())
+            return current;
+          return {
+            ...current,
+            get: (key: string, fallback: unknown) =>
+              key === "templates" ? "NUL" : current.get(key, fallback),
+          };
+        },
+      });
+      api.showInputBox = async (options) => {
+        prompts.push(options?.title ?? "");
+        return "invalid-template-default";
+      };
+      await vscode.commands.executeCommand("stemlink.createVault");
+      assert.deepEqual(prompts, ["Create vault: root folder"]);
+      assert.ok(errors.slice(errorCount).some((message) => message.includes("templates folder")));
+      await assert.rejects(async () =>
+        vscode.workspace.fs.stat(vscode.Uri.joinPath(folder.uri, "invalid-template-default")),
+      );
+    } finally {
+      workspaceApi.getConfiguration = originalConfig;
+      errors.splice(errorCount);
+      api.showInputBox = inputBeforeValidation;
+    }
     const root = vscode.Uri.joinPath(folder.uri, "vault");
     const customTemplates = vscode.Uri.joinPath(root, "examples");
     await vscode.workspace.fs.rename(vscode.Uri.joinPath(root, "templates"), customTemplates);
@@ -3027,7 +3741,7 @@ async function testDynamicVaultFiles(
       assert.equal(
         vscode.window.activeTextEditor?.document.getText().replace(/\r\n/g, "\n"),
         captureText,
-        "Add Fleeting Note ignored mapped templates directory",
+        "New fleeting note ignored mapped templates directory",
       );
       for (const directory of [root, vscode.Uri.joinPath(root, "Knowledge")]) {
         const instructions = Buffer.from(
@@ -3045,7 +3759,7 @@ async function testDynamicVaultFiles(
       assert.deepEqual(
         await vscode.workspace.fs.readFile(markerUri),
         savedMarker,
-        "Open Vault rewrote templates mapping",
+        "Open vault rewrote templates mapping",
       );
       assert.equal(errors.length, 0, `mapped templates workflow failed: ${errors.join("; ")}`);
     } finally {
@@ -3237,7 +3951,83 @@ async function testNativeVaultSelection(
   await vscode.commands.executeCommand("stemlink.selectVault", firstRoot);
 }
 
+async function testRestrictedWorkspace(): Promise<void> {
+  assert.equal(vscode.workspace.isTrusted, false, "host did not start in Restricted Mode");
+  const extension = vscode.extensions.getExtension("dmundt.stemlink");
+  assert.ok(extension);
+  const api = vscode.window as {
+    createQuickPick: typeof vscode.window.createQuickPick;
+    showErrorMessage: typeof vscode.window.showErrorMessage;
+  };
+  const originalPicker = api.createQuickPick;
+  const originalError = api.showErrorMessage;
+  const errors: string[] = [];
+  let picker: vscode.QuickPick<vscode.QuickPickItem> | undefined;
+  api.createQuickPick = new Proxy(originalPicker, {
+    apply: (target, receiver, args) => {
+      picker = Reflect.apply(target, receiver, args) as vscode.QuickPick<vscode.QuickPickItem>;
+      return picker;
+    },
+  });
+  api.showErrorMessage = new Proxy(originalError, {
+    apply: (_target, _receiver, args: unknown[]) => {
+      errors.push(String(args[0]));
+      return Promise.resolve(undefined);
+    },
+  });
+  try {
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    assert.ok(folder);
+    const paths = pathsFor(folder);
+    const snapshot = async (directory: vscode.Uri): Promise<unknown[]> =>
+      Promise.all(
+        (await vscode.workspace.fs.readDirectory(directory))
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(async ([name, type]) => {
+            const uri = vscode.Uri.joinPath(directory, name);
+            return [
+              name,
+              type,
+              type & vscode.FileType.Directory
+                ? await snapshot(uri)
+                : Buffer.from(await vscode.workspace.fs.readFile(uri)).toString("hex"),
+            ];
+          }),
+      );
+    const before = await snapshot(paths.root);
+    await extension.activate();
+    assert.ok(extension.isActive, "extension did not activate in Restricted Mode");
+    await vscode.commands.executeCommand("stemlink.filterByTags");
+    assert.ok(picker, "tag picker did not open");
+    assert.ok(picker.items.some((item) => item.label === "test"));
+    picker.hide();
+    await vscode.commands.executeCommand("stemlink.clearTagFilter");
+    await vscode.commands.executeCommand("stemlink.refresh");
+    await vscode.commands.executeCommand("stemlink.checkReferences");
+    assert.equal(errors.length, 0, "read-only operations attempted trusted work");
+    for (const command of [
+      "stemlink.addNote",
+      "stemlink.addFleetingNote",
+      "stemlink.createVault",
+      "stemlink.openVault",
+    ]) {
+      await vscode.commands.executeCommand(command);
+    }
+    assert.equal(errors.length, 4);
+    assert.ok(errors.every((message) => message.includes("Trust the workspace")));
+    assert.deepEqual(await snapshot(paths.root), before, "Restricted Mode changed vault files");
+  } finally {
+    picker?.hide();
+    api.createQuickPick = originalPicker;
+    api.showErrorMessage = originalError;
+  }
+}
+
 export async function run(): Promise<void> {
+  if (process.env.STEMLINK_RESTRICTED === "1") {
+    await testRestrictedWorkspace();
+    return;
+  }
   const folder = vscode.workspace.workspaceFolders?.[0];
   assert.ok(folder, "test workspace missing");
   const extension = vscode.extensions.getExtension("dmundt.stemlink");
@@ -3255,6 +4045,7 @@ export async function run(): Promise<void> {
         dragControllers.set(String(args[0]), options.dragAndDropController);
         if (args[0] === "stemlink.fleeting") assert.equal(options.canSelectMany, true);
       }
+
       const view = Reflect.apply(target, thisArg, args) as vscode.TreeView<Item>;
       views.set(String(args[0]), view);
       if (args[0] === "stemlink.vaults") {
@@ -3298,7 +4089,36 @@ export async function run(): Promise<void> {
     command: string;
     title: string;
     icon?: string;
+    enablement?: string;
   }[];
+  for (const command of ["stemlink.editCaptureMetadata", "stemlink.discardCapture"]) {
+    assert.equal(
+      commands.find((entry) => entry.command === command)?.enablement,
+      "isWorkspaceTrusted && stemlink.hasVault && !listMultiSelection",
+      "single-capture enablement lost its trust, vault, or selection guard",
+    );
+  }
+  const welcome = extension.packageJSON.contributes.viewsWelcome as {
+    when: string;
+    contents: string;
+  }[];
+  const recovery = welcome.find(
+    (entry) => entry.when === "!stemlink.hasVault && stemlink.discoveryFailed",
+  );
+  assert.ok(recovery?.contents.includes("command:stemlink.refresh"));
+  assert.ok(recovery?.contents.includes("command:stemlink.openSettings"));
+  assert.ok(
+    welcome
+      .filter((entry) => entry !== recovery)
+      .every((entry) => entry.when.includes("!stemlink.discoveryFailed")),
+    "first-run content remains visible during failed discovery",
+  );
+  assert.ok(
+    welcome
+      .find((entry) => entry.contents.includes("command:stemlink.createVault"))
+      ?.when.includes("workspaceFolderCount != 0"),
+    "empty-window welcome exposes unavailable vault creation",
+  );
   const captureCommands = [
     "stemlink.editCaptureMetadata",
     "stemlink.promote",
@@ -3410,7 +4230,7 @@ export async function run(): Promise<void> {
   assert.notEqual(captureMenus[0].group?.split("@")[0], captureMenus[2].group?.split("@")[0]);
   assert.equal(
     commands.find((command) => command.command === "stemlink.createVault")?.title,
-    "Create Vault",
+    "Create vault",
   );
   const settingsCommand = commands.find((command) => command.command === "stemlink.openSettings");
   assert.equal(settingsCommand?.icon, "$(gear)");
@@ -3424,9 +4244,9 @@ export async function run(): Promise<void> {
       (item) =>
         item.command === "stemlink.openSettings" &&
         item.when === "view == stemlink.vaults" &&
-        item.group.startsWith("navigation"),
+        item.group === "settings@1",
     ),
-    "settings action is not in the Vaults view title",
+    "settings action is not in the Vaults overflow menu",
   );
   for (const [key, value] of [
     ["stemlink.root", "notes"],
@@ -3446,8 +4266,9 @@ export async function run(): Promise<void> {
   if (process.env.STEMLINK_DISCOVERY === "1") {
     assert.ok(vaultView && vaultProvider, "vault view was not captured during activation");
     await testNativeVaultSelection(folder, vaultView, vaultProvider);
+    await testConfigurationRecovery(folder, vaultView, vaultProvider);
     await testDiscovery(folder);
-    await testOpenVault(folder);
+    await testOpenVault(folder, extension.extensionUri);
     await testFeatureSettings(folder);
     await testDynamicVaultFiles(folder, extension.extensionUri);
     return;
@@ -3492,7 +4313,7 @@ export async function run(): Promise<void> {
     try {
       assert.deepEqual(
         (await emptyTree.getChildren()).map((item) => item.label),
-        ["Vaults (0)", "Fleeting (0)", "Notes (0)", "References (0)"],
+        ["Vaults (0)", "Fleeting (0)", "Notes (0)", "References"],
       );
     } finally {
       emptyTree.dispose();
@@ -3964,6 +4785,7 @@ export async function run(): Promise<void> {
     windowApi.showInputBox = async (options) => {
       assert.ok(answers.length, "unexpected input prompt");
       if (options?.title === "Capture headline") {
+        assert.ok(options.prompt?.includes("custom-vault"), "capture prompt omitted destination");
         assert.ok(await options.validateInput?.("   "), "blank headline was accepted");
         assert.equal(await options.validateInput?.("A thought"), undefined);
       }
@@ -3994,9 +4816,9 @@ export async function run(): Promise<void> {
       }
       assert.deepEqual(defaults, ["notes", "inbox", "permanent"]);
       assert.deepEqual(titles, [
-        "Create Vault: root folder",
-        "Create Vault: inbox folder",
-        "Create Vault: permanent-note folder",
+        "Create vault: root folder",
+        "Create vault: inbox folder",
+        "Create vault: permanent-note folder",
       ]);
       assert.equal(createInstructionPrompts, 1, "Create did not offer optional agent instructions");
       const inbox = vscode.Uri.joinPath(folder.uri, "custom-vault", "captures");
@@ -4312,7 +5134,7 @@ export async function run(): Promise<void> {
       const created = (await vscode.workspace.fs.readDirectory(permanent)).filter(
         ([name]) => !name.startsWith("_") && !isVaultInstructionFile(name),
       );
-      assert.equal(created.length, 1, "Add Note did not create a file");
+      assert.equal(created.length, 1, "New permanent note did not create a file");
       const firstText = Buffer.from(
         await vscode.workspace.fs.readFile(vscode.Uri.joinPath(permanent, created[0][0])),
       ).toString("utf8");
@@ -4323,7 +5145,7 @@ export async function run(): Promise<void> {
       await waitFor(
         () =>
           notesDocument.getText().includes("Markdown files: 2 (excludes INDEX.md and AGENTS.md)"),
-        "notes router did not update after Add Note",
+        "notes router did not update after New permanent note",
       );
       assert.ok(
         notesDocument.getText().startsWith(userText),
@@ -4339,7 +5161,7 @@ export async function run(): Promise<void> {
       await waitForFileText(
         rootIndex,
         (text) => text.includes("Notes `permanent/` (2 Markdown files)"),
-        "vault router did not update after Add Note",
+        "vault router did not update after New permanent note",
       );
       answers.push("A: title", "other");
       await vscode.commands.executeCommand("stemlink.addNote");
@@ -4566,9 +5388,23 @@ export async function run(): Promise<void> {
         "openAt did not select the requested position",
       );
 
-      const errorApi = vscode.window as { showErrorMessage: typeof vscode.window.showErrorMessage };
+      const errorApi = vscode.window as {
+        showErrorMessage: typeof vscode.window.showErrorMessage;
+        showWarningMessage: typeof vscode.window.showWarningMessage;
+      };
       const originalError = errorApi.showErrorMessage;
+      const originalTemplateWarning = errorApi.showWarningMessage;
       const errors: string[] = [];
+      const missingTemplateWarnings: string[] = [];
+      errorApi.showWarningMessage = new Proxy(originalTemplateWarning, {
+        apply: (target, thisArg, args: unknown[]) => {
+          if (!String(args[0]).includes("Fleeting template not found"))
+            return Reflect.apply(target, thisArg, args);
+          missingTemplateWarnings.push(String(args[0]));
+          assert.equal(args[1], "Use bundled template once");
+          return Promise.resolve(undefined);
+        },
+      });
       errorApi.showErrorMessage = new Proxy(originalError, {
         apply: (_target, _thisArg, args: unknown[]) => {
           errors.push(String(args[0]));
@@ -4579,11 +5415,16 @@ export async function run(): Promise<void> {
         await vscode.workspace.fs.delete(fleetingTemplate);
         await vscode.commands.executeCommand("stemlink.addFleetingNote");
         assert.ok(
-          errors.some(
+          missingTemplateWarnings.some(
             (message) =>
               message.includes("Fleeting template not found") && message.includes("_fleeting.md"),
           ),
           "missing fleeting template was not reported",
+        );
+        assert.equal(
+          errors.length,
+          0,
+          "missing template reported an error instead of offering recovery",
         );
         assert.equal(
           (await vscode.workspace.fs.readDirectory(inbox)).filter(
@@ -4616,6 +5457,7 @@ export async function run(): Promise<void> {
         }
       } finally {
         errorApi.showErrorMessage = originalError;
+        errorApi.showWarningMessage = originalTemplateWarning;
         await vscode.workspace.fs.writeFile(fleetingTemplate, Buffer.from(fleetingText));
       }
 

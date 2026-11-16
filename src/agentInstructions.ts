@@ -9,11 +9,14 @@ interface AgentInstructionTarget {
 }
 
 export class VaultAgentInstructions {
+  private readonly skipped = new Set<string>();
   constructor(private readonly extensionUri: vscode.Uri) {}
 
   async offer(paths: VaultPaths): Promise<void> {
     if (!vscode.workspace.isTrusted)
       throw new Error("Trust the workspace before writing vault instructions.");
+    const key = paths.root.toString();
+    if (this.skipped.has(key)) return;
     const targets: AgentInstructionTarget[] = [
       { directory: paths.root, label: "vault root", template: "vault.md" },
       { directory: paths.inbox, label: this.folderName(paths.inbox), template: "inbox.md" },
@@ -43,6 +46,7 @@ export class VaultAgentInstructions {
       "Add",
       "Skip",
     );
+    if (answer === "Skip") this.skipped.add(key);
     if (answer !== "Add") return;
 
     const created: string[] = [];
