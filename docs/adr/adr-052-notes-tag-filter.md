@@ -1,5 +1,5 @@
 ---
-status: Accepted
+status: Superseded in part by ADR 059
 ---
 
 # ADR 052: Notes tag filter
@@ -27,3 +27,5 @@ Filtering, searching, and clearing require no Workspace Trust because they do no
 ## Consequences
 
 Opening the picker or filtering waits for the full in-memory content index; unfiltered filename browsing remains independent. Counts and matches update on metadata edits, creation, promotion, deletion, and refresh. A filter may legitimately show zero notes. Session-only state requires no migration, and existing Markdown remains unchanged.
+
+[ADR 059](adr-059-tag-problem-feedback.md) replaces the all-files notification with bounded summaries and independent file-level Problems.

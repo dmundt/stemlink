@@ -12,6 +12,8 @@ Validation identifies the checked vault and offers Show Problems. Successful val
 
 Context-menu promotion and drag/drop process the same capture selection sequentially, with per-capture confirmation and batch progress. Cancellation or failure leaves completed work intact and reports remaining captures. Batches open only the last created note. Metadata and Discard apply to one capture at a time.
 
+Tag metadata errors appear under Stemlink tags in Problems. A short notification gives their count and offers Show Problems. These diagnostics update with the note index and do not replace manual validation results.
+
 <!-- stemlink:configured-folders -->
 
 ## 1. Folder layout

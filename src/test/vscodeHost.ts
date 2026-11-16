@@ -1476,6 +1476,9 @@ async function testNoteTagFiltering(
   const nestedFolder = vscode.Uri.joinPath(paths.notes, "tag-filter-nested");
   const nested = vscode.Uri.joinPath(nestedFolder, "202601021203-tag-filter-nested.md");
   const added = vscode.Uri.joinPath(paths.notes, "202601021204-tag-filter-added.md");
+  const problemFixtures: vscode.Uri[] = [];
+  const tagProblems = (uri: vscode.Uri) =>
+    vscode.languages.getDiagnostics(uri).filter((entry) => entry.source === "Stemlink tags");
   const otherVault = vaultItems[1]?.vault;
   const otherNote = otherVault
     ? vscode.Uri.joinPath(otherVault.paths.notes, "202601021205-tag-filter-other.md")
@@ -1604,7 +1607,8 @@ async function testNoteTagFiltering(
         [gamma, "1 note"],
       ],
     );
-    assert.ok(warnings.some((warning) => warning.includes("tag-filter-invalid.md")));
+    assert.ok(warnings.some((warning) => warning.includes("1 note has invalid tag metadata")));
+    assert.equal(tagProblems(invalid).length, 1, "tag error omitted file-level diagnostic");
     const warningCount = warnings.length;
     await choose(picker, alpha);
     await choose(picker, beta);
@@ -1712,14 +1716,40 @@ async function testNoteTagFiltering(
     assert.equal((await rows()).length, 2, "deleted note stayed in active filter");
     await vscode.commands.executeCommand("stemlink.clearTagFilter");
     assert.equal(view.description, undefined);
+    await vscode.commands.executeCommand("stemlink.checkReferences");
+    assert.equal(tagProblems(invalid).length, 1, "manual validation cleared tag diagnostics");
+    await vscode.workspace.fs.writeFile(invalid, Buffer.from("---\ntags: []\n---\n"));
+    await waitFor(() => tagProblems(invalid).length === 0, "fixed metadata retained diagnostics");
+    for (let i = 0; i < 8; i++) {
+      const uri = vscode.Uri.joinPath(
+        paths.notes,
+        `202601021209-tag-error-${i}-${"long".repeat(12)}.md`,
+      );
+      problemFixtures.push(uri);
+      await vscode.workspace.fs.writeFile(uri, Buffer.from("---\ntags: 1\n---\n"));
+    }
+    await waitFor(
+      () => problemFixtures.every((uri) => tagProblems(uri).length === 1),
+      "tag diagnostics did not cover all invalid notes",
+    );
+    assert.ok(
+      warnings
+        .filter((message) => message.includes("invalid tag metadata"))
+        .every((message) => message.length <= paths.root.fsPath.length + 100),
+      "tag notification grew with per-file details",
+    );
   } finally {
     Object.defineProperty(vscode.workspace, "isTrusted", trust);
     pickers.forEach((picker) => picker.hide());
     await vscode.commands.executeCommand("stemlink.clearTagFilter");
     api.createQuickPick = original.picker;
     api.showWarningMessage = original.warning;
-    for (const uri of [first, second, invalid, excluded, capture, nested])
+    for (const uri of [first, second, invalid, excluded, capture, nested, ...problemFixtures])
       await vscode.workspace.fs.delete(uri);
+    await waitFor(
+      () => [invalid, ...problemFixtures].every((uri) => tagProblems(uri).length === 0),
+      "deleted notes retained tag diagnostics",
+    );
     if (otherNote) await vscode.workspace.fs.delete(otherNote);
     await vscode.workspace.fs.delete(nestedFolder);
     if (previous?.vault)

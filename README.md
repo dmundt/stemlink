@@ -54,6 +54,8 @@ Validation reports the checked vault and permanent-note scope, with a Show Probl
 
 Promote applies to the selected captures from either the context menu or drag/drop. Multi-capture batches retain per-capture confirmation, show native progress and completed/remaining counts, and open the last created note once. Metadata and Discard remain single-capture actions and are disabled for multiple selections.
 
+Invalid tag metadata appears as file-level **Stemlink tags** Problems, separate from manual validation. Notifications summarize the affected count and offer Show Problems instead of listing every file. Editing an already-invalid file updates diagnostics without repeating the warning; fixes and deletions clear obsolete entries.
+
 Use the gear in the **Vaults** view or **Stemlink: Settings** to open Stemlink settings.
 
 Settings are resource-scoped and apply to the workspace folder containing each vault. Defaults:

@@ -75,6 +75,7 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [056: Metadata editor state](adr-056-metadata-editor-state.md) — preserve dirty documents and identify prompt targets.
 - [057: Validation feedback](adr-057-validation-feedback.md) — preserve failed-run results and identify validation scope with native Problems navigation.
 - [058: Capture batch feedback](adr-058-capture-batch-feedback.md) — selection parity, native progress, and explicit partial promotion outcomes.
+- [059: Tag problem feedback](adr-059-tag-problem-feedback.md) — bounded notifications and independent file-level Problems for invalid metadata.
 
 ## Maintenance rules
 
