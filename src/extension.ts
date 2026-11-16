@@ -874,6 +874,7 @@ export async function activate(
     if (!vscode.workspace.isTrusted)
       throw new Error("Trust the workspace before creating a capture.");
     const vault = requireActiveVault();
+    const destination = vault.paths.inbox.toString();
     let headline: string | undefined;
     if (
       vscode.workspace
@@ -899,14 +900,26 @@ export async function activate(
         text = Buffer.from(await vscode.workspace.fs.readFile(legacyTemplate)).toString("utf8");
       } catch (legacyError) {
         if (legacyError instanceof vscode.FileSystemError && legacyError.code === "FileNotFound") {
-          throw new Error(
-            `Fleeting template not found at ${template.path} or ${legacyTemplate.path}.`,
-            { cause: legacyError },
+          const choice = await vscode.window.showWarningMessage(
+            `Stemlink: Fleeting template not found at ${template.path} or ${legacyTemplate.path}.`,
+            "Use bundled template once",
           );
-        }
-        throw legacyError;
+          if (choice !== "Use bundled template once") return;
+          text = Buffer.from(
+            await vscode.workspace.fs.readFile(
+              vscode.Uri.joinPath(context.extensionUri, "templates", "_fleeting.md"),
+            ),
+          ).toString("utf8");
+        } else throw legacyError;
       }
     }
+    if (!vscode.workspace.isTrusted)
+      throw new Error("Trust the workspace before creating a capture.");
+    registeredVault(vault);
+    if (vault.paths.inbox.toString() !== destination)
+      throw new Error("The vault's inbox folder changed; try again.");
+    if (!((await vscode.workspace.fs.stat(vault.paths.inbox)).type & vscode.FileType.Directory))
+      throw new Error("The vault's inbox path is not a folder.");
     const name = headline ? slug(headline).slice(0, 48).replace(/-+$/g, "") : "capture";
     const uri = await createFile(
       vault.paths.inbox,

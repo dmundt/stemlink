@@ -2485,7 +2485,10 @@ async function testDiscovery(folder: vscode.WorkspaceFolder): Promise<void> {
   await vscode.workspace.fs.writeFile(fixtureMarker, marker);
 }
 
-async function testOpenVault(folder: vscode.WorkspaceFolder): Promise<void> {
+async function testOpenVault(
+  folder: vscode.WorkspaceFolder,
+  extensionUri: vscode.Uri,
+): Promise<void> {
   const root = vscode.Uri.joinPath(folder.uri, "open-vault");
   const inbox = vscode.Uri.joinPath(root, "captures");
   const notes = vscode.Uri.joinPath(root, "permanent");
@@ -2526,6 +2529,9 @@ async function testOpenVault(folder: vscode.WorkspaceFolder): Promise<void> {
   let confirm = false;
   let answers: (string | undefined)[] = [];
   let warnings = 0;
+  let templateChoice: string | undefined;
+  let templatePrompts = 0;
+  let duringTemplatePrompt: (() => void) | undefined;
   const instructionPrompts: string[] = [];
   const errors: string[] = [];
   const settings = vscode.workspace.getConfiguration("stemlink", folder.uri).get("root");
@@ -2557,6 +2563,12 @@ async function testOpenVault(folder: vscode.WorkspaceFolder): Promise<void> {
     api.showWarningMessage = new Proxy(original.showWarningMessage, {
       apply: (_target, _thisArg, args: unknown[]) => {
         const message = String(args[0]);
+        if (message.includes("Fleeting template not found")) {
+          templatePrompts++;
+          assert.equal(args[1], "Use bundled template once");
+          duringTemplatePrompt?.();
+          return Promise.resolve(templateChoice);
+        }
         if (message.includes("AGENTS.md")) {
           instructionPrompts.push(message);
           return Promise.resolve("Add");
@@ -2710,6 +2722,90 @@ async function testOpenVault(folder: vscode.WorkspaceFolder): Promise<void> {
       1,
       "opened vault was not selected",
     );
+    const legacyTemplate = vscode.Uri.joinPath(notes, "_fleeting.md");
+    const templateBytes = await vscode.workspace.fs.readFile(legacyTemplate);
+    await vscode.workspace.fs.delete(legacyTemplate);
+    try {
+      const before = (await vscode.workspace.fs.readDirectory(inbox)).map(([name]) => name).sort();
+      await vscode.commands.executeCommand("stemlink.addFleetingNote");
+      assert.equal(templatePrompts, 1);
+      assert.deepEqual(
+        (await vscode.workspace.fs.readDirectory(inbox)).map(([name]) => name).sort(),
+        before,
+        "cancelled recovery created a capture",
+      );
+      templateChoice = "Use bundled template once";
+      await vscode.commands.executeCommand("stemlink.addFleetingNote");
+      const recovered = vscode.window.activeTextEditor?.document;
+      assert.ok(recovered && directChild(recovered.uri, inbox));
+      assert.equal(
+        recovered.getText().replace(/\r\n/g, "\n"),
+        Buffer.from(
+          await vscode.workspace.fs.readFile(
+            vscode.Uri.joinPath(extensionUri, "templates", "_fleeting.md"),
+          ),
+        )
+          .toString("utf8")
+          .replace(/\r\n/g, "\n"),
+      );
+      await assert.rejects(async () => vscode.workspace.fs.stat(legacyTemplate));
+      await assert.rejects(async () =>
+        vscode.workspace.fs.stat(vscode.Uri.joinPath(root, "examples")),
+      );
+      await vscode.workspace.fs.delete(recovered.uri);
+      const trust = Object.getOwnPropertyDescriptor(vscode.workspace, "isTrusted");
+      assert.ok(trust);
+      const errorsBeforeTrust = errors.length;
+      try {
+        duringTemplatePrompt = () =>
+          Object.defineProperty(vscode.workspace, "isTrusted", {
+            configurable: true,
+            get: () => false,
+          });
+        await vscode.commands.executeCommand("stemlink.addFleetingNote");
+        assert.ok(
+          errors
+            .slice(errorsBeforeTrust)
+            .some((message) => message.includes("Trust the workspace")),
+        );
+        assert.deepEqual(
+          (await vscode.workspace.fs.readDirectory(inbox)).map(([name]) => name).sort(),
+          before,
+          "recovery wrote after trust was revoked",
+        );
+      } finally {
+        duringTemplatePrompt = undefined;
+        Object.defineProperty(vscode.workspace, "isTrusted", trust);
+        errors.splice(errorsBeforeTrust);
+      }
+      const fsApi = vscode.workspace.fs;
+      const fsDescriptor = Object.getOwnPropertyDescriptor(vscode.workspace, "fs");
+      assert.ok(fsDescriptor?.configurable);
+      const errorsBefore = errors.length;
+      try {
+        Object.defineProperty(vscode.workspace, "fs", {
+          configurable: true,
+          value: {
+            ...fsApi,
+            readFile: (uri: vscode.Uri) => {
+              if (uri.path.endsWith("_fleeting.md"))
+                throw vscode.FileSystemError.NoPermissions("Template read denied");
+              return fsApi.readFile(uri);
+            },
+          },
+        });
+        await vscode.commands.executeCommand("stemlink.addFleetingNote");
+        assert.ok(
+          errors.slice(errorsBefore).some((message) => message.includes("Template read denied")),
+        );
+        assert.equal(templatePrompts, 3, "permission failure offered a template fallback");
+      } finally {
+        Object.defineProperty(vscode.workspace, "fs", fsDescriptor);
+        errors.splice(errorsBefore);
+      }
+    } finally {
+      await vscode.workspace.fs.writeFile(legacyTemplate, templateBytes);
+    }
     const incompleteRoot = vscode.Uri.joinPath(folder.uri, "incomplete-vault");
     const incompleteInbox = vscode.Uri.joinPath(incompleteRoot, "inbox");
     await vscode.workspace.fs.createDirectory(incompleteInbox);
@@ -3699,7 +3795,7 @@ export async function run(): Promise<void> {
     assert.ok(vaultView && vaultProvider, "vault view was not captured during activation");
     await testNativeVaultSelection(folder, vaultView, vaultProvider);
     await testDiscovery(folder);
-    await testOpenVault(folder);
+    await testOpenVault(folder, extension.extensionUri);
     await testFeatureSettings(folder);
     await testDynamicVaultFiles(folder, extension.extensionUri);
     return;
