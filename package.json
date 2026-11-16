@@ -34,6 +34,7 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "markdown.markdownItPlugins": true,
     "configuration": [
       {
         "title": "Vault Folders",

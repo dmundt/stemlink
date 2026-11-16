@@ -51,6 +51,7 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [012: Rename protection](adr-012-rename-protection.md) — warnings and rename limitations.
 - [039: Expanded reference groups](adr-039-expanded-reference-groups.md) — default expansion of Inbound and Outbound.
 - [043: Underscore file exclusion](adr-043-underscore-file-exclusion.md) — hide supporting files from note views and indexes; reject wiki-link targets.
+- [046: Markdown preview wiki links](adr-046-markdown-preview-links.md) — render existing targets as preview links without changing source.
 
 ## Performance and indexing
 

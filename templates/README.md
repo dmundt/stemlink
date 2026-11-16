@@ -136,6 +136,8 @@ See [[202411130915-ids-as-timestamps]] for the trade-offs.
 
 The stem is the filename, not the title. To find backlinks without an extension, search all notes for that stem. Stemlink can navigate existing links, complete stems, and show backlinks.
 
+In VS Code's built-in Markdown preview, Stemlink renders existing wiki-link targets as clickable links while keeping the Markdown source unchanged. Workspace Trust is required. Inline and block code, escaped references, and existing Markdown links stay unchanged. Missing or invalid references keep their brackets; run **Check References** for diagnostics. Other Markdown viewers need their own wiki-link support.
+
 ## 7. Daily: capture
 
 Put ideas in `inbox/` quickly. A capture can be a fragment or question; it needs no front matter or links. Most captures do not need to become permanent notes.

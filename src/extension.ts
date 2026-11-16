@@ -12,10 +12,13 @@ import {
 } from "./core";
 import { readVaultMarker, resolveVaultPaths, samePaths } from "./discovery";
 import { VaultRouterIndexes } from "./router";
+import { extendMarkdownPreview, MarkdownParser } from "./preview";
 import { Item, VaultSection, VaultTree, VaultTreeSection } from "./tree";
 import { Vault, VaultPaths, directChild, reportError, sameUri, validFolderName } from "./vault";
 
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
+export async function activate(
+  context: vscode.ExtensionContext,
+): Promise<{ extendMarkdownIt(markdown: MarkdownParser): MarkdownParser }> {
   const vaults = new Map<string, Vault>();
   const diagnostics = vscode.languages.createDiagnosticCollection("Stemlink");
   const background = new Map<Vault, Promise<void>>();
@@ -57,6 +60,55 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     return selectedVault && folder && sameUri(folder.uri, selectedVault.folder.uri)
       ? selectedVault
       : undefined;
+  };
+  const previewVaults = new WeakSet<Vault>();
+  const previewNames = new WeakSet<Vault>();
+  let previewTimer: ReturnType<typeof setTimeout> | undefined;
+  let previewDisposed = false;
+  const refreshPreview = () => {
+    if (previewDisposed) return;
+    if (previewTimer) clearTimeout(previewTimer);
+    previewTimer = setTimeout(() => {
+      previewTimer = undefined;
+      void vscode.commands.executeCommand("markdown.preview.refresh").then(undefined, reportError);
+    }, 100);
+  };
+  context.subscriptions.push(
+    new vscode.Disposable(() => {
+      previewDisposed = true;
+      if (previewTimer) clearTimeout(previewTimer);
+    }),
+    vscode.workspace.onDidGrantWorkspaceTrust(refreshPreview),
+  );
+  const previewTarget = (stem: string, environment: unknown): string | undefined => {
+    const source =
+      environment && typeof environment === "object" && "currentDocument" in environment
+        ? environment.currentDocument
+        : undefined;
+    if (!(source instanceof vscode.Uri)) return undefined;
+    const vault = vaultFor(source);
+    if (!vault) return undefined;
+    if (!previewVaults.has(vault)) {
+      previewVaults.add(vault);
+      context.subscriptions.push(vault.changed.event(refreshPreview));
+    }
+    if (!vault.namesReady) {
+      if (!previewNames.has(vault)) {
+        previewNames.add(vault);
+        void vault.ensureNames().then(
+          () => {
+            previewNames.delete(vault);
+            refreshPreview();
+          },
+          (error: unknown) => {
+            previewNames.delete(vault);
+            reportError(error);
+          },
+        );
+      }
+      return undefined;
+    }
+    return vault.target(stem)?.uri.toString();
   };
   const tree = new VaultTree(activeVault, allVaults);
   const routerIndexes = new VaultRouterIndexes();
@@ -956,6 +1008,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       scheduleDiscovery();
     }),
   );
+  return {
+    extendMarkdownIt: (markdown) =>
+      extendMarkdownPreview(markdown, () => vscode.workspace.isTrusted, previewTarget),
+  };
 }
 
 export function deactivate(): void {}
