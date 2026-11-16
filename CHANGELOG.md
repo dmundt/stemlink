@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Group count visibility under **Display** and router indexes and agent-instruction prompts under **AI Context** in Settings.
 - Show body-derived titles in inbox router tables, truncated after 120 characters with `...`, instead of missing-description placeholders.
 - Hide underscore-prefixed files from capture and permanent-note views and counts; exclude them from reference targets, completion, and backlinks. Check References continues to flag wiki links to these files as malformed.
 

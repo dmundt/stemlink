@@ -65,14 +65,19 @@
         }
       },
       {
-        "title": "Features",
+        "title": "Display",
         "properties": {
           "stemlink.showCounts": {
             "type": "boolean",
             "default": true,
             "scope": "resource",
             "description": "Show counts in vault, note, capture, and reference views. Errors remain visible."
-          },
+          }
+        }
+      },
+      {
+        "title": "AI Context",
+        "properties": {
           "stemlink.enableRouterIndexes": {
             "type": "boolean",
             "default": true,
