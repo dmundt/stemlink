@@ -22,7 +22,7 @@ Right-click a vault under **Vaults** for **New permanent note** or **Validate va
 
 The default root holds the collection; `inbox/` holds captures, `permanent/` holds permanent notes, and `templates/` holds editable examples. The bundled manual lists alternatives: `zk/inbox/notes`, `Stemlink vault/Fleeting/Permanent`, `vault/capture/notes`, and `vault/inbox/permanent`. Use Open vault or settings for these layouts; Stemlink does not infer a layout from its folder names.
 
-Capture and permanent-note view headings use the selected vault's folder names, preserving their spelling and case. Switching vaults updates these headings; counts follow `stemlink.showCounts`. Without a selected vault, the headings remain Fleeting and Notes.
+Capture and permanent-note view headings use the selected vault's folder names, preserving their spelling and case. View descriptions identify the selected vault, disambiguating duplicate names by workspace. Switching vaults updates these headings; counts follow `stemlink.showCounts`. Without a selected vault, the headings remain Fleeting and Notes.
 
 Vault creation copies the bundled manual to the vault root and personalizes its folder summary with your chosen names. Editable Markdown examples go into the mapped templates folder (`templates/` by default). `INDEX.md` routers and accepted `AGENTS.md` instructions also include configured folder names; existing files are preserved. The root router links to folder routers; each folder router maps local Markdown filenames to YAML `description`, falling back to `title`. Missing metadata is labeled explicitly. Routers help choose files to read, not replace reading them; Stemlink's in-memory note/reference index is authoritative for live state. Stemlink updates only generated sections on discovery, observed filesystem changes, edits (including unsaved metadata), and **Refresh**. Promotion preserves the capture's content; rewrite it as needed.
 
@@ -41,6 +41,8 @@ Deleted files leave navigation and reference indexes even if an editor remains o
 Metadata prompts identify the target file or vault. Editing metadata saves an originally clean document, but leaves an already-dirty document unsaved, including its body and metadata changes. Save it through the editor when ready; the in-memory index follows unsaved content.
 
 Use **Filter by tags…** in the Notes view menu to select existing tags. The native picker lists tags alphabetically with counts across that vault; typing narrows choices without clearing checked tags. Enter applies and Escape keeps the previous filter. Notes match any checked tag; selecting none or choosing **Clear tag filter** shows all notes. Active tags appear in the view description, and the heading count shows matching notes when counts are enabled.
+
+Creating or promoting a note does not clear an active tag filter. If the displayed vault's filter hides the new note, a notice offers **Clear tag filter**. The note still opens normally.
 
 Tag filters are independent per vault and last only for the current session. Matching ignores surrounding whitespace and case without changing YAML. Counts include unsaved note edits and count each note once per tag. A selected tag that disappears stays selected with count 0. Invalid YAML or tag lists are reported and excluded from matches; affected notes remain visible when unfiltered. Filtering is read-only and available without Workspace Trust.
 
