@@ -242,6 +242,36 @@ async function testVirtualVault(): Promise<void> {
     );
     vault.selectPaths(previousPaths);
     await vault.ensure();
+    const uri = vscode.Uri.joinPath(vault.paths.notes, `${stem}.md`);
+    gate = { started: () => {}, release: Promise.resolve(), missing: true };
+    await vault.recordFile(uri);
+    assert.ok(!vault.target(stem), "missing file read restored a deleted target");
+    assert.ok(!vault.get(stem), "missing file read retained note content");
+    assert.equal(vault.references(stem).length, 0, "missing file read retained backlinks");
+    await vault.recordFile(uri);
+    assert.equal(vault.get(stem)?.text, text, "recreated note was not indexed");
+    {
+      let start!: () => void;
+      let finish!: () => void;
+      const reading = new Promise<void>((resolve) => {
+        start = resolve;
+      });
+      const pending = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      gate = { started: start, release: pending, missing: true };
+      const missingRead = vault.recordFile(uri);
+      try {
+        await reading;
+        text = "---\ntitle: Recreated\ntags: []\n---\n";
+        await vault.recordFile(uri);
+      } finally {
+        finish();
+      }
+      await missingRead;
+      assert.equal(vault.get(stem)?.text, text, "stale missing read removed a recreated note");
+      assert.ok(vault.target(stem), "stale missing read removed a recreated target");
+    }
     state = "missing";
     const emptyVault = new Vault(folder);
     const emptyTree = new VaultTree(
