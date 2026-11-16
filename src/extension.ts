@@ -112,7 +112,11 @@ export async function activate(
     }
     return vault.target(stem)?.uri.toString();
   };
-  const tree = new VaultTree(activeVault, allVaults);
+  const tree = new VaultTree(
+    activeVault,
+    allVaults,
+    vscode.languages.createDiagnosticCollection("Stemlink tags"),
+  );
   const routerIndexes = new VaultRouterIndexes();
   const agentInstructions = new VaultAgentInstructions(context.extensionUri);
   const routerIndexesEnabled = (paths: VaultPaths): boolean =>
@@ -181,27 +185,11 @@ export async function activate(
         return;
       const captures = draggedCaptures;
       draggedCaptures = undefined;
-      if (dropping) {
-        reportError(new Error("A promotion drop is already running."));
-        return;
-      }
-      dropping = true;
       try {
-        if (token.isCancellationRequested) return;
         if (target) await noteSource(target, "note");
-        const seen = new Set<string>();
-        for (const item of captures) {
-          if (token.isCancellationRequested) break;
-          const key = item.uri?.toString();
-          if (!key) throw new Error("Dragged capture has no file.");
-          if (seen.has(key)) continue;
-          seen.add(key);
-          if (!(await promoteCapture(item, token))) break;
-        }
+        await promoteBatch(captures, token);
       } catch (error) {
         reportError(error);
-      } finally {
-        dropping = false;
       }
     },
   };
@@ -257,6 +245,9 @@ export async function activate(
     );
   const updateTreeViewMessages = (): void => {
     updateTagFilterView();
+    void vscode.commands
+      .executeCommand("setContext", "stemlink.hasVault", vaults.size > 0)
+      .then(undefined, reportError);
     if (vaultView) {
       const count = vaults.size;
       vaultView.badge = count
@@ -266,12 +257,10 @@ export async function activate(
     for (const [section, view] of treeViews) {
       view.message =
         section === "Vaults"
-          ? vaults.size
-            ? undefined
-            : "Use Open Vault or Create Vault."
+          ? undefined
           : selectedVault
-            ? undefined
-            : "Select a vault in Vaults.";
+            ? tree.message(section)
+            : "Open or create a vault in Vaults.";
     }
   };
   const updateTreeViewTitles = async (): Promise<void> => {
@@ -286,6 +275,7 @@ export async function activate(
   context.subscriptions.push(
     tree.onDidChangeTreeData(() => {
       void updateTreeViewTitles().catch(reportError);
+      updateTreeViewMessages();
       void syncVaultSelection().catch(reportError);
     }),
   );
@@ -390,7 +380,7 @@ export async function activate(
   await queueDiscovery(pendingOpen ? vscode.Uri.parse(pendingOpen) : undefined);
   if (pendingOpen) {
     const vault = vaults.get(pendingOpen);
-    if (vault) {
+    if (vault && vscode.workspace.isTrusted) {
       if (routerIndexesEnabled(vault.paths))
         await routerIndexes.initialize(vault.paths).catch(reportError);
       if (agentInstructionsEnabled(vault.paths))
@@ -519,8 +509,8 @@ export async function activate(
   command("stemlink.openVault", async () => {
     if (!vscode.workspace.isTrusted) throw new Error("Trust the workspace before opening a vault.");
     const roots = await vscode.window.showOpenDialog({
-      title: "Open Vault",
-      openLabel: "Open Vault",
+      title: "Open vault",
+      openLabel: "Open vault",
       canSelectFiles: false,
       canSelectFolders: true,
       canSelectMany: false,
@@ -650,7 +640,7 @@ export async function activate(
     const config = vscode.workspace.getConfiguration("stemlink", selected.uri);
     const prompt = async (label: string, value: string) =>
       vscode.window.showInputBox({
-        title: `Create Vault: ${label}`,
+        title: `Create vault: ${label}`,
         value,
         validateInput: (input) =>
           validFolderName(input) ? undefined : "Enter a single valid folder name.",
@@ -817,6 +807,7 @@ export async function activate(
   });
 
   async function askMetadata(
+    purpose: string,
     defaultTitle = "",
     defaultTags: string[] = [],
     reuse: { title: boolean; tags: boolean } = { title: false, tags: false },
@@ -826,7 +817,8 @@ export async function activate(
       reuse.title && defaultTitle.trim()
         ? defaultTitle
         : await vscode.window.showInputBox({
-            title: "Note title",
+            title: purpose,
+            prompt: "Note title",
             value: defaultTitle,
             validateInput: (value) => (value.trim() ? undefined : "Enter a title."),
           });
@@ -835,7 +827,8 @@ export async function activate(
       reuse.tags && defaultTags.some((tag) => tag.trim())
         ? defaultTags.join(", ")
         : await vscode.window.showInputBox({
-            title: "Tags (comma-separated, optional)",
+            title: purpose,
+            prompt: "Tags (comma-separated, optional)",
             value: defaultTags.join(", "),
           });
     if (rawTags === undefined) return undefined;
@@ -940,7 +933,7 @@ export async function activate(
     if (!vscode.workspace.isTrusted) throw new Error("Trust the workspace before creating a note.");
     registeredVault(vault);
     const destination = vault.paths.notes.toString();
-    const metadata = await askMetadata();
+    const metadata = await askMetadata(`New permanent note: ${vault.paths.root.fsPath}`);
     if (!metadata) return;
     if (!vscode.workspace.isTrusted) throw new Error("Trust the workspace before creating a note.");
     registeredVault(vault);
@@ -995,11 +988,16 @@ export async function activate(
 
   async function editMetadata(item: Item | undefined, kind: "capture" | "note") {
     const { uri, doc } = await noteSource(item, kind);
+    const wasDirty = doc.isDirty;
     const snapshot = doc.getText();
     const version = doc.version;
     const originalBytes = Buffer.from(await vscode.workspace.fs.readFile(uri));
     const existing = captureMetadata(snapshot);
-    const metadata = await askMetadata(existing.title ?? "", existing.tags);
+    const metadata = await askMetadata(
+      `Edit metadata: ${uri.fsPath}`,
+      existing.title ?? "",
+      existing.tags,
+    );
     if (!metadata) return;
     await noteSource(item, kind);
     const currentBytes = Buffer.from(await vscode.workspace.fs.readFile(uri));
@@ -1015,13 +1013,14 @@ export async function activate(
     );
     if (!(await vscode.workspace.applyEdit(edit)))
       throw new Error(`Could not update ${kind} metadata.`);
-    if (!(await doc.save()))
+    if (!wasDirty && !(await doc.save()))
       throw new Error(
         `${kind === "capture" ? "Capture" : "Note"} metadata was updated in the editor but could not be saved.`,
       );
     tree.refresh();
   }
-  command("stemlink.editCaptureMetadata", async (item?: Item) => {
+  command("stemlink.editCaptureMetadata", async (item?: Item, selection?: Item[]) => {
+    if (selection && selection.length > 1) throw new Error("Select one capture to edit metadata.");
     await editMetadata(item, "capture");
   });
   command("stemlink.editNoteMetadata", async (item?: Item) => {
@@ -1056,7 +1055,8 @@ export async function activate(
     await vscode.workspace.fs.delete(uri, { useTrash: true });
     tree.refresh();
   }
-  command("stemlink.discardCapture", async (item?: Item) => {
+  command("stemlink.discardCapture", async (item?: Item, selection?: Item[]) => {
+    if (selection && selection.length > 1) throw new Error("Select one capture to discard.");
     await deleteItem(item, "capture");
   });
   command("stemlink.deleteNote", async (item?: Item) => {
@@ -1064,18 +1064,26 @@ export async function activate(
   });
 
   const promoting = new Set<string>();
-  async function promoteCapture(item?: Item, token?: vscode.CancellationToken): Promise<boolean> {
+  async function promoteCapture(
+    item?: Item,
+    token?: vscode.CancellationToken,
+    batchTargets?: vscode.Uri[],
+  ): Promise<boolean> {
     const key = item?.uri?.toString();
     if (!key) throw new Error("Select an inbox Markdown capture from its context menu.");
     if (promoting.has(key)) throw new Error("This capture is already being promoted.");
     promoting.add(key);
     try {
-      return await performPromotion(item, token);
+      return await performPromotion(item, token, batchTargets);
     } finally {
       promoting.delete(key);
     }
   }
-  async function performPromotion(item?: Item, token?: vscode.CancellationToken): Promise<boolean> {
+  async function performPromotion(
+    item?: Item,
+    token?: vscode.CancellationToken,
+    batchTargets?: vscode.Uri[],
+  ): Promise<boolean> {
     if (token?.isCancellationRequested) return false;
     const { uri, vault, name, doc } = await captureSource(item);
     const destination = vault.paths.notes.toString();
@@ -1099,6 +1107,7 @@ export async function activate(
       .getConfiguration("stemlink", vault.paths.root)
       .get<boolean>("promptForPromotionMetadata", false);
     const metadata = await askMetadata(
+      `Promote to permanent note: ${uri.fsPath}`,
       existing.title?.trim() || suggestedCaptureTitle(name),
       existing.tags,
       { title: !force && !!existing.title?.trim(), tags: !force },
@@ -1119,6 +1128,7 @@ export async function activate(
       throw new Error("Capture changed while saving; promotion cancelled.");
     const text = promoteNote(snapshot, metadata.title, metadata.tags);
     const target = await createFile(vault.paths.notes, metadata.title, text);
+    batchTargets?.push(target);
     try {
       const currentBytes = Buffer.from(await vscode.workspace.fs.readFile(uri));
       if (doc.getText() !== snapshot || !currentBytes.equals(savedBytes)) {
@@ -1133,23 +1143,97 @@ export async function activate(
     }
     await vault.recordFile(target);
     tree.refresh();
-    await vscode.window.showTextDocument(target);
+    if (!batchTargets) await vscode.window.showTextDocument(target);
     return true;
   }
-  command("stemlink.promote", async (item?: Item) => {
-    await promoteCapture(item);
+  async function promoteBatch(items: Item[], token?: vscode.CancellationToken): Promise<void> {
+    if (dropping) throw new Error("A promotion batch is already running.");
+    const captures = new Map<string, Item>();
+    for (const item of items) {
+      if (!item.uri) throw new Error("Selected capture has no file.");
+      captures.set(item.uri.toString(), item);
+    }
+    if (!captures.size) throw new Error("Select a capture to promote.");
+    dropping = true;
+    const cancellation = new vscode.CancellationTokenSource();
+    const subscription = token?.onCancellationRequested(() => cancellation.cancel());
+    if (token?.isCancellationRequested) cancellation.cancel();
+    const targets: vscode.Uri[] = [];
+    let completed = 0;
+    let outcome = "completed";
+    try {
+      if (captures.size === 1) {
+        await promoteCapture([...captures.values()][0], cancellation.token);
+        return;
+      }
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: "Promoting captures",
+          cancellable: true,
+        },
+        async (progress, progressToken) => {
+          const progressSubscription = progressToken.onCancellationRequested(() =>
+            cancellation.cancel(),
+          );
+          try {
+            for (const item of captures.values()) {
+              if (!(await promoteCapture(item, cancellation.token, targets))) {
+                outcome = "cancelled";
+                break;
+              }
+              completed++;
+              progress.report({
+                increment: 100 / captures.size,
+                message: `${completed} of ${captures.size}`,
+              });
+            }
+          } finally {
+            progressSubscription.dispose();
+          }
+        },
+      );
+    } catch (error) {
+      outcome = "failed";
+      reportError(error);
+    } finally {
+      subscription?.dispose();
+      cancellation.dispose();
+      dropping = false;
+      if (captures.size > 1) {
+        const partial =
+          targets.length > completed
+            ? " An additional permanent note was created; see the error for incomplete promotion details."
+            : "";
+        void vscode.window.showInformationMessage(
+          `Stemlink: Promotion ${outcome}: ${completed} of ${captures.size} captures promoted; ${captures.size - completed} not fully promoted.${partial}`,
+        );
+        const last = targets[targets.length - 1];
+        if (last) await vscode.window.showTextDocument(last).then(undefined, reportError);
+      }
+    }
+  }
+  command("stemlink.promote", async (item?: Item, selection?: Item[]) => {
+    if (selection && selection.length > 1) await promoteBatch(selection);
+    else await promoteCapture(item);
   });
 
   command("stemlink.refresh", async () => {
-    const vault = requireActiveVault();
+    await queueDiscovery();
+    const vault = activeVault();
+    if (!vault) {
+      tree.refresh();
+      return;
+    }
+    tree.reset(vault);
     await vault.refresh();
-    if (routerIndexesEnabled(vault.paths)) await routerIndexes.refresh(vault.paths);
+    if (vscode.workspace.isTrusted && routerIndexesEnabled(vault.paths))
+      await routerIndexes.refresh(vault.paths);
     tree.refresh();
   });
 
   async function validateVault(vault: Vault): Promise<void> {
     registeredVault(vault);
-    diagnostics.clear();
     await vault.refresh();
     registeredVault(vault);
     const notes = vault.all;
@@ -1176,15 +1260,25 @@ export async function activate(
       list.push(diagnostic);
       grouped.set(finding.note.uri.toString(), list);
     }
-    for (const note of notes) {
+    const replacement: [vscode.Uri, vscode.Diagnostic[]][] = notes.flatMap((note) => {
       const list = grouped.get(note.uri.toString());
-      if (list) diagnostics.set(note.uri, list);
-    }
+      return list ? [[note.uri, list]] : [];
+    });
+    diagnostics.clear();
+    diagnostics.set(replacement);
     const count = (severity: string) =>
       findings.filter((finding) => finding.severity === severity).length;
-    void vscode.window.showInformationMessage(
-      `Stemlink: ${count("error")} errors, ${count("warning")} warnings, ${count("info")} info across ${notes.length} notes.`,
-    );
+    void vscode.window
+      .showInformationMessage(
+        `Stemlink: ${vault.paths.root.fsPath}: ${count("error")} errors, ${count("warning")} warnings, ${count("info")} info across ${notes.length} permanent notes. Previous Stemlink validation results replaced.`,
+        "Show Problems",
+      )
+      .then((answer) =>
+        answer === "Show Problems"
+          ? vscode.commands.executeCommand("workbench.actions.view.problems")
+          : undefined,
+      )
+      .then(undefined, reportError);
   }
   command("stemlink.checkReferences", async () => {
     await validateVault(requireActiveVault());
@@ -1297,7 +1391,7 @@ export async function activate(
             sameUri(file.oldUri, vault.paths.root))
         ) {
           void vscode.window.showWarningMessage(
-            "Stemlink: a permanent note or vault folder was renamed. References may be broken; run Check References.",
+            "Stemlink: a permanent note or vault folder was renamed. References may be broken; run Validate vault.",
           );
         }
       }
@@ -1348,7 +1442,7 @@ export async function activate(
           try {
             await queueDiscovery(root.uri);
             const vault = vaults.get(pending);
-            if (vault) {
+            if (vault && vscode.workspace.isTrusted) {
               if (routerIndexesEnabled(vault.paths)) await routerIndexes.initialize(vault.paths);
               if (agentInstructionsEnabled(vault.paths)) await agentInstructions.offer(vault.paths);
             }

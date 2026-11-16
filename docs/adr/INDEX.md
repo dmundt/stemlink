@@ -70,6 +70,17 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [017: Build and publication](adr-017-build-and-publication.md) — quality matrix, VSIX, release, and Marketplace OIDC.
 - [034: Quality and publication alignment](adr-034-quality-and-publication-alignment.md) — lint, formatting, strict audit, and independent release jobs.
 
+## UI consistency and feedback
+
+- [054: Restricted workspace onboarding](adr-054-restricted-workspace-onboarding.md) — limited Restricted Mode support, command prerequisites, and native welcome content.
+- [055: Tree recovery states](adr-055-tree-recovery-states.md) — reliable refresh, distinct empty/error feedback, and explicit reference scope.
+- [056: Metadata editor state](adr-056-metadata-editor-state.md) — preserve dirty documents and identify prompt targets.
+- [057: Validation feedback](adr-057-validation-feedback.md) — preserve failed-run results and identify validation scope with native Problems navigation.
+- [058: Capture batch feedback](adr-058-capture-batch-feedback.md) — selection parity, native progress, and explicit partial promotion outcomes.
+- [059: Tag problem feedback](adr-059-tag-problem-feedback.md) — bounded notifications and independent file-level Problems for invalid metadata.
+- [060: Consistent action surfaces](adr-060-consistent-action-surfaces.md) — canonical labels, Settings overflow, and complete Capture defaults.
+- [061: Agent offer session Skip](adr-061-agent-offer-session-skip.md) — per-vault session suppression of explicitly skipped optional instructions.
+
 ## Maintenance rules
 
 - Add an ADR for each feature decision, using the next available `adr-NNN-short-name.md` filename.
