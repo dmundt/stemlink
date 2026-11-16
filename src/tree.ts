@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { isVaultInstructionFile, linksIn } from "./core";
+import { isExcludedNoteFile, linksIn } from "./core";
 import { Vault, directChild, reportError } from "./vault";
 
 export type VaultSection = "Vaults" | "Fleeting" | "Notes" | "References";
@@ -189,7 +189,7 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
         .filter(
           ([name, type]) =>
             name.endsWith(".md") &&
-            !isVaultInstructionFile(name) &&
+            !isExcludedNoteFile(name) &&
             Boolean(type & vscode.FileType.File),
         )
         .sort(([a], [b]) => a.localeCompare(b));
@@ -205,7 +205,7 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
     return document &&
       directChild(document.uri, vault.paths.notes) &&
       document.uri.path.endsWith(".md") &&
-      !isVaultInstructionFile(name)
+      !isExcludedNoteFile(name)
       ? document
       : undefined;
   }

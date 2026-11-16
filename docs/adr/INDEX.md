@@ -26,6 +26,7 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [035: Vault count badge](adr-035-vault-count-badge.md) — native Activity Bar badge for discovered vaults.
 - [036: Settings action](adr-036-settings-action.md) — open extension settings from the Vaults view.
 - [037: File-description routers](adr-037-file-description-routers.md) — local filename mappings and generated router refreshes.
+- [044: Fleeting router titles](adr-044-fleeting-router-titles.md) — body-derived inbox titles with bounded length.
 - [038: Vault row icon](adr-038-vault-row-icon.md) — native archive icon for each vault.
 - [040: Configured view headings](adr-040-configured-view-headings.md) — selected-vault folder names for capture and note views.
 - [041: Grouped vault folder settings](adr-041-grouped-vault-folder-settings.md) — root, inbox, notes, and templates settings category.
@@ -48,6 +49,7 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [011: Manual reference audit](adr-011-manual-audit.md) — checking notes and links.
 - [012: Rename protection](adr-012-rename-protection.md) — warnings and rename limitations.
 - [039: Expanded reference groups](adr-039-expanded-reference-groups.md) — default expansion of Inbound and Outbound.
+- [043: Underscore file exclusion](adr-043-underscore-file-exclusion.md) — hide supporting files from note views and indexes; reject wiki-link targets.
 
 ## Performance and indexing
 

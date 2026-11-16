@@ -1,8 +1,10 @@
 ---
-status: Accepted; superseded in part by ADRs 027 and 030
+status: Accepted; superseded in part by ADRs 027, 030, and 043
 ---
 
 # ADR 026: Vault template folder
+
+[ADR 043](adr-043-underscore-file-exclusion.md) supersedes legacy visibility and backlink behavior for underscore-prefixed files.
 
 [ADR 027](adr-027-templates-folder-mapping.md) adds an optional templates-folder mapping while retaining the default layout and legacy fallback.
 

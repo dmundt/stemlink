@@ -4,6 +4,7 @@ import { parseDocument } from "yaml";
 import {
   auditNotes,
   frontMatter,
+  fleetingTitle,
   isRouterIndex,
   isVaultInstructionFile,
   linksIn,
@@ -116,6 +117,36 @@ test("audit reports broken, malformed, missing metadata and incoming references"
   assert.ok(!findings.some((f) => f.note === b && f.message === "No incoming references."));
 });
 
+test("underscore files are excluded and underscore references fail validation", () => {
+  const text = makeNote("Visible", [], "[[_202601011200-hidden]]");
+  const visible = {
+    name: "202601011201-visible.md",
+    stem: "202601011201-visible",
+    text,
+    links: linksIn(text),
+  };
+  const hiddenText = `[[${visible.stem}]]`;
+  const hidden = {
+    name: "_202601011200-hidden.md",
+    stem: "_202601011200-hidden",
+    text: hiddenText,
+    links: linksIn(hiddenText),
+  };
+  assert.equal(visible.links[0].valid, false);
+  const findings = auditNotes([visible, hidden]);
+  assert.ok(!findings.some((finding) => finding.note === hidden));
+  assert.ok(
+    findings.some(
+      (finding) => finding.note === visible && finding.message === "Malformed reference.",
+    ),
+  );
+  assert.ok(
+    findings.some(
+      (finding) => finding.note === visible && finding.message === "No incoming references.",
+    ),
+  );
+});
+
 test("filenames use local timestamps and safe slugs", () => {
   assert.equal(timestamp(new Date(2026, 0, 2, 3, 4)), "202601020304");
   assert.equal(slug("Café: One & Two"), "cafe-one-two");
@@ -184,6 +215,16 @@ test("audit handles duplicate, self, broken, and malformed links", () => {
   const invalidFindings = auditNotes([invalid]);
   assert.ok(invalidFindings.some((f) => f.message === "Invalid note filename."));
   assert.ok(invalidFindings.some((f) => f.message === "No outgoing references."));
+});
+
+test("fleeting router titles summarize body text and truncate long titles", () => {
+  assert.equal(fleetingTitle("\nFirst sentence. Second sentence.\nNext line"), "First sentence.");
+  assert.equal(fleetingTitle("\r\n# Capture heading\r\nBody text"), "Capture heading");
+  assert.equal(fleetingTitle("---\ntitle: Metadata\n---\nBody title\nMore"), "Body title");
+  assert.equal(fleetingTitle(" \n\t"), "Empty capture.");
+  assert.equal(fleetingTitle("x".repeat(120)), "x".repeat(120));
+  assert.equal(fleetingTitle("x".repeat(121)), `${"x".repeat(120)}...`);
+  assert.throws(() => fleetingTitle("---\ntitle: Unclosed"), /Unclosed/);
 });
 
 test("router descriptions use YAML description, then title, and reject invalid metadata", () => {
