@@ -1298,6 +1298,21 @@ async function testVaultActions(
   const probe = vscode.Uri.joinPath(paths.notes, "vault-action-probe.md");
   const otherProbe = vscode.Uri.joinPath(selected.vault.paths.notes, "vault-action-other.md");
   const summaries: string[] = [];
+  const commandApi = vscode.commands as { executeCommand: typeof vscode.commands.executeCommand };
+  const originalExecute = commandApi.executeCommand;
+  let problemsOpened = 0;
+  let rejectNavigation = false;
+  commandApi.executeCommand = new Proxy(originalExecute, {
+    apply: (target, receiver, args: unknown[]) => {
+      if (args[0] === "workbench.actions.view.problems") {
+        problemsOpened++;
+        return rejectNavigation
+          ? Promise.reject(new Error("Problems navigation rejected"))
+          : Promise.resolve();
+      }
+      return Reflect.apply(target, receiver, args);
+    },
+  });
   const error = async (command: string, message: string, item: unknown = target) => {
     const before = errors.length;
     await vscode.commands.executeCommand(command, item);
@@ -1321,7 +1336,7 @@ async function testVaultActions(
     apply: (_target, _receiver, args: unknown[]) => {
       summaries.push(String(args[0]));
       assert.equal(args[1], "Show Problems");
-      return Promise.resolve(undefined);
+      return Promise.resolve("Show Problems");
     },
   });
   const untrust = () =>
@@ -1436,6 +1451,14 @@ async function testVaultActions(
       ),
       "validation summary omitted vault or scope",
     );
+    await waitFor(() => problemsOpened > 0, "Show Problems did not navigate");
+    rejectNavigation = true;
+    await vscode.commands.executeCommand("stemlink.validateVault", target);
+    await waitFor(
+      () => errors.some((message) => message.includes("Problems navigation rejected")),
+      "Problems navigation failure was not reported",
+    );
+    rejectNavigation = false;
     const previousProblems = stemlinkProblems(probe);
     const originalRefresh = vault.refresh;
     vault.refresh = async () => {
@@ -1455,6 +1478,7 @@ async function testVaultActions(
     assert.equal(answers.length, 0);
   } finally {
     duringPrompt = undefined;
+    commandApi.executeCommand = originalExecute;
     Object.defineProperty(vscode.workspace, "isTrusted", trust);
     vault.selectPaths(paths);
     api.showInputBox = original.input;
@@ -3398,9 +3422,22 @@ async function testRestrictedWorkspace(): Promise<void> {
     const folder = vscode.workspace.workspaceFolders?.[0];
     assert.ok(folder);
     const paths = pathsFor(folder);
-    const before = await Promise.all(
-      [paths.root, paths.inbox, paths.notes].map((uri) => vscode.workspace.fs.readDirectory(uri)),
-    );
+    const snapshot = async (directory: vscode.Uri): Promise<unknown[]> =>
+      Promise.all(
+        (await vscode.workspace.fs.readDirectory(directory))
+          .sort(([left], [right]) => left.localeCompare(right))
+          .map(async ([name, type]) => {
+            const uri = vscode.Uri.joinPath(directory, name);
+            return [
+              name,
+              type,
+              type & vscode.FileType.Directory
+                ? await snapshot(uri)
+                : Buffer.from(await vscode.workspace.fs.readFile(uri)).toString("hex"),
+            ];
+          }),
+      );
+    const before = await snapshot(paths.root);
     await extension.activate();
     assert.ok(extension.isActive, "extension did not activate in Restricted Mode");
     await vscode.commands.executeCommand("stemlink.filterByTags");
@@ -3421,13 +3458,7 @@ async function testRestrictedWorkspace(): Promise<void> {
     }
     assert.equal(errors.length, 4);
     assert.ok(errors.every((message) => message.includes("Trust the workspace")));
-    assert.deepEqual(
-      await Promise.all(
-        [paths.root, paths.inbox, paths.notes].map((uri) => vscode.workspace.fs.readDirectory(uri)),
-      ),
-      before,
-      "Restricted Mode changed vault files",
-    );
+    assert.deepEqual(await snapshot(paths.root), before, "Restricted Mode changed vault files");
   } finally {
     picker?.hide();
     api.createQuickPick = originalPicker;
@@ -3501,7 +3532,25 @@ export async function run(): Promise<void> {
     command: string;
     title: string;
     icon?: string;
+    enablement?: string;
   }[];
+  for (const command of ["stemlink.editCaptureMetadata", "stemlink.discardCapture"]) {
+    assert.equal(
+      commands.find((entry) => entry.command === command)?.enablement,
+      "isWorkspaceTrusted && stemlink.hasVault && !listMultiSelection",
+      "single-capture enablement lost its trust, vault, or selection guard",
+    );
+  }
+  const welcome = extension.packageJSON.contributes.viewsWelcome as {
+    when: string;
+    contents: string;
+  }[];
+  assert.ok(
+    welcome
+      .find((entry) => entry.contents.includes("command:stemlink.createVault"))
+      ?.when.includes("workspaceFolderCount != 0"),
+    "empty-window welcome exposes unavailable vault creation",
+  );
   const captureCommands = [
     "stemlink.editCaptureMetadata",
     "stemlink.promote",

@@ -262,7 +262,12 @@
       {
         "view": "stemlink.vaults",
         "when": "!stemlink.hasVault && isWorkspaceTrusted",
-        "contents": "[Open Vault](command:stemlink.openVault)\n[Create Vault](command:stemlink.createVault)"
+        "contents": "[Open vault](command:stemlink.openVault)"
+      },
+      {
+        "view": "stemlink.vaults",
+        "when": "!stemlink.hasVault && isWorkspaceTrusted && workspaceFolderCount != 0",
+        "contents": "[Create vault](command:stemlink.createVault)"
       },
       {
         "view": "stemlink.vaults",

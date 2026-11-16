@@ -14,7 +14,11 @@ The Activity Bar badge shows the number of discovered vaults in the workspace; i
 
 Vaults requests a small share of space in new sidebar layouts. Drag the divider below it to resize; overflowing vaults use the native scrollbar. VS Code preserves saved view sizes. Automatic sizing to exactly 1–8 vault rows is not available through the supported extension API.
 
-Right-click a vault under **Vaults** for **New permanent note** or **Validate vault**. Both use that vault without changing the selection. Creation asks for title and optional tags, opens the new note, and requires Workspace Trust. Validation runs the existing reference audit, includes unsaved note content, and replaces previous Stemlink Problems results across vaults; it does not change files.
+Restricted Mode supports browsing, navigation, tag filtering, validation, and read-only refresh. File changes, generated indexes, agent instructions, and Markdown preview links require Workspace Trust. When no vault exists, the Vaults welcome explains workspace prerequisites and links to available open/create actions.
+
+Refresh rediscovers vaults and retries the selected vault's note index and failed listing counts. Views distinguish empty lists, no tag matches, and loading failures. References explains when the active note belongs to another vault; selecting that vault remains manual.
+
+Right-click a vault under **Vaults** for **New permanent note** or **Validate vault**. Both use that vault without changing the selection. Creation asks for title and optional tags, opens the new note, and requires Workspace Trust. Validation checks permanent notes, including unsaved content, and offers **Show Problems**. Successful validation replaces previous Stemlink validation results across vaults; failure preserves them. Validation does not change files.
 
 The default root holds the collection; `inbox/` holds captures, `permanent/` holds permanent notes, and `templates/` holds editable examples. The bundled manual lists alternatives: `zk/inbox/notes`, `Stemlink vault/Fleeting/Permanent`, `vault/capture/notes`, and `vault/inbox/permanent`. Use Open vault or settings for these layouts; Stemlink does not infer a layout from its folder names.
 
@@ -26,15 +30,19 @@ New fleeting note reads `_fleeting.md` from the mapped templates folder first an
 
 By default, **New fleeting note** asks for a headline. It adds the full headline as a Markdown heading before the template body and uses a filename such as `202611161400-short-headline.md`. Filename slugs are capped at 48 characters; duplicates get numeric suffixes. Cancel creates nothing. Disable **Capture > Prompt For Capture Headline** (`stemlink.promptForCaptureHeadline`) to copy the template unchanged with a timestamped `capture` filename. Existing captures are unchanged.
 
-Right-click an inbox capture for **Edit metadata…**, **Promote to permanent note…**, or **Discard…**. These text-only actions live in the item context menu, not the toolbar or Command Palette. Edit metadata asks for title and optional comma-separated tags, preserving the body and unrelated YAML fields. Promotion reuses non-empty title and tags by default; missing or empty fields are prompted separately. Enable `stemlink.promptForPromotionMetadata` under **Capture** to always review both fields. Promotion saves the permanent note before removing the capture. Discard requires confirmation and refuses unsaved changes; save or revert them first. All three actions require Workspace Trust.
+Right-click an inbox capture for **Edit metadata…**, **Promote to permanent note…**, or **Discard…**. These text-only actions live in the item context menu, not the toolbar or Command Palette. Edit metadata asks for title and optional comma-separated tags, preserving the body and unrelated YAML fields. Promotion reuses non-empty title and tags by default; missing or empty fields are prompted separately. Enable `stemlink.promptForPromotionMetadata` under **Capture** to always review both fields. Promotion saves the permanent note before removing the capture. Discard requires confirmation and refuses unsaved changes; save or revert them first. Metadata and Discard are single-capture actions, disabled for multiple selections. All three actions require Workspace Trust.
 
-Drag one or multiple captures from Fleeting onto the Notes view background or a note row to promote them. Each capture stays in its own vault, even when Notes displays another vault; the drop target note is unchanged. Captures promote sequentially. Every promotion asks for confirmation by default, including context-menu actions. Set `stemlink.confirmPromotion` to `false` under **Capture** to skip confirmation; metadata prompts remain separate. Cancel or error stops the batch, leaving completed promotions intact and remaining captures untouched.
+Promote selected captures through their context menu or by dragging them from Fleeting onto the Notes view background or a note row. Each capture stays in its own vault, even when Notes displays another vault; the drop target note is unchanged. Captures promote sequentially. Batches show native progress and completed/remaining counts, opening only the last created note. Every promotion asks for confirmation by default. Set `stemlink.confirmPromotion` to `false` under **Capture** to skip confirmation; metadata prompts remain separate. Cancel or error stops the batch, leaving completed promotions intact and remaining captures untouched.
 
 Right-click a permanent note for **Edit metadata…** or **Delete…**. Metadata changes preserve the filename, body, and unrelated YAML. Delete asks for confirmation, warns that inbound wiki links may break, and moves the file to trash when supported; it never rewrites links. Save or revert unsaved changes before deletion. Workspace Trust is required.
+
+Metadata prompts identify the target file or vault. Editing metadata saves an originally clean document, but leaves an already-dirty document unsaved, including its body and metadata changes. Save it through the editor when ready; the in-memory index follows unsaved content.
 
 Use **Filter by tags…** in the Notes view menu to select existing tags. The native picker lists tags alphabetically with counts across that vault; typing narrows choices without clearing checked tags. Enter applies and Escape keeps the previous filter. Notes match any checked tag; selecting none or choosing **Clear tag filter** shows all notes. Active tags appear in the view description, and the heading count shows matching notes when counts are enabled.
 
 Tag filters are independent per vault and last only for the current session. Matching ignores surrounding whitespace and case without changing YAML. Counts include unsaved note edits and count each note once per tag. A selected tag that disappears stays selected with count 0. Invalid YAML or tag lists are reported and excluded from matches; affected notes remain visible when unfiltered. Filtering is read-only and available without Workspace Trust.
+
+Invalid tag metadata appears as file-level **Stemlink tags** Problems, separate from manual validation. Notifications summarize the affected count and offer **Show Problems** instead of listing every file. Editing an already-invalid file updates diagnostics quietly; fixes and deletions clear obsolete entries.
 
 Files starting with `_` are hidden from capture and permanent-note views and counts, and excluded from note indexing, completion, backlinks, and audits as source notes. Wiki links to these files are invalid and reported by **Validate vault**. Existing files remain on disk.
 
@@ -42,21 +50,9 @@ Inbox router tables use a **Title** column derived from the first non-empty body
 
 Vault `AGENTS.md` files are optional. With `stemlink.offerAgentInstructions` enabled (default: `true`), Create vault and Open vault ask before adding missing instructions to the vault root, inbox, and permanent-note folders. Set it to `false` to skip both the prompt and installation. Existing files are preserved, not removed when the setting is disabled.
 
-## Extension settings
-
-Restricted Mode supports browsing, navigation, tag filtering, validation, and read-only refresh. File changes, generated indexes, agent instructions, and Markdown preview links require Workspace Trust. When no vault exists, the Vaults welcome explains workspace prerequisites and links to existing open/create actions.
-
-Refresh rediscovers vaults and retries the selected vault's note index and failed listing counts. Views explain empty lists, tag filters with no matches, and loading failures. References asks for a permanent note in the selected vault rather than showing zero for an unrelated active editor; selecting another vault remains manual.
-
-Metadata prompts identify the target file or vault. Editing metadata saves an originally clean document, but leaves an originally dirty document unsaved, including its body and metadata changes. Save it through the editor when ready; the in-memory index still follows unsaved content.
-
-Validation reports the checked vault and permanent-note scope, with a Show Problems action. A successful run replaces previous Stemlink validation results globally; a failed refresh keeps previous results.
-
-Promote applies to the selected captures from either the context menu or drag/drop. Multi-capture batches retain per-capture confirmation, show native progress and completed/remaining counts, and open the last created note once. Metadata and Discard remain single-capture actions and are disabled for multiple selections.
-
-Invalid tag metadata appears as file-level **Stemlink tags** Problems, separate from manual validation. Notifications summarize the affected count and offer Show Problems instead of listing every file. Editing an already-invalid file updates diagnostics without repeating the warning; fixes and deletions clear obsolete entries.
-
 Choosing **Skip** for optional agent instructions suppresses another offer for that vault during the current extension session. Dismissing the dialog does not store a preference. Other vaults still offer; restart resets temporary suppression. Disable `stemlink.offerAgentInstructions` for a permanent opt-out.
+
+## Extension settings
 
 Use **Settings** in the **Vaults** view menu or **Stemlink: Settings** to open Stemlink settings.
 
