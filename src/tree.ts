@@ -1,9 +1,18 @@
 import * as vscode from "vscode";
-import { isExcludedNoteFile, linksIn } from "./core";
-import { Vault, directChild, reportError } from "./vault";
+import { isExcludedNoteFile, linksIn, normalizeTags, noteTags } from "./core";
+import { Vault, VaultNote, directChild, reportError } from "./vault";
 
 export type VaultSection = "Vaults" | "Fleeting" | "Notes" | "References";
 type Section = VaultSection | "Inbound" | "Outbound";
+interface TagSummary {
+  notes: { note: VaultNote; tags: readonly string[] }[];
+  counts: Map<string, number>;
+}
+interface TagState {
+  selected: readonly string[];
+  summary?: TagSummary;
+  problems?: string;
+}
 export class Item extends vscode.TreeItem {
   constructor(
     label: string,
@@ -67,6 +76,9 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
   private readonly pendingNames = new Set<Vault>();
   private readonly failedNames = new Set<Vault>();
   private readonly namePaths = new Map<Vault, string>();
+  private readonly tagStates = new Map<Vault, TagState>();
+  private readonly parsedTags = new WeakMap<VaultNote, ReturnType<typeof noteTags>>();
+  private readonly pendingTagCounts = new Set<Vault>();
   private disposed = false;
   private refreshTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -98,6 +110,7 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
         this.captureCounts.delete(vault);
         this.failedNames.delete(vault);
         this.namePaths.delete(vault);
+        this.tagStates.delete(vault);
       }
     }
 
@@ -105,7 +118,11 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
       if (!this.vaultSubscriptions.has(vault))
         this.vaultSubscriptions.set(
           vault,
-          vault.changed.event(() => this.refresh()),
+          vault.changed.event(() => {
+            const state = this.tagStates.get(vault);
+            if (state) state.summary = undefined;
+            this.refresh();
+          }),
         );
     }
     this.refresh();
@@ -147,6 +164,25 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
   }
 
   private countNotes(vault: Vault): number | string {
+    if (this.tagFilter(vault).length) {
+      if (vault.indexState === "ready") return this.filteredNotes(vault).length;
+      if (vault.indexState === "failed") return "error";
+      if (!this.pendingTagCounts.has(vault)) {
+        this.pendingTagCounts.add(vault);
+        void this.tagChoices(vault).then(
+          () => {
+            this.pendingTagCounts.delete(vault);
+            this.refresh();
+          },
+          (error: unknown) => {
+            this.pendingTagCounts.delete(vault);
+            reportError(error);
+            this.refresh();
+          },
+        );
+      }
+      return "...";
+    }
     const path = vault.paths.notes.toString();
     if (this.namePaths.get(vault) !== path) {
       this.namePaths.set(vault, path);
@@ -174,6 +210,69 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
       );
     }
     return this.failedNames.has(vault) ? "error" : "...";
+  }
+
+  tagFilter(vault: Vault): readonly string[] {
+    return this.tagStates.get(vault)?.selected ?? [];
+  }
+
+  setTagFilter(vault: Vault, tags: readonly string[]): void {
+    const state = this.tagState(vault);
+    state.selected = normalizeTags(tags);
+    this.refresh();
+  }
+
+  private tagState(vault: Vault): TagState {
+    let state = this.tagStates.get(vault);
+    if (!state) {
+      state = { selected: [] };
+      this.tagStates.set(vault, state);
+    }
+    return state;
+  }
+
+  private tagSummary(vault: Vault): TagSummary {
+    const state = this.tagState(vault);
+    if (state.summary) return state.summary;
+    const notes: TagSummary["notes"] = [];
+    const counts = new Map<string, number>();
+    const problems: string[] = [];
+    for (const note of vault.all) {
+      let metadata = this.parsedTags.get(note);
+      if (!metadata) {
+        metadata = noteTags(note.text);
+        this.parsedTags.set(note, metadata);
+      }
+      notes.push({ note, tags: metadata.tags });
+      for (const tag of metadata.tags) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+      if (metadata.problem) problems.push(`${note.name}: ${metadata.problem}`);
+    }
+    const problemKey = problems.sort().join("\n");
+    if (problemKey && problemKey !== state.problems)
+      void vscode.window.showWarningMessage(
+        `Stemlink: Cannot filter tags in ${vault.paths.root.fsPath}:\n${problemKey}`,
+      );
+    state.problems = problemKey;
+    state.summary = { notes, counts };
+    return state.summary;
+  }
+
+  async tagChoices(vault: Vault): Promise<{ tag: string; count: number }[]> {
+    await vault.ensure();
+    if (!this.vaults().includes(vault))
+      throw new Error("The selected vault is no longer available.");
+    const counts = this.tagSummary(vault).counts;
+    return normalizeTags([...counts.keys(), ...this.tagFilter(vault)]).map((tag) => ({
+      tag,
+      count: counts.get(tag) ?? 0,
+    }));
+  }
+
+  private filteredNotes(vault: Vault): VaultNote[] {
+    const selected = new Set(this.tagFilter(vault));
+    return this.tagSummary(vault)
+      .notes.filter(({ tags }) => tags.some((tag) => selected.has(tag)))
+      .map(({ note }) => note);
   }
 
   refresh(): void {
@@ -291,7 +390,18 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
         );
       }
       if (element.kind === "Notes") {
+        const filter = this.tagFilter(vault);
+        if (filter.length) {
+          await vault.ensure();
+          if (this.activeVault() !== vault || this.tagFilter(vault) !== filter)
+            return this.getChildren(element);
+          return this.filteredNotes(vault)
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((note) => new Item(note.name, "note", note.uri));
+        }
         await vault.ensureNames();
+        if (this.activeVault() !== vault || this.tagFilter(vault).length)
+          return this.getChildren(element);
         return vault.allTargets
           .sort((a, b) => a.name.localeCompare(b.name))
           .map((note) => new Item(note.name, "note", note.uri));
@@ -342,6 +452,7 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
     if (this.refreshTimer) clearTimeout(this.refreshTimer);
     this.vaultSubscriptions.forEach((item) => item.dispose());
     this.vaultItems.clear();
+    this.tagStates.clear();
     this.subscriptions.forEach((item) => item.dispose());
     this.emitter.dispose();
   }

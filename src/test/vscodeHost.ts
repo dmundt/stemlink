@@ -1372,9 +1372,285 @@ async function testVaultActions(
   }
 }
 
+async function testNoteTagFiltering(
+  views: Map<string, vscode.TreeView<Item>>,
+  vaultProvider: vscode.TreeDataProvider<Item>,
+  notesProvider: vscode.TreeDataProvider<Item>,
+): Promise<void> {
+  const vaultItems = (await vaultProvider.getChildren()) ?? [];
+  const item = vaultItems[0];
+  assert.ok(item?.vault);
+  const vault = item.vault;
+  const previous = views.get("stemlink.vaults")?.selection[0];
+  const view = views.get("stemlink.notes");
+  assert.ok(view);
+  const paths = vault.paths;
+  const alpha = "tagfilter-alpha";
+  const beta = "tagfilter-beta";
+  const gamma = "tagfilter-gamma";
+  const first = vscode.Uri.joinPath(paths.notes, "202601021200-tag-filter-first.md");
+  const second = vscode.Uri.joinPath(paths.notes, "202601021201-tag-filter-second.md");
+  const invalid = vscode.Uri.joinPath(paths.notes, "202601021202-tag-filter-invalid.md");
+  const excluded = vscode.Uri.joinPath(paths.notes, "_tag-filter.md");
+  const capture = vscode.Uri.joinPath(paths.inbox, "tag-filter.md");
+  const nestedFolder = vscode.Uri.joinPath(paths.notes, "tag-filter-nested");
+  const nested = vscode.Uri.joinPath(nestedFolder, "202601021203-tag-filter-nested.md");
+  const added = vscode.Uri.joinPath(paths.notes, "202601021204-tag-filter-added.md");
+  const otherVault = vaultItems[1]?.vault;
+  const otherNote = otherVault
+    ? vscode.Uri.joinPath(otherVault.paths.notes, "202601021205-tag-filter-other.md")
+    : undefined;
+  const api = vscode.window as {
+    createQuickPick: typeof vscode.window.createQuickPick;
+    showWarningMessage: typeof vscode.window.showWarningMessage;
+  };
+  const original = { picker: api.createQuickPick, warning: api.showWarningMessage };
+  type TagItem = vscode.QuickPickItem & { tag: string };
+  const pickers: vscode.QuickPick<TagItem>[] = [];
+  const warnings: string[] = [];
+  const trust = Object.getOwnPropertyDescriptor(vscode.workspace, "isTrusted");
+  assert.ok(trust);
+  const rows = async () => (await notesProvider.getChildren()) ?? [];
+  const open = async () => {
+    await vscode.commands.executeCommand("stemlink.filterByTags");
+    const picker = pickers.at(-1);
+    assert.ok(picker && !picker.busy && picker.enabled);
+    return picker;
+  };
+  const accept = async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await vscode.commands.executeCommand("workbench.action.acceptSelectedQuickOpenItem");
+  };
+  const search = async (picker: vscode.QuickPick<TagItem>, tag: string) => {
+    picker.value = tag;
+    // QuickInput batches property updates before sending them to the workbench.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await vscode.commands.executeCommand("quickInput.first");
+    await waitFor(
+      () => picker.activeItems[0]?.tag === tag,
+      `native search did not activate ${tag}`,
+    );
+  };
+  const choose = async (picker: vscode.QuickPick<TagItem>, tag: string) => {
+    await search(picker, tag);
+    await vscode.commands.executeCommand("workbench.action.quickPickManyToggle");
+    await waitFor(
+      () => picker.selectedItems.some((entry) => entry.tag === tag),
+      `native checkbox did not select ${tag}`,
+    );
+  };
+  api.createQuickPick = new Proxy(original.picker, {
+    apply: (target, thisArg, args: unknown[]) => {
+      const picker = Reflect.apply(target, thisArg, args) as vscode.QuickPick<TagItem>;
+      pickers.push(picker);
+      return picker;
+    },
+  });
+  api.showWarningMessage = new Proxy(original.warning, {
+    apply: (_target, _thisArg, args: unknown[]) => {
+      warnings.push(String(args[0]));
+      return Promise.resolve(undefined);
+    },
+  });
+  try {
+    await vscode.workspace.fs.writeFile(
+      first,
+      Buffer.from(`---\ntitle: First\ntags: [' TagFilter-ALPHA ', ${alpha}, ${beta}]\n---\nBody\n`),
+    );
+    await vscode.workspace.fs.writeFile(
+      second,
+      Buffer.from(`---\ntitle: [invalid, title]\ntags: [${beta}, ${gamma}]\n---\nBody\n`),
+    );
+    await vscode.workspace.fs.writeFile(invalid, Buffer.from("---\ntags: [valid, 42]\n---\n"));
+    await vscode.workspace.fs.writeFile(
+      excluded,
+      Buffer.from("---\ntags: [tagfilter-excluded]\n---\n"),
+    );
+    await vscode.workspace.fs.writeFile(
+      capture,
+      Buffer.from("---\ntags: [tagfilter-capture]\n---\n"),
+    );
+    await vscode.workspace.fs.createDirectory(nestedFolder);
+    await vscode.workspace.fs.writeFile(
+      nested,
+      Buffer.from("---\ntags: [tagfilter-nested]\n---\n"),
+    );
+    if (otherNote)
+      await vscode.workspace.fs.writeFile(
+        otherNote,
+        Buffer.from("---\ntags: [tagfilter-other]\n---\n"),
+      );
+    await vscode.commands.executeCommand("stemlink.selectVault", paths.root);
+    await vault.refresh();
+    const snapshot = vault.get("202601021200-tag-filter-first");
+    assert.ok(snapshot);
+    const text = Object.getOwnPropertyDescriptor(snapshot, "text");
+    assert.ok(text);
+    let reads = 0;
+    const cacheTree = new VaultTree(
+      () => vault,
+      () => [vault],
+    );
+    Object.defineProperty(snapshot, "text", {
+      configurable: true,
+      get: () => {
+        reads++;
+        return text.value;
+      },
+    });
+    try {
+      await cacheTree.getChildren(new Item("Notes", "Notes"));
+      assert.equal(reads, 0, "unfiltered Notes read content");
+      await cacheTree.tagChoices(vault);
+      assert.equal(reads, 1);
+      vault.changed.fire();
+      await cacheTree.tagChoices(vault);
+      assert.equal(reads, 1, "unchanged note metadata was reparsed");
+    } finally {
+      Object.defineProperty(snapshot, "text", text);
+      cacheTree.dispose();
+    }
+    const allRows = await rows();
+    assert.ok(allRows.some((row) => row.uri && sameUri(row.uri, invalid)));
+    const picker = await open();
+    assert.ok(picker.canSelectMany);
+    assert.equal(picker.matchOnDescription, false);
+    const choices = picker.items.filter((entry) => entry.tag.startsWith("tagfilter-"));
+    assert.deepEqual(
+      choices.map((entry) => [entry.tag, entry.description]),
+      [
+        [alpha, "1 note"],
+        [beta, "2 notes"],
+        [gamma, "1 note"],
+      ],
+    );
+    assert.ok(warnings.some((warning) => warning.includes("tag-filter-invalid.md")));
+    const warningCount = warnings.length;
+    await choose(picker, alpha);
+    await choose(picker, beta);
+    await search(picker, gamma);
+    assert.deepEqual(picker.selectedItems.map((entry) => entry.tag).sort(), [alpha, beta]);
+    assert.equal(view.description, undefined, "pending selection changed active filter");
+    await accept();
+    await waitFor(() => view.description === `Tags: ${alpha}, ${beta}`, "filter did not apply");
+    assert.deepEqual(
+      (await rows()).map((row) => row.uri?.toString()),
+      [first.toString(), second.toString()],
+    );
+    await waitFor(() => view.title?.endsWith("(2)") === true, "filtered count did not update");
+    const note = (await rows())[0];
+    assert.equal(note.command?.command, "stemlink.openAt");
+    await vscode.commands.executeCommand("stemlink.openAt", ...(note.command?.arguments ?? []));
+    assert.ok(
+      vscode.window.activeTextEditor && sameUri(vscode.window.activeTextEditor.document.uri, first),
+    );
+    const cancel = await open();
+    assert.deepEqual(cancel.selectedItems.map((entry) => entry.tag).sort(), [alpha, beta]);
+    cancel.selectedItems = cancel.items.filter((entry) => entry.tag === gamma);
+    await vscode.commands.executeCommand("workbench.action.closeQuickOpen");
+    assert.equal(view.description, `Tags: ${alpha}, ${beta}`, "Escape changed filter");
+    const onlyAlpha = await open();
+    onlyAlpha.selectedItems = onlyAlpha.items.filter((entry) => entry.tag === alpha);
+    await accept();
+    await waitFor(() => view.description === `Tags: ${alpha}`, "single filter did not apply");
+    const document = await vscode.workspace.openTextDocument(first);
+    const edit = new vscode.WorkspaceEdit();
+    const start = document.positionAt(0);
+    edit.replace(
+      first,
+      new vscode.Range(start, document.positionAt(document.getText().length)),
+      `---\ntags: [${gamma}]\n---\nUnsaved\n`,
+    );
+    assert.ok(await vscode.workspace.applyEdit(edit));
+    assert.equal((await rows()).length, 0, "unsaved metadata did not update matching rows");
+    await waitFor(() => view.title?.endsWith("(0)") === true, "zero matching count did not update");
+    const missing = await open();
+    assert.equal(missing.items.find((entry) => entry.tag === alpha)?.description, "0 notes");
+    assert.equal(missing.items.find((entry) => entry.tag === gamma)?.description, "2 notes");
+    assert.deepEqual(
+      missing.selectedItems.map((entry) => entry.tag),
+      [alpha],
+    );
+    missing.hide();
+    assert.equal(warnings.length, warningCount, "unchanged invalid metadata notified repeatedly");
+    if (otherVault) {
+      const stale = await open();
+      stale.selectedItems = stale.items.filter((entry) => entry.tag === gamma);
+      await vscode.commands.executeCommand("stemlink.selectVault", otherVault.paths.root);
+      assert.equal(view.description, undefined, "filter leaked to another vault");
+      const otherPicker = await open();
+      assert.deepEqual(otherPicker.selectedItems, []);
+      assert.deepEqual(
+        otherPicker.items
+          .filter((entry) => entry.tag.startsWith("tagfilter-"))
+          .map((entry) => entry.tag),
+        ["tagfilter-other"],
+      );
+      otherPicker.selectedItems = otherPicker.items.filter(
+        (entry) => entry.tag === "tagfilter-other",
+      );
+      await accept();
+      await waitFor(
+        () => view.description === "Tags: tagfilter-other",
+        "second vault filter did not apply",
+      );
+      await vscode.commands.executeCommand("stemlink.selectVault", paths.root);
+      assert.equal(view.description, `Tags: ${alpha}`, "switching lost vault filter");
+      await vscode.commands.executeCommand("stemlink.selectVault", otherVault.paths.root);
+      assert.equal(view.description, "Tags: tagfilter-other", "second vault selection was lost");
+      await vscode.commands.executeCommand("stemlink.clearTagFilter");
+      await vscode.commands.executeCommand("stemlink.selectVault", paths.root);
+    }
+    Object.defineProperty(vscode.workspace, "isTrusted", { configurable: true, get: () => false });
+    const untrusted = await open();
+    untrusted.selectedItems = [];
+    await accept();
+    await waitFor(() => view.description === undefined, "empty selection did not clear filter");
+    assert.deepEqual(
+      (await rows()).map((row) => row.uri?.toString()),
+      allRows.map((row) => row.uri?.toString()),
+    );
+    assert.ok(document.isDirty, "filtering saved unsaved content");
+    assert.ok(
+      Buffer.from(await vscode.workspace.fs.readFile(first))
+        .toString("utf8")
+        .includes("TagFilter-ALPHA"),
+    );
+    const again = await open();
+    again.selectedItems = again.items.filter((entry) => entry.tag === gamma);
+    await accept();
+    await waitFor(() => view.description === `Tags: ${gamma}`, "gamma filter did not apply");
+    Object.defineProperty(vscode.workspace, "isTrusted", trust);
+    await vscode.workspace.fs.writeFile(added, Buffer.from(`---\ntags: [${gamma}]\n---\n`));
+    await waitFor(
+      () => Boolean(vault.get("202601021204-tag-filter-added")),
+      "new note was not indexed",
+    );
+    assert.equal((await rows()).length, 3, "new note did not enter active filter");
+    await vscode.workspace.fs.delete(added);
+    await waitFor(() => !vault.get("202601021204-tag-filter-added"), "deleted note stayed indexed");
+    assert.equal((await rows()).length, 2, "deleted note stayed in active filter");
+    await vscode.commands.executeCommand("stemlink.clearTagFilter");
+    assert.equal(view.description, undefined);
+  } finally {
+    Object.defineProperty(vscode.workspace, "isTrusted", trust);
+    pickers.forEach((picker) => picker.hide());
+    await vscode.commands.executeCommand("stemlink.clearTagFilter");
+    api.createQuickPick = original.picker;
+    api.showWarningMessage = original.warning;
+    for (const uri of [first, second, invalid, excluded, capture, nested])
+      await vscode.workspace.fs.delete(uri);
+    if (otherNote) await vscode.workspace.fs.delete(otherNote);
+    await vscode.workspace.fs.delete(nestedFolder);
+    if (previous?.vault)
+      await vscode.commands.executeCommand("stemlink.selectVault", previous.vault.paths.root);
+  }
+}
+
 async function testMultiRoot(
   views: Map<string, vscode.TreeView<Item>>,
   provider: vscode.TreeDataProvider<Item>,
+  notesProvider: vscode.TreeDataProvider<Item>,
 ): Promise<void> {
   const folders = vscode.workspace.workspaceFolders;
   assert.equal(folders?.length, 2, "multi-root fixture missing");
@@ -1434,6 +1710,7 @@ async function testMultiRoot(
       "creating a second vault changed the first workspace's settings",
     );
     await testVaultActions(views, provider);
+    await testNoteTagFiltering(views, provider, notesProvider);
     const firstCapture = vscode.Uri.joinPath(folders[0].uri, "notes", "inbox", "item-vault.md");
     const firstConfig = vscode.workspace.getConfiguration("stemlink", folders[0].uri);
     const oldPrompt = firstConfig.inspect<boolean>(
@@ -2969,6 +3246,7 @@ export async function run(): Promise<void> {
   const originalCreateTreeView = windowApi.createTreeView;
   let vaultView: vscode.TreeView<Item> | undefined;
   let vaultProvider: vscode.TreeDataProvider<Item> | undefined;
+  let notesProvider: vscode.TreeDataProvider<Item> | undefined;
   const views = new Map<string, vscode.TreeView<Item>>();
   windowApi.createTreeView = new Proxy(originalCreateTreeView, {
     apply: (target, thisArg, args: unknown[]) => {
@@ -2983,6 +3261,7 @@ export async function run(): Promise<void> {
         vaultView = view;
         vaultProvider = (args[1] as vscode.TreeViewOptions<Item>).treeDataProvider;
       }
+      if (args[0] === "stemlink.notes") notesProvider = options.treeDataProvider;
       return view;
     },
   });
@@ -3034,6 +3313,37 @@ export async function run(): Promise<void> {
   );
   const noteCommands = ["stemlink.editNoteMetadata", "stemlink.deleteNote"];
   const vaultCommands = ["stemlink.newPermanentNote", "stemlink.validateVault"];
+  for (const [command, title, when] of [
+    ["stemlink.filterByTags", "Filter by tags…", "view == stemlink.notes"],
+    [
+      "stemlink.clearTagFilter",
+      "Clear tag filter",
+      "view == stemlink.notes && stemlink.hasTagFilter",
+    ],
+  ]) {
+    const contribution = commands.find((entry) => entry.command === command);
+    assert.equal(contribution?.title, title);
+    assert.equal(contribution?.icon, undefined);
+    assert.deepEqual(
+      Object.entries(menus).flatMap(([menu, entries]) =>
+        entries.filter((entry) => entry.command === command).map((entry) => [menu, entry.when]),
+      ),
+      [
+        ["view/title", when],
+        ["commandPalette", "false"],
+      ],
+    );
+    assert.ok(
+      !menus["view/title"]
+        .find((entry) => entry.command === command)
+        ?.group?.startsWith("navigation"),
+    );
+    assert.ok(
+      !extension.packageJSON.contributes.keybindings?.some(
+        (entry: { command: string }) => entry.command === command,
+      ),
+    );
+  }
   assert.deepEqual(
     commands.filter((entry) => vaultCommands.includes(entry.command)).map((entry) => entry.title),
     ["New permanent note", "Validate vault"],
@@ -3143,16 +3453,17 @@ export async function run(): Promise<void> {
     return;
   }
   if (process.env.STEMLINK_MULTI_ROOT === "1") {
-    assert.ok(vaultProvider);
-    await testMultiRoot(views, vaultProvider);
+    assert.ok(vaultProvider && notesProvider);
+    await testMultiRoot(views, vaultProvider, notesProvider);
     return;
   }
   const notes = vscode.Uri.joinPath(folder.uri, "notes", "permanent");
   const first = vscode.Uri.joinPath(notes, "202601011200-note-0.md");
   const second = vscode.Uri.joinPath(notes, "202601011200-note-1.md");
   if (process.env.STEMLINK_BENCHMARK !== "1") {
-    assert.ok(vaultProvider);
+    assert.ok(vaultProvider && notesProvider);
     await testVaultActions(views, vaultProvider);
+    await testNoteTagFiltering(views, vaultProvider, notesProvider);
     const commandApi = vscode.commands as { executeCommand: typeof vscode.commands.executeCommand };
     const originalExecuteCommand = commandApi.executeCommand;
     const settingsCalls: unknown[][] = [];

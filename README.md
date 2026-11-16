@@ -30,6 +30,10 @@ Drag one or multiple captures from Fleeting onto the Notes view background or a 
 
 Right-click a permanent note for **Edit Metadata...** or **Delete...**. Metadata changes preserve the filename, body, and unrelated YAML. Delete asks for confirmation, warns that inbound wiki links may break, and moves the file to trash when supported; it never rewrites links. Save or revert unsaved changes before deletion. Workspace Trust is required.
 
+Use **Filter by tags…** in the Notes view menu to select existing tags. The native picker lists tags alphabetically with counts across that vault; typing narrows choices without clearing checked tags. Enter applies and Escape keeps the previous filter. Notes match any checked tag; selecting none or choosing **Clear tag filter** shows all notes. Active tags appear in the view description, and the heading count shows matching notes when counts are enabled.
+
+Tag filters are independent per vault and last only for the current session. Matching ignores surrounding whitespace and case without changing YAML. Counts include unsaved note edits and count each note once per tag. A selected tag that disappears stays selected with count 0. Invalid YAML or tag lists are reported and excluded from matches; affected notes remain visible when unfiltered. Filtering is read-only and available without Workspace Trust.
+
 Files starting with `_` are hidden from capture and permanent-note views and counts, and excluded from note indexing, completion, backlinks, and audits as source notes. Wiki links to these files are invalid and reported by **Check References**. Existing files remain on disk.
 
 Inbox router tables use a **Title** column derived from the first non-empty body line or sentence, capped at 120 characters with `...` when truncated. Empty captures are labeled explicitly. Permanent-note routers retain YAML descriptions with title fallback.

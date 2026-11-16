@@ -12,6 +12,7 @@ import {
   makeCapture,
   makeNote,
   metadataProblem,
+  noteTags,
   promoteNote,
   markdownCodeSpan,
   renderRouterIndexes,
@@ -23,6 +24,31 @@ import {
   slug,
   timestamp,
 } from "../core";
+
+test("note tags normalize case and whitespace without changing metadata", () => {
+  const text =
+    "\uFEFF---\r\ntitle: [invalid, title]\r\ntags: [' Beta ', ALPHA, alpha, '', '  ', '#topic', topic/child]\r\n---\r\nBody\r\n";
+  assert.deepEqual(noteTags(text), { tags: ["#topic", "alpha", "beta", "topic/child"] });
+  for (const text of ["Body", "---\ntitle: Title\n---\n", "---\ntags: []\n---\n"])
+    assert.deepEqual(noteTags(text), { tags: [] });
+});
+
+test("invalid tag metadata is reported, not silently treated as untagged", () => {
+  for (const text of [
+    "---\ntags: [",
+    "---\ntags: [\n---\n",
+    "---\n[]\n---\n",
+    "---\nnull\n---\n",
+    "---\ntags: scalar\n---\n",
+    "---\ntags: null\n---\n",
+    "---\ntags: [one, 2]\n---\n",
+    "---\ntags: [one]\ntags: [two]\n---\n",
+  ]) {
+    const result = noteTags(text);
+    assert.ok(result.problem, text);
+    assert.deepEqual(result.tags, []);
+  }
+});
 
 test("capture headlines preserve template content and front matter", () => {
   assert.equal(makeCapture("Prompt\n", "  A thought  "), "# A thought\n\nPrompt\n");

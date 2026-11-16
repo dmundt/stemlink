@@ -225,6 +225,36 @@ export function makeNote(title: string, tags: string[], body = ""): string {
   return `---\n${noteMetadata(new Document(), title, tags)}---\n\n${body}`;
 }
 
+export function normalizeTags(tags: readonly string[]): string[] {
+  return [...new Set(tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b),
+  );
+}
+
+export function noteTags(text: string): { tags: string[]; problem?: string } {
+  const matter = frontMatter(text);
+  if (!matter)
+    return /^(?:\uFEFF)?---[ \t]*\r?\n/.test(text)
+      ? { tags: [], problem: "Unclosed YAML front matter." }
+      : { tags: [] };
+  const document = parseDocument(matter.yaml, { uniqueKeys: true });
+  if (document.errors.length)
+    return { tags: [], problem: `Invalid YAML: ${document.errors[0].message}` };
+  if (!isMap(document.contents))
+    return { tags: [], problem: "Front matter must be a YAML mapping." };
+  let fields: Record<string, unknown>;
+  try {
+    fields = document.toJS();
+  } catch (error) {
+    return { tags: [], problem: `Cannot read YAML: ${String(error)}` };
+  }
+  const tags = fields.tags;
+  if (tags === undefined) return { tags: [] };
+  if (!Array.isArray(tags) || !tags.every((tag) => typeof tag === "string"))
+    return { tags: [], problem: "Tags must be a list of text values." };
+  return { tags: normalizeTags(tags) };
+}
+
 export function captureMetadata(text: string): { title?: string; tags?: string[] } {
   const document = captureFrontMatter(text);
   if (!document) return {};
