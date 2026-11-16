@@ -2647,6 +2647,32 @@ async function testDiscovery(folder: vscode.WorkspaceFolder): Promise<void> {
       3,
       "existing default vault was hidden by unrelated markers",
     );
+    const fs = vscode.workspace.fs;
+    const fsDescriptor = Object.getOwnPropertyDescriptor(vscode.workspace, "fs");
+    assert.ok(fsDescriptor?.configurable);
+    try {
+      Object.defineProperty(vscode.workspace, "fs", {
+        configurable: true,
+        value: {
+          ...fs,
+          stat: (uri: vscode.Uri) => {
+            if (uri.path === `${fixture.path}/legacy/legacy-inbox`)
+              throw vscode.FileSystemError.NoPermissions("Legacy inbox denied");
+            return fs.stat(uri);
+          },
+        },
+      });
+      const failures: unknown[] = [];
+      assert.equal(
+        (await resolveVaultPaths(testFolder, state, (error) => failures.push(error))).length,
+        2,
+        "unreadable legacy folders hid healthy marker vaults",
+      );
+      assert.ok(failures[0] instanceof vscode.FileSystemError);
+      assert.equal(failures[0].code, "NoPermissions");
+    } finally {
+      Object.defineProperty(vscode.workspace, "fs", fsDescriptor);
+    }
     legacyRoot = "child";
     hasSettings = true;
     assert.equal(
