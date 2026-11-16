@@ -31,7 +31,8 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [040: Configured view headings](adr-040-configured-view-headings.md) — selected-vault folder names for capture and note views.
 - [041: Grouped vault folder settings](adr-041-grouped-vault-folder-settings.md) — root, inbox, notes, and templates settings category.
 - [045: AI Context settings](adr-045-ai-context-settings.md) — separate display preferences from local AI context controls.
-- [042: Compact Vaults view](adr-042-compact-vaults-view.md) — small initial height with native overflow scrolling.
+- [042: Compact Vaults view](adr-042-compact-vaults-view.md) — superseded initial allocation; native overflow scrolling.
+- [053: Native Vaults sizing](adr-053-native-vaults-sizing.md) — smaller initial relative allocation, manual resizing, and supported API limits.
 
 ## Creating and processing notes
 

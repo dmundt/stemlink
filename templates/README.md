@@ -172,6 +172,8 @@ Search the files for a distinctive word, tag, or filename stem. Browse `permanen
 
 Right-click a vault in **Vaults** for **New permanent note** or **Validate vault** without selecting it first. Creation asks for title and optional tags, writes to that vault's configured permanent-note folder, and requires Workspace Trust. Validation runs the same audit as Check References, includes unsaved note content, and replaces previous Stemlink Problems results across vaults without changing files. Neither action changes the selected vault.
 
+Vaults starts with a small relative allocation in new sidebar layouts. Drag its lower divider to resize it and use the native scrollbar for overflow. Existing saved sizes remain unchanged; the public extension API cannot enforce automatic sizing to exactly 1–8 vault rows.
+
 Right-click a permanent note in the Notes tree for **Edit Metadata...** or **Delete...**. Metadata editing preserves its filename, body, and unrelated YAML. Delete warns that inbound wiki links may break and requires confirmation; links are not rewritten. Save or revert unsaved changes first. Both actions require Workspace Trust.
 
 Choose **Filter by tags…** in the Notes view menu for a native multi-select picker with alphabetical tags and full-vault note counts. Search preserves checked tags. Enter applies; Escape keeps the previous selection. Notes matching any selected tag are shown; no selection shows all notes. Active tags appear beside the view heading, whose count reflects matching notes. **Clear tag filter** appears only while filtering.

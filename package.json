@@ -219,7 +219,7 @@
         {
           "id": "stemlink.vaults",
           "name": "Vaults",
-          "initialSize": 100
+          "initialSize": 1
         },
         {
           "id": "stemlink.fleeting",
