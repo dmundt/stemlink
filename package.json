@@ -90,6 +90,12 @@
             "default": false,
             "scope": "resource",
             "description": "Always ask for title and tags when promoting a capture, prefilling existing values. When disabled, reuse non-empty metadata and ask only for missing or empty fields."
+          },
+          "stemlink.confirmPromotion": {
+            "type": "boolean",
+            "default": true,
+            "scope": "resource",
+            "description": "Ask for confirmation before each capture is promoted, including context-menu and drag-and-drop promotion. Metadata prompts are controlled separately."
           }
         }
       },
@@ -164,6 +170,16 @@
       {
         "command": "stemlink.checkReferences",
         "title": "Check References",
+        "category": "Stemlink"
+      },
+      {
+        "command": "stemlink.newPermanentNote",
+        "title": "New permanent note",
+        "category": "Stemlink"
+      },
+      {
+        "command": "stemlink.validateVault",
+        "title": "Validate vault",
         "category": "Stemlink"
       },
       {
@@ -244,6 +260,14 @@
       ],
       "commandPalette": [
         {
+          "command": "stemlink.newPermanentNote",
+          "when": "false"
+        },
+        {
+          "command": "stemlink.validateVault",
+          "when": "false"
+        },
+        {
           "command": "stemlink.promote",
           "when": "false"
         },
@@ -265,6 +289,16 @@
         }
       ],
       "view/item/context": [
+        {
+          "command": "stemlink.newPermanentNote",
+          "when": "view == stemlink.vaults && viewItem == stemlink.vault",
+          "group": "vault@1"
+        },
+        {
+          "command": "stemlink.validateVault",
+          "when": "view == stemlink.vaults && viewItem == stemlink.vault",
+          "group": "vault@2"
+        },
         {
           "command": "stemlink.editCaptureMetadata",
           "when": "view == stemlink.fleeting && viewItem == stemlink.capture",

@@ -164,9 +164,13 @@ The rewrite is the thinking, not merely moving the file. Right-click a capture i
 
 These are text-only item context actions, not inline buttons or Command Palette commands. They require Workspace Trust and target the right-clicked capture, even when another vault or editor is selected. Invalid YAML or field types are reported rather than silently replaced. Edit the note's content yourself; promotion does not rewrite it.
 
+Alternatively, select captures in Fleeting and drag them onto the Notes view background or a note row. Each capture promotes into its own vault, not the displayed destination vault; dropping onto a note does not edit it. Each promotion asks for confirmation unless `stemlink.confirmPromotion` is disabled (default: `true`). This is separate from metadata prompts. Batches run sequentially and stop on cancellation or error; completed promotions remain and unprocessed captures stay in the inbox.
+
 ## 9. Finding notes
 
 Search the files for a distinctive word, tag, or filename stem. Browse `permanent/` by timestamp for a rough timeline. Search for a stem to find references to it. In Stemlink, use the Notes tree, link navigation, or **References > Inbound**; run **Check References** when you want an audit.
+
+Right-click a vault in **Vaults** for **New permanent note** or **Validate vault** without selecting it first. Creation asks for title and optional tags, writes to that vault's configured permanent-note folder, and requires Workspace Trust. Validation runs the same audit as Check References, includes unsaved note content, and replaces previous Stemlink Problems results across vaults without changing files. Neither action changes the selected vault.
 
 Right-click a permanent note in the Notes tree for **Edit Metadata...** or **Delete...**. Metadata editing preserves its filename, body, and unrelated YAML. Delete warns that inbound wiki links may break and requires confirmation; links are not rewritten. Save or revert unsaved changes first. Both actions require Workspace Trust.
 

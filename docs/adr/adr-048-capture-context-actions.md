@@ -1,5 +1,5 @@
 ---
-status: Accepted
+status: Superseded in part by ADR 050
 ---
 
 # ADR 048: Capture context actions
@@ -25,3 +25,5 @@ Reuse existing tree/index notifications and error reporting. Do not emit routine
 ## Consequences
 
 This changes pre-1.0 command discoverability: promotion is no longer an inline icon or Command Palette action and requires a capture item argument. Existing Markdown format remains compatible and no migration is needed. Native editor, link completion, preview, and Explorer continue to handle editing, linking, viewing, and renaming.
+
+[ADR 050](adr-050-drag-promotion-confirmation.md) adds drag promotion alongside the context menu and default-on confirmation for every promotion.

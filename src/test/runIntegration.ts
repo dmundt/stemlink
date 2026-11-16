@@ -13,7 +13,10 @@ export async function runIntegration(multiRoot = false, discovery = false): Prom
     await mkdir(path.join(userData, "User"), { recursive: true });
     await writeFile(
       path.join(userData, "User", "settings.json"),
-      JSON.stringify({ "stemlink.promptForCaptureHeadline": false }),
+      JSON.stringify({
+        "stemlink.promptForCaptureHeadline": false,
+        "stemlink.confirmPromotion": false,
+      }),
     );
     const root = path.join(workspace, discovery ? "existing-vault" : "notes");
     const notes = path.join(root, discovery ? "stable" : "permanent");

@@ -12,6 +12,8 @@ Build a Stemlink vault in VS Code with plain Markdown files. Capture ideas, conn
 
 The Activity Bar badge shows the number of discovered vaults in the workspace; it is hidden when there are none. It remains visible when `stemlink.showCounts` hides view counts.
 
+Right-click a vault under **Vaults** for **New permanent note** or **Validate vault**. Both use that vault without changing the selection. Creation asks for title and optional tags, opens the new note, and requires Workspace Trust. Validation runs the existing reference audit, includes unsaved note content, and replaces previous Stemlink Problems results across vaults; it does not change files.
+
 The default root holds the collection; `inbox/` holds captures, `permanent/` holds permanent notes, and `templates/` holds editable examples. The bundled manual lists alternatives: `zk/inbox/notes`, `Stemlink vault/Fleeting/Permanent`, `vault/capture/notes`, and `vault/inbox/permanent`. Use Open Vault or settings for these layouts; Stemlink does not infer a layout from its folder names.
 
 Capture and permanent-note view headings use the selected vault's folder names, preserving their spelling and case. Switching vaults updates these headings; counts follow `stemlink.showCounts`. Without a selected vault, the headings remain Fleeting and Notes.
@@ -23,6 +25,8 @@ Add Fleeting Note reads `_fleeting.md` from the mapped templates folder first an
 By default, **Add Fleeting Note** asks for a headline. It adds the full headline as a Markdown heading before the template body and uses a filename such as `202611161400-short-headline.md`. Filename slugs are capped at 48 characters; duplicates get numeric suffixes. Cancel creates nothing. Disable **Capture > Prompt For Capture Headline** (`stemlink.promptForCaptureHeadline`) to copy the template unchanged with a timestamped `capture` filename. Existing captures are unchanged.
 
 Right-click an inbox capture for **Edit Metadata...**, **Promote to Note...**, or **Discard...**. These text-only actions live in the item context menu, not the toolbar or Command Palette. Edit Metadata asks for title and optional comma-separated tags, preserving the body and unrelated YAML fields. Promotion reuses non-empty title and tags by default; missing or empty fields are prompted separately. Enable `stemlink.promptForPromotionMetadata` under **Capture** to always review both fields. Promotion saves the permanent note before removing the capture. Discard requires confirmation and refuses unsaved changes; save or revert them first. All three actions require Workspace Trust.
+
+Drag one or multiple captures from Fleeting onto the Notes view background or a note row to promote them. Each capture stays in its own vault, even when Notes displays another vault; the drop target note is unchanged. Captures promote sequentially. Every promotion asks for confirmation by default, including context-menu actions. Set `stemlink.confirmPromotion` to `false` under **Capture** to skip confirmation; metadata prompts remain separate. Cancel or error stops the batch, leaving completed promotions intact and remaining captures untouched.
 
 Right-click a permanent note for **Edit Metadata...** or **Delete...**. Metadata changes preserve the filename, body, and unrelated YAML. Delete asks for confirmation, warns that inbound wiki links may break, and moves the file to trash when supported; it never rewrites links. Save or revert unsaved changes before deletion. Workspace Trust is required.
 

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add vault-row context actions **New permanent note** and **Validate vault**, targeting the right-clicked vault without changing selection. Note creation requires Workspace Trust; validation reuses the reference audit and replaces previous Stemlink Problems results.
+- Promote multiple captures by dragging from Fleeting to Notes. Each capture stays in its source vault; cancellation or failure stops the remaining batch. Add `stemlink.confirmPromotion`, enabled by default, to confirm every context-menu or drag promotion separately from metadata prompts.
 - Add permanent-note context actions for editing metadata and confirmed deletion, with a warning that inbound links may break.
 - Replace the inline/Command Palette promotion action with text-only inbox item context actions: Edit Metadata, Promote to Note, and confirmed Discard. Promotion reuses non-empty YAML title and tags; `stemlink.promptForPromotionMetadata` defaults to `false`. Existing captures require no migration.
 - Ask for a headline when adding a fleeting note, preserving the full headline in the body and using a shortened filename slug. The new Capture setting is enabled by default; disable it to retain template-only captures.
