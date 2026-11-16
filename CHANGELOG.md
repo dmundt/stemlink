@@ -8,6 +8,7 @@
 - Offer direct configuration repair, distinguish discovery failures from first-run emptiness, and avoid rediscovery for unrelated preferences.
 - Validate new-vault folder collisions inline and reject reserved Windows device names on every platform; existing vault readers remain compatible.
 - Identify inbound reference occurrences by source line and excerpt; open missing outbound links at their source.
+- Locate tag Problems at invalid metadata and explain YAML tags in empty tag pickers.
 
 - Support read-only vault browsing, tag filtering, and validation in Restricted Mode; keep writes and preview trust-gated. Add native Vaults onboarding and disable creation actions when prerequisites are missing.
 - Make Refresh rediscover vaults and retry failed counts. Explain empty, filtered, failed, and out-of-scope reference views without changing vault selection.

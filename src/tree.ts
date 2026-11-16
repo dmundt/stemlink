@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { isExcludedNoteFile, linksIn, normalizeTags, noteTags } from "./core";
-import { Vault, VaultNote, directChild, reportError } from "./vault";
+import { Vault, VaultNote, directChild, reportError, textPosition } from "./vault";
 
 export type VaultSection = "Vaults" | "Fleeting" | "Notes" | "References";
 type Section = VaultSection | "Inbound" | "Outbound";
@@ -292,7 +292,10 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
       if (metadata.problem) {
         problems.add(note.uri.toString());
         const diagnostic = new vscode.Diagnostic(
-          new vscode.Range(0, 0, 0, 0),
+          new vscode.Range(
+            textPosition(note.text, metadata.start ?? 0),
+            textPosition(note.text, metadata.end ?? metadata.start ?? 0),
+          ),
           metadata.problem,
           vscode.DiagnosticSeverity.Warning,
         );

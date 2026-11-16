@@ -70,6 +70,24 @@ test("invalid tag metadata is reported, not silently treated as untagged", () =>
   }
 });
 
+test("tag metadata problems retain source offsets across BOM and line endings", () => {
+  for (const newline of ["\n", "\r\n"]) {
+    for (const bom of ["", "\uFEFF"]) {
+      const text = `${bom}---${newline}title: Test${newline}tags: scalar${newline}---${newline}Body`;
+      const result = noteTags(text);
+      assert.equal(result.start, text.indexOf("tags:"));
+      assert.equal(result.end, text.indexOf("tags:") + 4);
+      const unclosed = noteTags(`${bom}---${newline}tags: [`);
+      assert.equal(unclosed.start, bom.length);
+      assert.equal(unclosed.end, bom.length + 3);
+      const duplicate = `${bom}---${newline}tags: []${newline}tags: []${newline}---${newline}`;
+      const parsed = noteTags(duplicate);
+      assert.equal(parsed.start, duplicate.lastIndexOf("tags:"));
+      assert.ok(parsed.end !== undefined && parsed.end > parsed.start);
+    }
+  }
+});
+
 test("capture headlines preserve template content and front matter", () => {
   assert.equal(makeCapture("Prompt\n", "  A thought  "), "# A thought\n\nPrompt\n");
   assert.equal(

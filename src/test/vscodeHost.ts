@@ -1719,6 +1719,16 @@ async function testNoteTagFiltering(
     },
   });
   try {
+    const tagChoices = VaultTree.prototype.tagChoices;
+    try {
+      VaultTree.prototype.tagChoices = async () => [];
+      const empty = await open();
+      assert.equal(empty.items.length, 0);
+      assert.match(empty.placeholder ?? "", /No tags.*tags: \[idea\]/);
+      empty.hide();
+    } finally {
+      VaultTree.prototype.tagChoices = tagChoices;
+    }
     await vscode.workspace.fs.writeFile(
       first,
       Buffer.from(`---\ntitle: First\ntags: [' TagFilter-ALPHA ', ${alpha}, ${beta}]\n---\nBody\n`),
@@ -1727,7 +1737,10 @@ async function testNoteTagFiltering(
       second,
       Buffer.from(`---\ntitle: [invalid, title]\ntags: [${beta}, ${gamma}]\n---\nBody\n`),
     );
-    await vscode.workspace.fs.writeFile(invalid, Buffer.from("---\ntags: [valid, 42]\n---\n"));
+    await vscode.workspace.fs.writeFile(
+      invalid,
+      Buffer.from("\uFEFF---\r\ntags: [valid, 42]\r\n---\r\n"),
+    );
     await vscode.workspace.fs.writeFile(
       excluded,
       Buffer.from("---\ntags: [tagfilter-excluded]\n---\n"),
@@ -1796,6 +1809,10 @@ async function testNoteTagFiltering(
     );
     assert.ok(warnings.some((warning) => warning.includes("1 note has invalid tag metadata")));
     assert.equal(tagProblems(invalid).length, 1, "tag error omitted file-level diagnostic");
+    assert.ok(
+      tagProblems(invalid)[0].range.isEqual(new vscode.Range(1, 0, 1, 4)),
+      "tag problem did not identify the tags key",
+    );
     const warningCount = warnings.length;
     await choose(picker, alpha);
     await choose(picker, beta);
