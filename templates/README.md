@@ -6,6 +6,8 @@ Restricted Mode supports browsing, navigation, tag filtering, validation, and re
 
 Use Refresh in Vaults to rediscover vaults and retry failed lists. View messages distinguish empty notes, no tag matches, and loading errors. References explains when the active editor is not a permanent note in the selected vault; editor changes never select another vault automatically.
 
+Metadata dialogs identify their target. Editing metadata leaves an already-unsaved document dirty rather than saving unfinished body edits. Originally clean documents are saved normally; indexes still include unsaved content.
+
 <!-- stemlink:configured-folders -->
 
 ## 1. Folder layout

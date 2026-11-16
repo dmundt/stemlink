@@ -48,6 +48,8 @@ Restricted Mode supports browsing, navigation, tag filtering, validation, and re
 
 Refresh rediscovers vaults and retries the selected vault's note index and failed listing counts. Views explain empty lists, tag filters with no matches, and loading failures. References asks for a permanent note in the selected vault rather than showing zero for an unrelated active editor; selecting another vault remains manual.
 
+Metadata prompts identify the target file or vault. Editing metadata saves an originally clean document, but leaves an originally dirty document unsaved, including its body and metadata changes. Save it through the editor when ready; the in-memory index still follows unsaved content.
+
 Use the gear in the **Vaults** view or **Stemlink: Settings** to open Stemlink settings.
 
 Settings are resource-scoped and apply to the workspace folder containing each vault. Defaults:
