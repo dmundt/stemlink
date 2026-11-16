@@ -168,6 +168,8 @@ These are text-only item context actions, not inline buttons or Command Palette 
 
 Search the files for a distinctive word, tag, or filename stem. Browse `permanent/` by timestamp for a rough timeline. Search for a stem to find references to it. In Stemlink, use the Notes tree, link navigation, or **References > Inbound**; run **Check References** when you want an audit.
 
+Right-click a permanent note in the Notes tree for **Edit Metadata...** or **Delete...**. Metadata editing preserves its filename, body, and unrelated YAML. Delete warns that inbound wiki links may break and requires confirmation; links are not rewritten. Save or revert unsaved changes first. Both actions require Workspace Trust.
+
 ## 10. Templates
 
 Inbox `INDEX.md` tables show body-derived titles: the first non-empty line or sentence, capped at 120 characters with `...` when truncated. YAML front matter is skipped. Empty captures show `Empty capture.`; permanent-note routers continue to use YAML description or title.

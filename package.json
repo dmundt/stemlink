@@ -152,6 +152,16 @@
         "category": "Stemlink"
       },
       {
+        "command": "stemlink.editNoteMetadata",
+        "title": "Edit Metadata...",
+        "category": "Stemlink"
+      },
+      {
+        "command": "stemlink.deleteNote",
+        "title": "Delete...",
+        "category": "Stemlink"
+      },
+      {
         "command": "stemlink.checkReferences",
         "title": "Check References",
         "category": "Stemlink"
@@ -244,6 +254,14 @@
         {
           "command": "stemlink.discardCapture",
           "when": "false"
+        },
+        {
+          "command": "stemlink.editNoteMetadata",
+          "when": "false"
+        },
+        {
+          "command": "stemlink.deleteNote",
+          "when": "false"
         }
       ],
       "view/item/context": [
@@ -261,6 +279,16 @@
           "command": "stemlink.discardCapture",
           "when": "view == stemlink.fleeting && viewItem == stemlink.capture",
           "group": "discard@1"
+        },
+        {
+          "command": "stemlink.editNoteMetadata",
+          "when": "view == stemlink.notes && viewItem == stemlink.note",
+          "group": "note@1"
+        },
+        {
+          "command": "stemlink.deleteNote",
+          "when": "view == stemlink.notes && viewItem == stemlink.note",
+          "group": "delete@1"
         }
       ]
     }

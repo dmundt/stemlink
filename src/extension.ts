@@ -789,26 +789,30 @@ export async function activate(
     await vscode.window.showTextDocument(uri);
   });
 
-  async function captureSource(item?: Item) {
+  async function noteSource(item: Item | undefined, kind: "capture" | "note") {
     if (!vscode.workspace.isTrusted)
-      throw new Error("Trust the workspace before changing a capture.");
+      throw new Error(`Trust the workspace before changing a ${kind}.`);
     const uri = item?.uri;
     const vault = uri ? vaultFor(uri) : undefined;
     const name = uri?.path.slice(uri.path.lastIndexOf("/") + 1) ?? "";
+    const description = kind === "capture" ? "inbox Markdown capture" : "permanent Markdown note";
     if (
       !uri ||
       !vault ||
-      !directChild(uri, vault.paths.inbox) ||
+      !directChild(uri, kind === "capture" ? vault.paths.inbox : vault.paths.notes) ||
       !uri.path.endsWith(".md") ||
       isExcludedNoteFile(name)
     ) {
-      throw new Error("Select an inbox Markdown capture from its context menu.");
+      throw new Error(
+        `Select a${kind === "capture" ? "n" : ""} ${description} from its context menu.`,
+      );
     }
     if (!((await vscode.workspace.fs.stat(uri)).type & vscode.FileType.File))
-      throw new Error("Select an inbox Markdown capture file.");
+      throw new Error(`Select a${kind === "capture" ? "n" : ""} ${description} file.`);
     const doc = await vscode.workspace.openTextDocument(uri);
     return { uri, vault, name, doc };
   }
+  const captureSource = (item?: Item) => noteSource(item, "capture");
 
   const suggestedCaptureTitle = (name: string) =>
     name
@@ -816,18 +820,20 @@ export async function activate(
       .replace(/^\d{12}-/, "")
       .replace(/-/g, " ");
 
-  command("stemlink.editCaptureMetadata", async (item?: Item) => {
-    const { uri, doc } = await captureSource(item);
+  async function editMetadata(item: Item | undefined, kind: "capture" | "note") {
+    const { uri, doc } = await noteSource(item, kind);
     const snapshot = doc.getText();
     const version = doc.version;
     const originalBytes = Buffer.from(await vscode.workspace.fs.readFile(uri));
     const existing = captureMetadata(snapshot);
     const metadata = await askMetadata(existing.title ?? "", existing.tags);
     if (!metadata) return;
-    await captureSource(item);
+    await noteSource(item, kind);
     const currentBytes = Buffer.from(await vscode.workspace.fs.readFile(uri));
     if (doc.version !== version || !currentBytes.equals(originalBytes))
-      throw new Error("Capture changed while editing metadata; try again.");
+      throw new Error(
+        `${kind === "capture" ? "Capture" : "Note"} changed while editing metadata; try again.`,
+      );
     const edit = new vscode.WorkspaceEdit();
     edit.replace(
       uri,
@@ -835,29 +841,53 @@ export async function activate(
       promoteNote(snapshot, metadata.title, metadata.tags),
     );
     if (!(await vscode.workspace.applyEdit(edit)))
-      throw new Error("Could not update capture metadata.");
+      throw new Error(`Could not update ${kind} metadata.`);
     if (!(await doc.save()))
-      throw new Error("Capture metadata was updated in the editor but could not be saved.");
+      throw new Error(
+        `${kind === "capture" ? "Capture" : "Note"} metadata was updated in the editor but could not be saved.`,
+      );
     tree.refresh();
+  }
+  command("stemlink.editCaptureMetadata", async (item?: Item) => {
+    await editMetadata(item, "capture");
+  });
+  command("stemlink.editNoteMetadata", async (item?: Item) => {
+    await editMetadata(item, "note");
   });
 
-  command("stemlink.discardCapture", async (item?: Item) => {
-    const { uri, name, doc } = await captureSource(item);
-    if (doc.isDirty) throw new Error("Save or revert unsaved capture changes before discarding.");
+  async function deleteItem(item: Item | undefined, kind: "capture" | "note") {
+    const { uri, name, doc } = await noteSource(item, kind);
+    const action = kind === "capture" ? "Discard" : "Delete";
+    if (doc.isDirty)
+      throw new Error(`Save or revert unsaved ${kind} changes before ${action.toLowerCase()}.`);
     const version = doc.version;
     const originalBytes = Buffer.from(await vscode.workspace.fs.readFile(uri));
     const choice = await vscode.window.showWarningMessage(
-      `Discard capture "${name}"?`,
-      { modal: true, detail: "The capture will be deleted from the inbox." },
-      "Discard",
+      `${action} ${kind} "${name}"?`,
+      {
+        modal: true,
+        detail:
+          kind === "capture"
+            ? "The capture will be deleted from the inbox."
+            : "Deleting this note can break inbound wiki links.",
+      },
+      action,
     );
-    if (choice !== "Discard") return;
-    await captureSource(item);
+    if (choice !== action) return;
+    await noteSource(item, kind);
     const currentBytes = Buffer.from(await vscode.workspace.fs.readFile(uri));
     if (doc.isDirty || doc.version !== version || !currentBytes.equals(originalBytes))
-      throw new Error("Capture changed while confirming discard; nothing was deleted.");
+      throw new Error(
+        `${kind === "capture" ? "Capture" : "Note"} changed while confirming ${action.toLowerCase()}; nothing was deleted.`,
+      );
     await vscode.workspace.fs.delete(uri, { useTrash: true });
     tree.refresh();
+  }
+  command("stemlink.discardCapture", async (item?: Item) => {
+    await deleteItem(item, "capture");
+  });
+  command("stemlink.deleteNote", async (item?: Item) => {
+    await deleteItem(item, "note");
   });
 
   command("stemlink.promote", async (item?: Item) => {

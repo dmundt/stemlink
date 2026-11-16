@@ -37,6 +37,7 @@ export class Item extends vscode.TreeItem {
     if (kind === "Inbound") this.tooltip = "References to the active note.";
     if (kind === "Outbound") this.tooltip = "References from the active note.";
     if (kind === "capture") this.contextValue = "stemlink.capture";
+    if (kind === "note") this.contextValue = "stemlink.note";
     if (kind === "vault" && vault) {
       this.iconPath = new vscode.ThemeIcon("archive");
       this.id = `stemlink.vault:${vault.paths.root.toString()}`;

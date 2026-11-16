@@ -24,6 +24,8 @@ By default, **Add Fleeting Note** asks for a headline. It adds the full headline
 
 Right-click an inbox capture for **Edit Metadata...**, **Promote to Note...**, or **Discard...**. These text-only actions live in the item context menu, not the toolbar or Command Palette. Edit Metadata asks for title and optional comma-separated tags, preserving the body and unrelated YAML fields. Promotion reuses non-empty title and tags by default; missing or empty fields are prompted separately. Enable `stemlink.promptForPromotionMetadata` under **Capture** to always review both fields. Promotion saves the permanent note before removing the capture. Discard requires confirmation and refuses unsaved changes; save or revert them first. All three actions require Workspace Trust.
 
+Right-click a permanent note for **Edit Metadata...** or **Delete...**. Metadata changes preserve the filename, body, and unrelated YAML. Delete asks for confirmation, warns that inbound wiki links may break, and moves the file to trash when supported; it never rewrites links. Save or revert unsaved changes before deletion. Workspace Trust is required.
+
 Files starting with `_` are hidden from capture and permanent-note views and counts, and excluded from note indexing, completion, backlinks, and audits as source notes. Wiki links to these files are invalid and reported by **Check References**. Existing files remain on disk.
 
 Inbox router tables use a **Title** column derived from the first non-empty body line or sentence, capped at 120 characters with `...` when truncated. Empty captures are labeled explicitly. Permanent-note routers retain YAML descriptions with title fallback.
