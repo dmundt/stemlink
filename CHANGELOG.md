@@ -8,6 +8,7 @@
 - Preserve previous Problems when validation fails; identify the checked vault and permanent-note scope and offer Show Problems.
 - Promote native multi-selections consistently from context menus or drag/drop, with batch progress, partial-completion feedback, and one final editor opening. Keep metadata and discard actions single-item.
 - Replace multiline tag-error notifications with short summaries and separate file-level Problems that update without clearing manual validation results.
+- Standardize action names and ellipsis while retaining command IDs. Move Settings into the Vaults view menu and document all Capture defaults. Existing note files need no migration.
 
 - Request a smaller initial Vaults allocation in fresh layouts, retaining native manual resizing, overflow scrolling, and existing saved sizes.
 - Filter Notes by tags through a native multi-select picker with note counts, search-preserved selections, per-vault session state, and a conditional clear action. Show matching counts and active tags; matching ignores case and surrounding whitespace without changing metadata.

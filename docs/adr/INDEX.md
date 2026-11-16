@@ -76,6 +76,7 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [057: Validation feedback](adr-057-validation-feedback.md) — preserve failed-run results and identify validation scope with native Problems navigation.
 - [058: Capture batch feedback](adr-058-capture-batch-feedback.md) — selection parity, native progress, and explicit partial promotion outcomes.
 - [059: Tag problem feedback](adr-059-tag-problem-feedback.md) — bounded notifications and independent file-level Problems for invalid metadata.
+- [060: Consistent action surfaces](adr-060-consistent-action-surfaces.md) — canonical labels, Settings overflow, and complete Capture defaults.
 
 ## Maintenance rules
 

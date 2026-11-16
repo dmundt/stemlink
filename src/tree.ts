@@ -55,7 +55,7 @@ export class Item extends vscode.TreeItem {
       this.id = `stemlink.vault:${vault.paths.root.toString()}`;
       this.command = {
         command: "stemlink.selectVault",
-        title: "Select Vault",
+        title: "Select vault",
         arguments: [vault.paths.root],
       };
     } else if (uri) {
