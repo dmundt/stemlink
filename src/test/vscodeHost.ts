@@ -610,6 +610,7 @@ async function testPermanentNoteActions(
     await expectError("stemlink.editNoteMetadata", "changed");
     assert.ok((await read()).endsWith("Concurrent change\n"));
     await vscode.workspace.fs.writeFile(uri, Buffer.from("---\ntitle: [\n---\nBody\n"));
+    await vscode.commands.executeCommand("workbench.action.files.revert");
     await waitFor(
       () => doc.getText().includes("title: ["),
       "invalid metadata fixture did not load",
@@ -710,6 +711,8 @@ async function testCaptureActions(
   const write = async (value: string) => {
     await vscode.workspace.fs.writeFile(uri, Buffer.from(value));
     const doc = await vscode.workspace.openTextDocument(uri);
+    await vscode.window.showTextDocument(doc);
+    await vscode.commands.executeCommand("workbench.action.files.revert");
     await waitFor(
       () => doc.getText().replace(/\r\n/g, "\n") === value,
       "capture document did not reload",
