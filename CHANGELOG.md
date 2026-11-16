@@ -6,6 +6,7 @@
 - Make Refresh rediscover vaults and retry failed counts. Explain empty, filtered, failed, and out-of-scope reference views without changing vault selection.
 - Preserve unsaved document state during metadata edits and identify the target file or vault in note prompts.
 - Preserve previous Problems when validation fails; identify the checked vault and permanent-note scope and offer Show Problems.
+- Promote native multi-selections consistently from context menus or drag/drop, with batch progress, partial-completion feedback, and one final editor opening. Keep metadata and discard actions single-item.
 
 - Request a smaller initial Vaults allocation in fresh layouts, retaining native manual resizing, overflow scrolling, and existing saved sizes.
 - Filter Notes by tags through a native multi-select picker with note counts, search-preserved selections, per-vault session state, and a conditional clear action. Show matching counts and active tags; matching ignores case and surrounding whitespace without changing metadata.

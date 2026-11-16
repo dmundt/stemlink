@@ -181,27 +181,11 @@ export async function activate(
         return;
       const captures = draggedCaptures;
       draggedCaptures = undefined;
-      if (dropping) {
-        reportError(new Error("A promotion drop is already running."));
-        return;
-      }
-      dropping = true;
       try {
-        if (token.isCancellationRequested) return;
         if (target) await noteSource(target, "note");
-        const seen = new Set<string>();
-        for (const item of captures) {
-          if (token.isCancellationRequested) break;
-          const key = item.uri?.toString();
-          if (!key) throw new Error("Dragged capture has no file.");
-          if (seen.has(key)) continue;
-          seen.add(key);
-          if (!(await promoteCapture(item, token))) break;
-        }
+        await promoteBatch(captures, token);
       } catch (error) {
         reportError(error);
-      } finally {
-        dropping = false;
       }
     },
   };
@@ -1031,7 +1015,8 @@ export async function activate(
       );
     tree.refresh();
   }
-  command("stemlink.editCaptureMetadata", async (item?: Item) => {
+  command("stemlink.editCaptureMetadata", async (item?: Item, selection?: Item[]) => {
+    if (selection && selection.length > 1) throw new Error("Select one capture to edit metadata.");
     await editMetadata(item, "capture");
   });
   command("stemlink.editNoteMetadata", async (item?: Item) => {
@@ -1066,7 +1051,8 @@ export async function activate(
     await vscode.workspace.fs.delete(uri, { useTrash: true });
     tree.refresh();
   }
-  command("stemlink.discardCapture", async (item?: Item) => {
+  command("stemlink.discardCapture", async (item?: Item, selection?: Item[]) => {
+    if (selection && selection.length > 1) throw new Error("Select one capture to discard.");
     await deleteItem(item, "capture");
   });
   command("stemlink.deleteNote", async (item?: Item) => {
@@ -1074,18 +1060,26 @@ export async function activate(
   });
 
   const promoting = new Set<string>();
-  async function promoteCapture(item?: Item, token?: vscode.CancellationToken): Promise<boolean> {
+  async function promoteCapture(
+    item?: Item,
+    token?: vscode.CancellationToken,
+    batchTargets?: vscode.Uri[],
+  ): Promise<boolean> {
     const key = item?.uri?.toString();
     if (!key) throw new Error("Select an inbox Markdown capture from its context menu.");
     if (promoting.has(key)) throw new Error("This capture is already being promoted.");
     promoting.add(key);
     try {
-      return await performPromotion(item, token);
+      return await performPromotion(item, token, batchTargets);
     } finally {
       promoting.delete(key);
     }
   }
-  async function performPromotion(item?: Item, token?: vscode.CancellationToken): Promise<boolean> {
+  async function performPromotion(
+    item?: Item,
+    token?: vscode.CancellationToken,
+    batchTargets?: vscode.Uri[],
+  ): Promise<boolean> {
     if (token?.isCancellationRequested) return false;
     const { uri, vault, name, doc } = await captureSource(item);
     const destination = vault.paths.notes.toString();
@@ -1130,6 +1124,7 @@ export async function activate(
       throw new Error("Capture changed while saving; promotion cancelled.");
     const text = promoteNote(snapshot, metadata.title, metadata.tags);
     const target = await createFile(vault.paths.notes, metadata.title, text);
+    batchTargets?.push(target);
     try {
       const currentBytes = Buffer.from(await vscode.workspace.fs.readFile(uri));
       if (doc.getText() !== snapshot || !currentBytes.equals(savedBytes)) {
@@ -1144,11 +1139,79 @@ export async function activate(
     }
     await vault.recordFile(target);
     tree.refresh();
-    await vscode.window.showTextDocument(target);
+    if (!batchTargets) await vscode.window.showTextDocument(target);
     return true;
   }
-  command("stemlink.promote", async (item?: Item) => {
-    await promoteCapture(item);
+  async function promoteBatch(items: Item[], token?: vscode.CancellationToken): Promise<void> {
+    if (dropping) throw new Error("A promotion batch is already running.");
+    const captures = new Map<string, Item>();
+    for (const item of items) {
+      if (!item.uri) throw new Error("Selected capture has no file.");
+      captures.set(item.uri.toString(), item);
+    }
+    if (!captures.size) throw new Error("Select a capture to promote.");
+    dropping = true;
+    const cancellation = new vscode.CancellationTokenSource();
+    const subscription = token?.onCancellationRequested(() => cancellation.cancel());
+    if (token?.isCancellationRequested) cancellation.cancel();
+    const targets: vscode.Uri[] = [];
+    let completed = 0;
+    let outcome = "completed";
+    try {
+      if (captures.size === 1) {
+        await promoteCapture([...captures.values()][0], cancellation.token);
+        return;
+      }
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: "Promoting captures",
+          cancellable: true,
+        },
+        async (progress, progressToken) => {
+          const progressSubscription = progressToken.onCancellationRequested(() =>
+            cancellation.cancel(),
+          );
+          try {
+            for (const item of captures.values()) {
+              if (!(await promoteCapture(item, cancellation.token, targets))) {
+                outcome = "cancelled";
+                break;
+              }
+              completed++;
+              progress.report({
+                increment: 100 / captures.size,
+                message: `${completed} of ${captures.size}`,
+              });
+            }
+          } finally {
+            progressSubscription.dispose();
+          }
+        },
+      );
+    } catch (error) {
+      outcome = "failed";
+      reportError(error);
+    } finally {
+      subscription?.dispose();
+      cancellation.dispose();
+      dropping = false;
+      if (captures.size > 1) {
+        const partial =
+          targets.length > completed
+            ? " An additional permanent note was created; see the error for incomplete promotion details."
+            : "";
+        void vscode.window.showInformationMessage(
+          `Stemlink: Promotion ${outcome}: ${completed} of ${captures.size} captures promoted; ${captures.size - completed} not fully promoted.${partial}`,
+        );
+        const last = targets[targets.length - 1];
+        if (last) await vscode.window.showTextDocument(last).then(undefined, reportError);
+      }
+    }
+  }
+  command("stemlink.promote", async (item?: Item, selection?: Item[]) => {
+    if (selection && selection.length > 1) await promoteBatch(selection);
+    else await promoteCapture(item);
   });
 
   command("stemlink.refresh", async () => {

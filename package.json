@@ -172,13 +172,13 @@
       {
         "command": "stemlink.editCaptureMetadata",
         "title": "Edit Metadata...",
-        "enablement": "isWorkspaceTrusted && stemlink.hasVault",
+        "enablement": "isWorkspaceTrusted && stemlink.hasVault && !listMultiSelection",
         "category": "Stemlink"
       },
       {
         "command": "stemlink.discardCapture",
         "title": "Discard...",
-        "enablement": "isWorkspaceTrusted && stemlink.hasVault",
+        "enablement": "isWorkspaceTrusted && stemlink.hasVault && !listMultiSelection",
         "category": "Stemlink"
       },
       {

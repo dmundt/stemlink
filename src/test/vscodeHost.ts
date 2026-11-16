@@ -578,9 +578,27 @@ async function testDragPromotion(inbox: vscode.Uri, notes: vscode.Uri): Promise<
   const api = vscode.window as {
     showWarningMessage: typeof vscode.window.showWarningMessage;
     showErrorMessage: typeof vscode.window.showErrorMessage;
+    showInformationMessage: typeof vscode.window.showInformationMessage;
+    showTextDocument: typeof vscode.window.showTextDocument;
   };
   const originalWarning = api.showWarningMessage;
   const originalError = api.showErrorMessage;
+  const originalInfo = api.showInformationMessage;
+  const originalShow = api.showTextDocument;
+  const feedback: string[] = [];
+  let openings = 0;
+  api.showInformationMessage = new Proxy(originalInfo, {
+    apply: (_target, _receiver, args: unknown[]) => {
+      feedback.push(String(args[0]));
+      return Promise.resolve(undefined);
+    },
+  });
+  api.showTextDocument = new Proxy(originalShow, {
+    apply: (target, receiver, args) => {
+      openings++;
+      return Reflect.apply(target, receiver, args);
+    },
+  });
   const errors: string[] = [];
   const answers: (string | undefined)[] = [];
   let confirmations = 0;
@@ -640,9 +658,19 @@ async function testDragPromotion(inbox: vscode.Uri, notes: vscode.Uri): Promise<
     await vscode.commands.executeCommand("stemlink.promote", first);
     assert.ok(await exists(first.uri!));
     const before = confirmations;
+    const beforeOpen = openings;
     answers.push("Promote", undefined);
-    await drop.handleDrop(undefined, await transfer([first, first, second]), cancellation.token);
+    for (const command of ["stemlink.editCaptureMetadata", "stemlink.discardCapture"]) {
+      await vscode.commands.executeCommand(command, first, [first, second]);
+      assert.match(errors[errors.length - 1], /Select one capture/);
+    }
+    await vscode.commands.executeCommand("stemlink.promote", first, [first, first, second]);
     collectTarget();
+    assert.equal(openings - beforeOpen, 1, "batch opened more than its final created note");
+    assert.ok(
+      feedback.some((message) => message.includes("cancelled: 1 of 2")),
+      "partial batch did not report completed and remaining work",
+    );
     assert.equal(confirmations - before, 2, "duplicates were promoted or cancellation ignored");
     assert.ok(!(await exists(first.uri!)));
     assert.ok(await exists(second.uri!));
@@ -718,6 +746,8 @@ async function testDragPromotion(inbox: vscode.Uri, notes: vscode.Uri): Promise<
     cancellation.dispose();
     api.showWarningMessage = originalWarning;
     api.showErrorMessage = originalError;
+    api.showInformationMessage = originalInfo;
+    api.showTextDocument = originalShow;
     await config.update("confirmPromotion", previous, vscode.ConfigurationTarget.WorkspaceFolder);
     for (const uri of [...sources, ...targets]) {
       if (await exists(uri)) await vscode.workspace.fs.delete(uri);
