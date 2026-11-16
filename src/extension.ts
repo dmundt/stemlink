@@ -977,6 +977,8 @@ export async function activate(
       if (headline === undefined) return;
       headline = headline.trim();
     }
+    if (vault.paths.inbox.toString() !== destination)
+      throw new Error("The vault's inbox folder changed; try again.");
     const template = vscode.Uri.joinPath(vault.paths.templates, "_fleeting.md");
     const legacyTemplate = vscode.Uri.joinPath(vault.paths.notes, "_fleeting.md");
     let text: string;
