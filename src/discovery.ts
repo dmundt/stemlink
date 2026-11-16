@@ -171,7 +171,8 @@ export async function resolveVaultPaths(
         return markers;
     } catch (error) {
       if (error instanceof vscode.FileSystemError && error.code === "FileNotFound") return markers;
-      throw error;
+      onError(error);
+      return markers;
     }
   }
   const sameRoot = markers.findIndex((marker) => sameUri(marker.root, legacy.root));
