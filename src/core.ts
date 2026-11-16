@@ -1,4 +1,4 @@
-import { Document, isMap, parseDocument } from "yaml";
+import { Document, isMap, isScalar, parseDocument } from "yaml";
 
 export interface Link {
   stem: string;
@@ -195,9 +195,13 @@ export function replaceRouterIndexSection(current: string, generated: string): s
   return current.slice(0, start) + normalized + current.slice(suffixStart);
 }
 
-export function frontMatter(text: string): { yaml: string; end: number } | undefined {
+export function frontMatter(
+  text: string,
+): { yaml: string; yamlStart: number; end: number } | undefined {
   const match = /^(?:\uFEFF)?---[ \t]*\r?\n([\s\S]*?)^---[ \t]*(?:\r?\n|$)/m.exec(text);
-  return match?.index === 0 ? { yaml: match[1], end: match[0].length } : undefined;
+  return match?.index === 0
+    ? { yaml: match[1], yamlStart: match[0].indexOf("\n") + 1, end: match[0].length }
+    : undefined;
 }
 
 export function metadataProblem(text: string): string | undefined {
@@ -231,17 +235,32 @@ export function normalizeTags(tags: readonly string[]): string[] {
   );
 }
 
-export function noteTags(text: string): { tags: string[]; problem?: string } {
+export function noteTags(text: string): {
+  tags: string[];
+  problem?: string;
+  start?: number;
+  end?: number;
+} {
   const matter = frontMatter(text);
   if (!matter)
     return /^(?:\uFEFF)?---[ \t]*\r?\n/.test(text)
-      ? { tags: [], problem: "Unclosed YAML front matter." }
+      ? {
+          tags: [],
+          problem: "Unclosed YAML front matter.",
+          start: text.startsWith("\uFEFF") ? 1 : 0,
+          end: text.startsWith("\uFEFF") ? 4 : 3,
+        }
       : { tags: [] };
+  const problem = (message: string, range?: readonly number[]) => ({
+    tags: [],
+    problem: message,
+    ...(range ? { start: matter.yamlStart + range[0], end: matter.yamlStart + range[1] } : {}),
+  });
   const document = parseDocument(matter.yaml, { uniqueKeys: true });
   if (document.errors.length)
-    return { tags: [], problem: `Invalid YAML: ${document.errors[0].message}` };
+    return problem(`Invalid YAML: ${document.errors[0].message}`, document.errors[0].pos);
   if (!isMap(document.contents))
-    return { tags: [], problem: "Front matter must be a YAML mapping." };
+    return problem("Front matter must be a YAML mapping.", document.contents?.range ?? undefined);
   let fields: Record<string, unknown>;
   try {
     fields = document.toJS();
@@ -250,8 +269,15 @@ export function noteTags(text: string): { tags: string[]; problem?: string } {
   }
   const tags = fields.tags;
   if (tags === undefined) return { tags: [] };
-  if (!Array.isArray(tags) || !tags.every((tag) => typeof tag === "string"))
-    return { tags: [], problem: "Tags must be a list of text values." };
+  if (!Array.isArray(tags) || !tags.every((tag) => typeof tag === "string")) {
+    const key = document.contents.items.find(
+      (pair) => isScalar(pair.key) && pair.key.value === "tags",
+    )?.key;
+    return problem(
+      "Tags must be a list of text values.",
+      isScalar(key) ? (key.range ?? undefined) : undefined,
+    );
+  }
   return { tags: normalizeTags(tags) };
 }
 

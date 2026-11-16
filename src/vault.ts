@@ -50,6 +50,14 @@ export function directChild(uri: vscode.Uri, directory: vscode.Uri): boolean {
   return sameUri(parent, directory);
 }
 
+export function textPosition(text: string, offset: number): vscode.Position {
+  const prefix = text.slice(0, Math.max(0, Math.min(text.length, offset)));
+  return new vscode.Position(
+    prefix.split("\n").length - 1,
+    prefix.slice(prefix.lastIndexOf("\n") + 1).replace(/\r$/, "").length,
+  );
+}
+
 export interface VaultNote extends NoteData {
   uri: vscode.Uri;
 }

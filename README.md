@@ -42,7 +42,7 @@ Use **Filter by tags…** in the Notes view menu to select existing tags. The na
 
 Tag filters are independent per vault and last only for the current session. Matching ignores surrounding whitespace and case without changing YAML. Counts include unsaved note edits and count each note once per tag. A selected tag that disappears stays selected with count 0. Invalid YAML or tag lists are reported and excluded from matches; affected notes remain visible when unfiltered. Filtering is read-only and available without Workspace Trust.
 
-Invalid tag metadata appears as file-level **Stemlink tags** Problems, separate from manual validation. Notifications summarize the affected count and offer **Show Problems** instead of listing every file. Editing an already-invalid file updates diagnostics quietly; fixes and deletions clear obsolete entries.
+Invalid tag metadata appears as **Stemlink tags** Problems at the invalid YAML or tags key, separate from manual validation. Notifications summarize the affected count and offer **Show Problems** instead of listing every file. Editing an already-invalid file updates diagnostics quietly; fixes and deletions clear obsolete entries. An empty tag picker explains how to add YAML tags.
 
 Files starting with `_` are hidden from capture and permanent-note views and counts, and excluded from note indexing, completion, backlinks, and audits as source notes. Wiki links to these files are invalid and reported by **Validate vault**. Existing files remain on disk.
 

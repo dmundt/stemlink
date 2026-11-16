@@ -16,7 +16,15 @@ import { readVaultMarker, resolveVaultPaths, samePaths } from "./discovery";
 import { VaultRouterIndexes } from "./router";
 import { extendMarkdownPreview, MarkdownParser } from "./preview";
 import { Item, VaultSection, VaultTree, VaultTreeSection } from "./tree";
-import { Vault, VaultPaths, directChild, reportError, sameUri, validFolderName } from "./vault";
+import {
+  Vault,
+  VaultPaths,
+  directChild,
+  reportError,
+  sameUri,
+  textPosition,
+  validFolderName,
+} from "./vault";
 
 export async function activate(
   context: vscode.ExtensionContext,
@@ -447,6 +455,8 @@ export async function activate(
       updateTagFilterView();
       if (tagPickerScope !== scope) return;
       const selected = new Set(tree.tagFilter(vault));
+      if (!choices.length)
+        picker.placeholder = "No tags in this vault. Add YAML tags, for example: tags: [idea].";
       picker.items = choices.map(({ tag, count }) => ({
         label: tag,
         tag,
@@ -1240,14 +1250,10 @@ export async function activate(
     const findings = auditNotes(notes);
     const grouped = new Map<string, vscode.Diagnostic[]>();
     for (const finding of findings) {
-      const positionAt = (offset: number) => {
-        const prefix = finding.note.text.slice(0, offset);
-        return new vscode.Position(
-          prefix.split("\n").length - 1,
-          offset - (prefix.lastIndexOf("\n") + 1),
-        );
-      };
-      const range = new vscode.Range(positionAt(finding.start), positionAt(finding.end));
+      const range = new vscode.Range(
+        textPosition(finding.note.text, finding.start),
+        textPosition(finding.note.text, finding.end),
+      );
       const severity =
         finding.severity === "error"
           ? vscode.DiagnosticSeverity.Error
