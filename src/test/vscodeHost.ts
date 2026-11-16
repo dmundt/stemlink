@@ -519,6 +519,156 @@ async function testRouterMappings(folder: vscode.WorkspaceFolder): Promise<void>
   }
 }
 
+async function testPermanentNoteActions(
+  folder: vscode.WorkspaceFolder,
+  notes: vscode.Uri,
+): Promise<void> {
+  const uri = vscode.Uri.joinPath(notes, "202601021234-context-note.md");
+  const api = vscode.window as {
+    showInputBox: typeof vscode.window.showInputBox;
+    showWarningMessage: typeof vscode.window.showWarningMessage;
+    showErrorMessage: typeof vscode.window.showErrorMessage;
+  };
+  const original = {
+    input: api.showInputBox,
+    warning: api.showWarningMessage,
+    error: api.showErrorMessage,
+  };
+  const answers: (string | undefined)[] = [];
+  const inputs: vscode.InputBoxOptions[] = [];
+  const errors: string[] = [];
+  let choice: string | undefined;
+  let duringPrompt: (() => Promise<void>) | undefined;
+  let duringConfirmation: (() => Promise<void>) | undefined;
+  const body = "\nKeep [[202601011200-note-1]].\n";
+  const initial = `---\ntitle: Old title\ntags: [idea]\ncustom: kept\n---\n${body}`;
+  const read = async () =>
+    Buffer.from(await vscode.workspace.fs.readFile(uri))
+      .toString("utf8")
+      .replace(/\r\n/g, "\n");
+  const expectError = async (command: string, message: string, item: unknown = { uri }) => {
+    const before = errors.length;
+    await vscode.commands.executeCommand(command, item);
+    assert.ok(
+      errors.slice(before).some((error) => error.includes(message)),
+      errors.slice(before).join("; "),
+    );
+  };
+  api.showInputBox = async (options) => {
+    assert.ok(answers.length, "unexpected metadata prompt");
+    inputs.push(options ?? {});
+    await duringPrompt?.();
+    return answers.shift();
+  };
+  api.showWarningMessage = new Proxy(original.warning, {
+    apply: async (_target, _thisArg, args: unknown[]) => {
+      assert.ok(String(args[0]).includes("202601021234-context-note.md"));
+      assert.equal((args[1] as vscode.MessageOptions).modal, true);
+      assert.match((args[1] as vscode.MessageOptions).detail ?? "", /break inbound wiki links/);
+      assert.equal(args[2], "Delete");
+      await duringConfirmation?.();
+      return choice;
+    },
+  });
+  api.showErrorMessage = new Proxy(original.error, {
+    apply: (_target, _thisArg, args: unknown[]) => {
+      errors.push(String(args[0]));
+      return Promise.resolve(undefined);
+    },
+  });
+  const vault = new Vault(folder);
+  try {
+    await vscode.workspace.fs.writeFile(uri, Buffer.from(initial));
+    const doc = await vscode.workspace.openTextDocument(uri);
+    assert.equal(new Item("note", "note", uri).contextValue, "stemlink.note");
+    await vscode.window.showTextDocument(doc);
+    answers.push("Changed", undefined);
+    await vscode.commands.executeCommand("stemlink.editNoteMetadata", { uri });
+    assert.equal(await read(), initial);
+    assert.equal(inputs[0].value, "Old title");
+    assert.equal(inputs[1].value, "idea");
+    answers.push("Changed", "two");
+    await vscode.commands.executeCommand("stemlink.editNoteMetadata", { uri });
+    const updated = await read();
+    assert.deepEqual(captureMetadata(updated), { title: "Changed", tags: ["two"] });
+    assert.match(updated, /custom: kept/);
+    assert.ok(updated.endsWith(body));
+    assert.equal(uri.path.endsWith("202601021234-context-note.md"), true);
+
+    const unsaved = new vscode.WorkspaceEdit();
+    unsaved.insert(uri, doc.positionAt(doc.getText().length), "Unsaved body\n");
+    assert.ok(await vscode.workspace.applyEdit(unsaved));
+    answers.push("Dirty title", "idea");
+    await vscode.commands.executeCommand("stemlink.editNoteMetadata", { uri });
+    assert.ok((await read()).endsWith("Unsaved body\n"), "metadata edit lost unsaved content");
+
+    answers.push("Ignored", "two");
+    duringPrompt = async () => {
+      duringPrompt = undefined;
+      await vscode.workspace.fs.writeFile(uri, Buffer.from(updated + "Concurrent change\n"));
+    };
+    await expectError("stemlink.editNoteMetadata", "changed");
+    assert.ok((await read()).endsWith("Concurrent change\n"));
+    await vscode.workspace.fs.writeFile(uri, Buffer.from("---\ntitle: [\n---\nBody\n"));
+    await waitFor(
+      () => doc.getText().includes("title: ["),
+      "invalid metadata fixture did not load",
+    );
+    await expectError("stemlink.editNoteMetadata", "invalid YAML");
+    for (const command of ["stemlink.editNoteMetadata", "stemlink.deleteNote"]) {
+      await expectError(command, "context menu", null);
+      await expectError(command, "context menu", {
+        uri: vscode.Uri.joinPath(notes, "_template.md"),
+      });
+    }
+    const trust = Object.getOwnPropertyDescriptor(vscode.workspace, "isTrusted");
+    assert.ok(trust);
+    try {
+      Object.defineProperty(vscode.workspace, "isTrusted", {
+        configurable: true,
+        get: () => false,
+      });
+      for (const command of ["stemlink.editNoteMetadata", "stemlink.deleteNote"])
+        await expectError(command, "Trust the workspace");
+    } finally {
+      Object.defineProperty(vscode.workspace, "isTrusted", trust);
+    }
+    for (const cancel of [undefined, "Cancel"]) {
+      choice = cancel;
+      const before = await read();
+      await vscode.commands.executeCommand("stemlink.deleteNote", { uri });
+      assert.equal(await read(), before);
+    }
+    const edit = new vscode.WorkspaceEdit();
+    edit.insert(uri, new vscode.Position(0, 0), "Unsaved\n");
+    assert.ok(await vscode.workspace.applyEdit(edit));
+    choice = "Delete";
+    await expectError("stemlink.deleteNote", "Save or revert");
+    assert.ok(doc.isDirty);
+    assert.ok(await doc.save());
+    duringConfirmation = async () => {
+      duringConfirmation = undefined;
+      await vscode.workspace.fs.writeFile(uri, Buffer.from("Changed during confirmation\n"));
+    };
+    await expectError("stemlink.deleteNote", "changed");
+    assert.equal(await read(), "Changed during confirmation\n");
+    await vault.ensureNames();
+    assert.ok(vault.target("202601021234-context-note"));
+    await vscode.commands.executeCommand("stemlink.deleteNote", { uri });
+    await assert.rejects(async () => vscode.workspace.fs.stat(uri));
+    await waitFor(
+      () => !vault.target("202601021234-context-note"),
+      "deleted note remained indexed",
+    );
+    assert.equal(answers.length, 0);
+  } finally {
+    vault.dispose();
+    api.showInputBox = original.input;
+    api.showWarningMessage = original.warning;
+    api.showErrorMessage = original.error;
+  }
+}
+
 async function testCaptureActions(
   root: vscode.Uri,
   inbox: vscode.Uri,
@@ -964,6 +1114,10 @@ async function testMultiRoot(views: Map<string, vscode.TreeView<Item>>): Promise
     );
     await testMarkdownPreview(firstSource, firstTarget);
     await testMarkdownPreview(secondTarget, secondTarget);
+    await testPermanentNoteActions(
+      folders[0],
+      vscode.Uri.joinPath(folders[0].uri, "notes", "permanent"),
+    );
     const secondConfig = vscode.workspace.getConfiguration("stemlink", folders[1].uri);
     const previousCounts = secondConfig.inspect<boolean>("showCounts")?.workspaceFolderValue;
     try {
@@ -2487,6 +2641,30 @@ export async function run(): Promise<void> {
   const captureMenus = menus["view/item/context"].filter((entry) =>
     captureCommands.includes(entry.command),
   );
+  const noteCommands = ["stemlink.editNoteMetadata", "stemlink.deleteNote"];
+  const noteMenus = menus["view/item/context"].filter((entry) =>
+    noteCommands.includes(entry.command),
+  );
+  assert.deepEqual(
+    noteMenus.map((entry) => entry.command),
+    noteCommands,
+  );
+  for (const command of noteCommands) {
+    assert.equal(commands.find((entry) => entry.command === command)?.icon, undefined);
+    assert.ok(
+      menus.commandPalette.some((entry) => entry.command === command && entry.when === "false"),
+    );
+    assert.ok(
+      noteMenus.some(
+        (entry) =>
+          entry.command === command &&
+          entry.when === "view == stemlink.notes && viewItem == stemlink.note" &&
+          entry.group !== "inline",
+      ),
+    );
+    assert.ok(!menus["view/title"].some((entry) => entry.command === command));
+  }
+  assert.notEqual(noteMenus[0].group?.split("@")[0], noteMenus[1].group?.split("@")[0]);
   assert.deepEqual(
     captureMenus.map((entry) => entry.command),
     captureCommands,
@@ -3848,6 +4026,7 @@ export async function run(): Promise<void> {
         );
       }
       await testCaptureActions(vaultRoot, inbox, permanent);
+      await testPermanentNoteActions(folder, permanent);
     } finally {
       windowApi.showInputBox = originalInput;
     }

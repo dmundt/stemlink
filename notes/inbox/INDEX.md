@@ -7,7 +7,7 @@ This folder holds unprocessed captures. Read captures before suggesting promotio
 Navigation only, not authoritative. Stemlink's in-memory note/reference index is authoritative for live vault state.
 
 - [Vault index](../INDEX.md)
-- [Notes `permanent/` (1 Markdown files)](../permanent/INDEX.md)
+- [Notes `permanent/` (2 Markdown files)](../permanent/INDEX.md)
 
 Markdown captures: 4
 
