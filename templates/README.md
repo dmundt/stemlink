@@ -144,6 +144,8 @@ Put ideas in `inbox/` quickly. A capture can be a fragment or question; it needs
 
 Copy `_fleeting.md` from `templates/` into `inbox/`, rename it, and replace the example. With Stemlink, **Add Fleeting Note** copies the saved template into the inbox and opens it. Edit `templates/_fleeting.md` to customize future captures. When the mapped template is missing, Stemlink falls back to `_fleeting.md` in the configured permanent-note folder, such as `permanent/_fleeting.md` or the previous default `notes/_fleeting.md`.
 
+The command asks for a headline by default. The full headline becomes a Markdown heading before the template body, after any YAML front matter. The timestamped filename uses a safe headline slug capped at 48 characters, with a numeric suffix for collisions. Cancel creates no file. Turn off `stemlink.promptForCaptureHeadline` under **Capture** settings to keep template-only captures named with `capture`. This affects new captures only.
+
 ## 8. Weekly: process
 
 Review the inbox regularly:

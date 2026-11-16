@@ -9,6 +9,12 @@ export async function runIntegration(multiRoot = false, discovery = false): Prom
   const temp = await mkdtemp(path.join(os.tmpdir(), "stemlink-test-"));
   try {
     const workspace = path.join(temp, "workspace");
+    const userData = path.join(temp, "user-data");
+    await mkdir(path.join(userData, "User"), { recursive: true });
+    await writeFile(
+      path.join(userData, "User", "settings.json"),
+      JSON.stringify({ "stemlink.promptForCaptureHeadline": false }),
+    );
     const root = path.join(workspace, discovery ? "existing-vault" : "notes");
     const notes = path.join(root, discovery ? "stable" : "permanent");
     await mkdir(notes, { recursive: true });
@@ -71,7 +77,7 @@ export async function runIntegration(multiRoot = false, discovery = false): Prom
       extensionTestsPath: path.resolve(__dirname, "vscodeHost.js"),
       launchArgs: [
         workspaceTarget,
-        `--user-data-dir=${path.join(temp, "user-data")}`,
+        `--user-data-dir=${userData}`,
         `--extensions-dir=${path.join(temp, "extensions")}`,
         "--disable-workspace-trust",
         ...(process.platform === "linux" && process.env.CI ? ["--no-sandbox"] : []),
