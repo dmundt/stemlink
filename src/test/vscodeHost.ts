@@ -944,6 +944,11 @@ async function testPermanentNoteActions(
     };
     await expectError("stemlink.deleteNote", "changed");
     assert.equal(await read(), "Changed during confirmation\n");
+    await waitFor(
+      () =>
+        doc.getText().replace(/\r\n/g, "\n") === "Changed during confirmation\n" && !doc.isDirty,
+      "concurrent deletion fixture did not finish reloading",
+    );
     await vault.ensureNames();
     assert.ok(vault.target("202601021234-context-note"));
     const workspaceApi = vscode.workspace as { applyEdit: typeof vscode.workspace.applyEdit };
@@ -956,7 +961,9 @@ async function testPermanentNoteActions(
     } finally {
       workspaceApi.applyEdit = originalApplyEdit;
     }
+    const errorsBeforeDelete = errors.length;
     await vscode.commands.executeCommand("stemlink.deleteNote", { uri });
+    assert.deepEqual(errors.slice(errorsBeforeDelete), [], "confirmed deletion reported an error");
     await assert.rejects(async () => vscode.workspace.fs.stat(uri));
     await waitFor(
       () => !vault.target("202601021234-context-note"),
