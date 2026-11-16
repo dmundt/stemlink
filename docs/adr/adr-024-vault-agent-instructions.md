@@ -1,5 +1,5 @@
 ---
-status: Accepted
+status: Superseded in part by ADR 061
 ---
 
 # ADR 024: Opt-in vault agent instructions
@@ -19,3 +19,5 @@ Treat `AGENTS.md` and `INDEX.md` as instruction/navigation files rather than not
 ## Consequences
 
 Vault creation and opening may prompt once per action when selected instruction files are missing. Declining leaves them absent. Existing vault files and custom instructions remain unchanged. The feature adds no command or runtime dependency.
+
+[ADR 061](adr-061-agent-offer-session-skip.md) suppresses repeated offers for the current session after explicit Skip.

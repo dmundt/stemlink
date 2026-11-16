@@ -395,10 +395,11 @@ async function testMockVaultFiles(extensionUri: vscode.Uri): Promise<void> {
   };
   const originalWarning = windowApi.showWarningMessage;
   let prompts = 0;
+  let instructionAnswer: string | undefined = "Skip";
   windowApi.showWarningMessage = new Proxy(originalWarning, {
     apply: () => {
       prompts++;
-      return Promise.resolve("Skip");
+      return Promise.resolve(instructionAnswer);
     },
   });
   try {
@@ -427,14 +428,34 @@ async function testMockVaultFiles(extensionUri: vscode.Uri): Promise<void> {
 
     await instructions.offer(paths);
     assert.equal(prompts, 1, "missing instructions did not prompt");
+    await instructions.offer(paths);
+    assert.equal(prompts, 1, "Skip did not suppress the next offer in this session");
+    const otherRoot = vscode.Uri.parse("stemlink-mock:/other-vault");
+    const otherPaths = {
+      root: otherRoot,
+      inbox: vscode.Uri.joinPath(otherRoot, "capture"),
+      notes: vscode.Uri.joinPath(otherRoot, "permanent"),
+      templates: vscode.Uri.joinPath(otherRoot, "examples"),
+    };
+    for (const uri of [otherPaths.root, otherPaths.inbox, otherPaths.notes])
+      directories.add(uri.path);
+    await instructions.offer(otherPaths);
+    assert.equal(prompts, 2, "Skip leaked into another vault");
+    await new VaultAgentInstructions(extensionUri).offer(paths);
+    assert.equal(prompts, 3, "Skip persisted into a new session");
+    instructionAnswer = undefined;
+    const dismissed = new VaultAgentInstructions(extensionUri);
+    await dismissed.offer(paths);
+    await dismissed.offer(paths);
+    assert.equal(prompts, 5, "dismissal was treated as explicit Skip");
     assert.ok(
       ![...files.keys()].some((name) => name.endsWith("/AGENTS.md")),
       "skip created instructions",
     );
     for (const directory of [root, inbox, notes])
       files.set(`${directory.path}/AGENTS.md`, "Existing instructions\n");
-    await instructions.offer(paths);
-    assert.equal(prompts, 1, "existing instructions prompted again");
+    await new VaultAgentInstructions(extensionUri).offer(paths);
+    assert.equal(prompts, 5, "existing instructions prompted again");
     for (const directory of [root, inbox, notes]) {
       assert.equal(files.get(`${directory.path}/AGENTS.md`), "Existing instructions\n");
     }

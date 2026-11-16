@@ -2,6 +2,8 @@
 
 This is a collection of plain Markdown files: one idea per permanent note, connected by filename. There is no database or required application. Stemlink is optional.
 
+Choose Skip to suppress optional agent-instruction offers for this vault during the current extension session. Other vaults remain independent; restart resets suppression. The existing offerAgentInstructions setting provides a permanent opt-out.
+
 <!-- stemlink:configured-folders -->
 
 ## 1. Folder layout

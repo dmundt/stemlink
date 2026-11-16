@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Remember explicit Skip for optional agent instructions per vault during the current extension session, without adding a setting or persistent state.
+
 - Request a smaller initial Vaults allocation in fresh layouts, retaining native manual resizing, overflow scrolling, and existing saved sizes.
 - Filter Notes by tags through a native multi-select picker with note counts, search-preserved selections, per-vault session state, and a conditional clear action. Show matching counts and active tags; matching ignores case and surrounding whitespace without changing metadata.
 - Add vault-row context actions **New permanent note** and **Validate vault**, targeting the right-clicked vault without changing selection. Note creation requires Workspace Trust; validation reuses the reference audit and replaces previous Stemlink Problems results.
