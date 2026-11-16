@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { VaultAgentInstructions } from "./agentInstructions";
 import {
   auditNotes,
-  isVaultInstructionFile,
+  isExcludedNoteFile,
   linksIn,
   makeNote,
   promoteNote,
@@ -708,7 +708,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       !uri ||
       !directChild(uri, vault.paths.inbox) ||
       !uri.path.endsWith(".md") ||
-      isVaultInstructionFile(name)
+      isExcludedNoteFile(name)
     ) {
       throw new Error("Select an inbox Markdown capture to promote.");
     }
@@ -753,7 +753,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const vault = requireActiveVault();
     diagnostics.clear();
     await vault.refresh();
-    const notes = vault.all.filter((note) => !note.name.startsWith("_"));
+    const notes = vault.all;
     const findings = auditNotes(notes);
     const grouped = new Map<string, vscode.Diagnostic[]>();
     for (const finding of findings) {

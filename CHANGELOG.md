@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Hide underscore-prefixed files from capture and permanent-note views and counts; exclude them from reference targets, completion, and backlinks. Check References continues to flag wiki links to these files as malformed.
+
 ## 0.1.1 - 2026-11-16
 
 - Republish 0.1.0 without functional changes.

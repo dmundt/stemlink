@@ -22,6 +22,10 @@ export function isVaultInstructionFile(name: string): boolean {
   return isRouterIndex(name) || name.toLowerCase() === agentInstructionsName.toLowerCase();
 }
 
+export function isExcludedNoteFile(name: string): boolean {
+  return name.startsWith("_") || isVaultInstructionFile(name);
+}
+
 export interface RouterIndexContent {
   root: string;
   inbox: string;
@@ -327,7 +331,7 @@ export interface Finding<T extends NoteData = NoteData> {
 }
 
 export function auditNotes<T extends NoteData>(notes: T[]): Finding<T>[] {
-  notes = notes.filter((note) => !isVaultInstructionFile(note.name));
+  notes = notes.filter((note) => !isExcludedNoteFile(note.name));
   const stems = new Set(notes.map((note) => note.stem));
   const incoming = new Set<string>();
   const findings: Finding<T>[] = [];

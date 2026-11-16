@@ -1,8 +1,10 @@
 ---
-status: Superseded in part by ADR 026
+status: Superseded in part by ADRs 026 and 043
 ---
 
 # ADR 015: Note templates
+
+[ADR 043](adr-043-underscore-file-exclusion.md) supersedes legacy visibility and backlink behavior for underscore-prefixed files.
 
 ## Context
 

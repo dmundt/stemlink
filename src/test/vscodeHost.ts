@@ -3089,15 +3089,48 @@ export async function run(): Promise<void> {
       try {
         await templateVault.ensure();
         assert.ok(
-          templateVault
+          !templateVault
             .references(created[0][0].slice(0, -3))
-            .some((ref) => ref.note.name === "_template.md"),
-          "template link was removed from backlinks",
+            .some((ref) => ref.note.name.startsWith("_")),
+          "underscore-prefixed file appeared in backlinks",
+        );
+        assert.ok(
+          !templateVault.allTargets.some((target) => target.name.startsWith("_")),
+          "underscore-prefixed file appeared as a reference target",
+        );
+        const templateTree = new VaultTree(
+          () => templateVault,
+          () => [templateVault],
         );
       } finally {
         templateVault.dispose();
       }
       await vscode.workspace.fs.delete(invalid);
+        const hiddenCapture = vscode.Uri.joinPath(inbox, "_hidden.md");
+        try {
+          await vscode.workspace.fs.writeFile(hiddenCapture, Buffer.from("Hidden capture\n"));
+          const sections = await templateTree.getChildren();
+          for (const kind of ["Fleeting", "Notes"]) {
+            const section = sections.find((item) => item.kind === kind);
+            assert.ok(section);
+            const children = await templateTree.getChildren(section);
+            assert.ok(
+              !children.some((item) => String(item.label).startsWith("_")),
+              `${kind} view included an underscore-prefixed file`,
+            );
+          }
+          const templateDocument = await vscode.workspace.openTextDocument(noteTemplate);
+          await templateVault.recordFile(noteTemplate);
+          const edit = new vscode.WorkspaceEdit();
+          edit.insert(templateDocument.uri, new vscode.Position(0, 0), "Edited template\n");
+          assert.equal(await vscode.workspace.applyEdit(edit), true);
+          assert.ok(!templateVault.target("_template"));
+          assert.ok(!templateVault.get("_template"));
+          await templateDocument.save();
+        } finally {
+          templateTree.dispose();
+          await vscode.workspace.fs.delete(hiddenCapture);
+        }
 
       const liveVault = new Vault(folder);
       const liveTree = new VaultTree(

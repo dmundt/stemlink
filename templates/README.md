@@ -174,7 +174,7 @@ Stemlink copies these editable examples into the configured templates folder (`t
 | `[[link]]` | Replace examples with full stems of real notes, in context.               |
 | Filename   | Give a permanent note a new timestamp and slug; keep it stable afterward. |
 
-Templates in `templates/` are outside the Notes tree and reference audit. Legacy underscore-prefixed Markdown files left in the configured permanent-note folder are excluded from **Check References**, but remain visible in Notes and their outgoing links can appear in backlinks; their names are not valid wiki-link targets.
+Templates in `templates/` are outside the Notes tree and reference audit. Files whose names start with `_` are hidden from capture and permanent-note views and their counts, excluded from note indexing, completion, backlinks, and **Check References** as source notes. Wiki links targeting these files are invalid and reported as malformed references. Existing files are not moved or deleted; the legacy `_fleeting.md` template fallback still works.
 
 ## 11. Maintenance and troubleshooting
 
