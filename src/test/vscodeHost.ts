@@ -3250,7 +3250,7 @@ export async function run(): Promise<void> {
   }[];
   assert.equal(
     contributedViews.find((view) => view.id === "stemlink.vaults")?.initialSize,
-    100,
+    1,
     "Vaults view should start compact",
   );
   const commands = extension.packageJSON.contributes.commands as {
