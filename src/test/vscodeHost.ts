@@ -3102,10 +3102,6 @@ export async function run(): Promise<void> {
           () => templateVault,
           () => [templateVault],
         );
-      } finally {
-        templateVault.dispose();
-      }
-      await vscode.workspace.fs.delete(invalid);
         const hiddenCapture = vscode.Uri.joinPath(inbox, "_hidden.md");
         try {
           await vscode.workspace.fs.writeFile(hiddenCapture, Buffer.from("Hidden capture\n"));
@@ -3131,6 +3127,10 @@ export async function run(): Promise<void> {
           templateTree.dispose();
           await vscode.workspace.fs.delete(hiddenCapture);
         }
+      } finally {
+        templateVault.dispose();
+      }
+      await vscode.workspace.fs.delete(invalid);
 
       const liveVault = new Vault(folder);
       const liveTree = new VaultTree(

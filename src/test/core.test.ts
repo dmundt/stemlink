@@ -116,7 +116,6 @@ test("audit reports broken, malformed, missing metadata and incoming references"
   assert.ok(!findings.some((f) => f.note === b && f.message === "No incoming references."));
 });
 
-test("filenames use local timestamps and safe slugs", () => {
 test("underscore files are excluded and underscore references fail validation", () => {
   const text = makeNote("Visible", [], "[[_202601011200-hidden]]");
   const visible = {
@@ -147,6 +146,7 @@ test("underscore files are excluded and underscore references fail validation", 
   );
 });
 
+test("filenames use local timestamps and safe slugs", () => {
   assert.equal(timestamp(new Date(2026, 0, 2, 3, 4)), "202601020304");
   assert.equal(slug("Café: One & Two"), "cafe-one-two");
   assert.equal(slug("💡"), "note");
