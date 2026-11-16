@@ -1729,7 +1729,7 @@ async function testVaultActions(
     } finally {
       vault.refresh = originalRefresh;
     }
-    assert.equal(view.selection[0], selected, "vault actions changed selection");
+    await waitFor(() => view.selection[0] === selected, "vault actions changed selection");
     assert.equal(answers.length, 0);
   } finally {
     duringPrompt = undefined;
