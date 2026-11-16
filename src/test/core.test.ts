@@ -13,6 +13,7 @@ import {
   makeNote,
   metadataProblem,
   noteTags,
+  isReservedFolderName,
   promoteNote,
   markdownCodeSpan,
   renderRouterIndexes,
@@ -24,6 +25,25 @@ import {
   slug,
   timestamp,
 } from "../core";
+
+test("portable creation rejects Windows device basenames including extensions", () => {
+  for (const name of [
+    "CON",
+    "con.txt",
+    "PrN.md",
+    "AUX",
+    "NUL",
+    "COM1",
+    "COM9.md",
+    "LPT1",
+    "lpt9.txt",
+    "COM\u00b9.md",
+    "LPT\u00b2",
+  ])
+    assert.ok(isReservedFolderName(name), name);
+  for (const name of ["console", "auxiliary", "COM0", "COM10", "LPT0", "LPT10", "my.CON", "notes"])
+    assert.equal(isReservedFolderName(name), false, name);
+});
 
 test("note tags normalize case and whitespace without changing metadata", () => {
   const text =
@@ -47,6 +67,24 @@ test("invalid tag metadata is reported, not silently treated as untagged", () =>
     const result = noteTags(text);
     assert.ok(result.problem, text);
     assert.deepEqual(result.tags, []);
+  }
+});
+
+test("tag metadata problems retain source offsets across BOM and line endings", () => {
+  for (const newline of ["\n", "\r\n"]) {
+    for (const bom of ["", "\uFEFF"]) {
+      const text = `${bom}---${newline}title: Test${newline}tags: scalar${newline}---${newline}Body`;
+      const result = noteTags(text);
+      assert.equal(result.start, text.indexOf("tags:"));
+      assert.equal(result.end, text.indexOf("tags:") + 4);
+      const unclosed = noteTags(`${bom}---${newline}tags: [`);
+      assert.equal(unclosed.start, bom.length);
+      assert.equal(unclosed.end, bom.length + 3);
+      const duplicate = `${bom}---${newline}tags: []${newline}tags: []${newline}---${newline}`;
+      const parsed = noteTags(duplicate);
+      assert.equal(parsed.start, duplicate.lastIndexOf("tags:"));
+      assert.ok(parsed.end !== undefined && parsed.end > parsed.start);
+    }
   }
 });
 

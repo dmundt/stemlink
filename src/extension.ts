@@ -4,6 +4,7 @@ import {
   auditNotes,
   captureMetadata,
   isExcludedNoteFile,
+  isReservedFolderName,
   linksIn,
   makeCapture,
   makeNote,
@@ -16,7 +17,15 @@ import { readVaultMarker, resolveVaultPaths, samePaths } from "./discovery";
 import { VaultRouterIndexes } from "./router";
 import { extendMarkdownPreview, MarkdownParser } from "./preview";
 import { Item, VaultSection, VaultTree, VaultTreeSection } from "./tree";
-import { Vault, VaultPaths, directChild, reportError, sameUri, validFolderName } from "./vault";
+import {
+  Vault,
+  VaultPaths,
+  directChild,
+  reportError,
+  sameUri,
+  textPosition,
+  validFolderName,
+} from "./vault";
 
 export async function activate(
   context: vscode.ExtensionContext,
@@ -127,6 +136,13 @@ export async function activate(
     vscode.workspace
       .getConfiguration("stemlink", paths.root)
       .get<boolean>("offerAgentInstructions", true);
+  const syncRouterIndexes = () =>
+    routerIndexes.sync(
+      allVaults()
+        .filter((vault) => routerIndexesEnabled(vault.paths))
+        .map((vault) => vault.paths),
+    );
+  let discoveryFailed = false;
   context.subscriptions.push(tree);
   context.subscriptions.push(routerIndexes);
   const treeSections: VaultSection[] = ["Vaults", "Fleeting", "Notes", "References"];
@@ -139,8 +155,13 @@ export async function activate(
   let hasTagFilter: boolean | undefined;
   const updateTagFilterView = () => {
     const tags = selectedVault ? tree.tagFilter(selectedVault) : [];
-    const view = treeViews.get("Notes");
-    if (view) view.description = tags.length ? `Tags: ${tags.join(", ")}` : undefined;
+    const label = selectedVault ? tree.vaultLabel(selectedVault) : undefined;
+    for (const section of ["Fleeting", "Notes", "References"] as const) {
+      const view = treeViews.get(section);
+      if (view)
+        view.description =
+          section === "Notes" && tags.length ? `${label} · Tags: ${tags.join(", ")}` : label;
+    }
     if (hasTagFilter !== Boolean(tags.length)) {
       hasTagFilter = Boolean(tags.length);
       void vscode.commands
@@ -248,6 +269,9 @@ export async function activate(
     void vscode.commands
       .executeCommand("setContext", "stemlink.hasVault", vaults.size > 0)
       .then(undefined, reportError);
+    void vscode.commands
+      .executeCommand("setContext", "stemlink.discoveryFailed", discoveryFailed)
+      .then(undefined, reportError);
     if (vaultView) {
       const count = vaults.size;
       vaultView.badge = count
@@ -317,18 +341,23 @@ export async function activate(
       }),
     );
   const syncVaults = async (preferred?: vscode.Uri): Promise<void> => {
+    let failed = false;
+    const onError = (error: unknown) => {
+      failed = true;
+      reportError(error);
+    };
     const descriptors = new Map<string, { folder: vscode.WorkspaceFolder; paths: VaultPaths }>();
     const folders = [...(vscode.workspace.workspaceFolders ?? [])].sort(
       (a, b) => b.uri.path.length - a.uri.path.length,
     );
     for (const folder of folders) {
       try {
-        for (const paths of await resolveVaultPaths(folder, context.workspaceState)) {
+        for (const paths of await resolveVaultPaths(folder, context.workspaceState, onError)) {
           if (!descriptors.has(paths.root.toString()))
             descriptors.set(paths.root.toString(), { folder, paths });
         }
       } catch (error) {
-        reportError(error);
+        onError(error);
       }
     }
     for (const [key, vault] of vaults) {
@@ -346,11 +375,8 @@ export async function activate(
       }
       vault.selectPaths(descriptor.paths);
     }
-    routerIndexes.sync(
-      allVaults()
-        .filter((vault) => routerIndexesEnabled(vault.paths))
-        .map((vault) => vault.paths),
-    );
+    discoveryFailed = failed;
+    syncRouterIndexes();
     const saved = context.workspaceState.get<string>(selectionKey);
     const wanted = [preferred?.toString(), selectedVault?.paths.root.toString(), saved].find(
       (root) => root !== undefined && vaults.has(root),
@@ -447,6 +473,8 @@ export async function activate(
       updateTagFilterView();
       if (tagPickerScope !== scope) return;
       const selected = new Set(tree.tagFilter(vault));
+      if (!choices.length)
+        picker.placeholder = "No tags in this vault. Add YAML tags, for example: tags: [idea].";
       picker.items = choices.map(({ tag, count }) => ({
         label: tag,
         tag,
@@ -638,21 +666,30 @@ export async function activate(
           });
     if (!selected) return;
     const config = vscode.workspace.getConfiguration("stemlink", selected.uri);
-    const prompt = async (label: string, value: string) =>
-      vscode.window.showInputBox({
+    const prompt = async (
+      label: string,
+      value: string,
+      validateCollision?: (input: string) => string | undefined,
+    ) => {
+      const validateInput = (input: string) =>
+        !validFolderName(input)
+          ? "Enter a single valid folder name."
+          : isReservedFolderName(input)
+            ? "Choose a folder name that is not a reserved Windows device name."
+            : validateCollision?.(input);
+      const answer = await vscode.window.showInputBox({
         title: `Create vault: ${label}`,
         value,
-        validateInput: (input) =>
-          validFolderName(input) ? undefined : "Enter a single valid folder name.",
+        validateInput,
       });
+      if (answer !== undefined) {
+        const problem = validateInput(answer);
+        if (problem) throw new Error(problem);
+      }
+      return answer;
+    };
     const root = await prompt("root folder", config.get<string>("root", "notes"));
     if (root === undefined) return;
-    const inbox = await prompt("inbox folder", config.get<string>("inbox", "inbox"));
-    if (inbox === undefined) return;
-    const notes = await prompt("permanent-note folder", config.get<string>("notes", "permanent"));
-    if (notes === undefined) return;
-    if (inbox.toLowerCase() === notes.toLowerCase())
-      throw new Error("Inbox and notes must be different folders.");
     const rootUri = vscode.Uri.joinPath(selected.uri, root);
     const existingMarker = await readVaultMarker(rootUri);
     const templateSetting = config.inspect<string>("templates");
@@ -665,11 +702,34 @@ export async function activate(
       existingMarker && !templatesExplicit
         ? existingMarker.templates.path.slice(existingMarker.templates.path.lastIndexOf("/") + 1)
         : config.get<string>("templates", "templates");
-    if (!validFolderName(templatesName))
-      throw new Error("The templates folder must be a valid folder name.");
-    if ([inbox, notes].some((name) => name.toLowerCase() === templatesName.toLowerCase())) {
-      throw new Error("The templates folder must be distinct from inbox and notes.");
+    if (!validFolderName(templatesName) || isReservedFolderName(templatesName)) {
+      const choice = await vscode.window.showErrorMessage(
+        "Stemlink: The templates folder must be a valid folder name, not a reserved Windows device name.",
+        "Settings",
+      );
+      if (choice === "Settings") await vscode.commands.executeCommand("stemlink.openSettings");
+      return;
     }
+    const templateCollision = (input: string) =>
+      input.toLowerCase() === templatesName.toLowerCase()
+        ? "The templates folder must be distinct from inbox and notes."
+        : undefined;
+    const inbox = await prompt(
+      "inbox folder",
+      config.get<string>("inbox", "inbox"),
+      templateCollision,
+    );
+    if (inbox === undefined) return;
+    const notes = await prompt(
+      "permanent-note folder",
+      config.get<string>("notes", "permanent"),
+      (input) =>
+        templateCollision(input) ??
+        (input.toLowerCase() === inbox.toLowerCase()
+          ? "Inbox and notes must be different folders."
+          : undefined),
+    );
+    if (notes === undefined) return;
     const configured = ["root", "inbox", "notes", "templates"].some((key) => {
       const info = config.inspect(key);
       return info?.workspaceValue !== undefined || info?.workspaceFolderValue !== undefined;
@@ -700,6 +760,8 @@ export async function activate(
         `The existing ${rootUri.path}/.stemlink.json specifies different folders. Update it before reusing this vault.`,
       );
     }
+    if (!vscode.workspace.isTrusted)
+      throw new Error("Trust the workspace before creating a vault.");
     await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(rootUri, inbox));
     await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(rootUri, notes));
     const templateDirectory = desiredPaths.templates;
@@ -874,6 +936,7 @@ export async function activate(
     if (!vscode.workspace.isTrusted)
       throw new Error("Trust the workspace before creating a capture.");
     const vault = requireActiveVault();
+    const destination = vault.paths.inbox.toString();
     let headline: string | undefined;
     if (
       vscode.workspace
@@ -882,7 +945,7 @@ export async function activate(
     ) {
       headline = await vscode.window.showInputBox({
         title: "Capture headline",
-        prompt: "Describe this fleeting thought.",
+        prompt: `Describe this fleeting thought for ${tree.vaultLabel(vault)}.`,
         validateInput: (value) => (value.trim() ? undefined : "Enter a headline."),
       });
       if (headline === undefined) return;
@@ -899,14 +962,26 @@ export async function activate(
         text = Buffer.from(await vscode.workspace.fs.readFile(legacyTemplate)).toString("utf8");
       } catch (legacyError) {
         if (legacyError instanceof vscode.FileSystemError && legacyError.code === "FileNotFound") {
-          throw new Error(
-            `Fleeting template not found at ${template.path} or ${legacyTemplate.path}.`,
-            { cause: legacyError },
+          const choice = await vscode.window.showWarningMessage(
+            `Stemlink: Fleeting template not found at ${template.path} or ${legacyTemplate.path}.`,
+            "Use bundled template once",
           );
-        }
-        throw legacyError;
+          if (choice !== "Use bundled template once") return;
+          text = Buffer.from(
+            await vscode.workspace.fs.readFile(
+              vscode.Uri.joinPath(context.extensionUri, "templates", "_fleeting.md"),
+            ),
+          ).toString("utf8");
+        } else throw legacyError;
       }
     }
+    if (!vscode.workspace.isTrusted)
+      throw new Error("Trust the workspace before creating a capture.");
+    registeredVault(vault);
+    if (vault.paths.inbox.toString() !== destination)
+      throw new Error("The vault's inbox folder changed; try again.");
+    if (!((await vscode.workspace.fs.stat(vault.paths.inbox)).type & vscode.FileType.Directory))
+      throw new Error("The vault's inbox path is not a folder.");
     const name = headline ? slug(headline).slice(0, 48).replace(/-+$/g, "") : "capture";
     const uri = await createFile(
       vault.paths.inbox,
@@ -921,6 +996,26 @@ export async function activate(
     if (vaults.get(vault.paths.root.toString()) !== vault)
       throw new Error("The selected vault is no longer available.");
     return vault;
+  }
+
+  function explainFilteredCreation(vault: Vault, uri: vscode.Uri): void {
+    if (selectedVault !== vault || tree.isVisibleNote(vault, uri)) return;
+    void vscode.window
+      .showInformationMessage(
+        `Stemlink: Created note in ${tree.vaultLabel(vault)} is not shown by the active tag filter.`,
+        "Clear tag filter",
+      )
+      .then((choice) => {
+        if (
+          choice === "Clear tag filter" &&
+          selectedVault === vault &&
+          vaults.get(vault.paths.root.toString()) === vault
+        ) {
+          tree.setTagFilter(vault, []);
+          updateTagFilterView();
+        }
+      })
+      .then(undefined, reportError);
   }
 
   function itemVault(item?: Item): Vault {
@@ -947,6 +1042,7 @@ export async function activate(
     await vault.recordFile(uri);
     tree.refresh();
     await vscode.window.showTextDocument(uri);
+    explainFilteredCreation(vault, uri);
   }
   command("stemlink.addNote", async () => {
     await addNote(requireActiveVault());
@@ -1052,7 +1148,10 @@ export async function activate(
       throw new Error(
         `${kind === "capture" ? "Capture" : "Note"} changed while confirming ${action.toLowerCase()}; nothing was deleted.`,
       );
-    await vscode.workspace.fs.delete(uri, { useTrash: true });
+    const deletion = new vscode.WorkspaceEdit();
+    deletion.deleteFile(uri);
+    if (!(await vscode.workspace.applyEdit(deletion)))
+      throw new Error(`${kind === "capture" ? "Capture" : "Note"} could not be deleted.`);
     tree.refresh();
   }
   command("stemlink.discardCapture", async (item?: Item, selection?: Item[]) => {
@@ -1143,7 +1242,10 @@ export async function activate(
     }
     await vault.recordFile(target);
     tree.refresh();
-    if (!batchTargets) await vscode.window.showTextDocument(target);
+    if (!batchTargets) {
+      await vscode.window.showTextDocument(target);
+      explainFilteredCreation(vault, target);
+    }
     return true;
   }
   async function promoteBatch(items: Item[], token?: vscode.CancellationToken): Promise<void> {
@@ -1209,7 +1311,11 @@ export async function activate(
           `Stemlink: Promotion ${outcome}: ${completed} of ${captures.size} captures promoted; ${captures.size - completed} not fully promoted.${partial}`,
         );
         const last = targets[targets.length - 1];
-        if (last) await vscode.window.showTextDocument(last).then(undefined, reportError);
+        if (last) {
+          await vscode.window.showTextDocument(last).then(undefined, reportError);
+          const vault = vaultFor(last);
+          if (vault) explainFilteredCreation(vault, last);
+        }
       }
     }
   }
@@ -1240,14 +1346,10 @@ export async function activate(
     const findings = auditNotes(notes);
     const grouped = new Map<string, vscode.Diagnostic[]>();
     for (const finding of findings) {
-      const positionAt = (offset: number) => {
-        const prefix = finding.note.text.slice(0, offset);
-        return new vscode.Position(
-          prefix.split("\n").length - 1,
-          offset - (prefix.lastIndexOf("\n") + 1),
-        );
-      };
-      const range = new vscode.Range(positionAt(finding.start), positionAt(finding.end));
+      const range = new vscode.Range(
+        textPosition(finding.note.text, finding.start),
+        textPosition(finding.note.text, finding.end),
+      );
       const severity =
         finding.severity === "error"
           ? vscode.DiagnosticSeverity.Error
@@ -1426,7 +1528,14 @@ export async function activate(
   );
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((event) => {
-      if (!configuring && event.affectsConfiguration("stemlink")) scheduleDiscovery();
+      if (configuring) return;
+      if (
+        ["root", "inbox", "notes", "templates"].some((key) =>
+          event.affectsConfiguration(`stemlink.${key}`),
+        )
+      )
+        scheduleDiscovery();
+      else if (event.affectsConfiguration("stemlink.enableRouterIndexes")) syncRouterIndexes();
     }),
   );
   context.subscriptions.push(

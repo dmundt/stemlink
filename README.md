@@ -18,15 +18,17 @@ Restricted Mode supports browsing, navigation, tag filtering, validation, and re
 
 Refresh rediscovers vaults and retries the selected vault's note index and failed listing counts. Views distinguish empty lists, no tag matches, and loading failures. References explains when the active note belongs to another vault; selecting that vault remains manual.
 
+Marker errors offer **Open configuration**; invalid folder settings offer **Settings**. Healthy vaults remain available when another configuration fails. If discovery leaves no vaults, Vaults shows recovery guidance rather than first-run setup. Display, capture, and instruction preferences do not rediscover vaults.
+
 Right-click a vault under **Vaults** for **New permanent note** or **Validate vault**. Both use that vault without changing the selection. Creation asks for title and optional tags, opens the new note, and requires Workspace Trust. Validation checks permanent notes, including unsaved content, and offers **Show Problems**. Successful validation replaces previous Stemlink validation results across vaults; failure preserves them. Validation does not change files.
 
 The default root holds the collection; `inbox/` holds captures, `permanent/` holds permanent notes, and `templates/` holds editable examples. The bundled manual lists alternatives: `zk/inbox/notes`, `Stemlink vault/Fleeting/Permanent`, `vault/capture/notes`, and `vault/inbox/permanent`. Use Open vault or settings for these layouts; Stemlink does not infer a layout from its folder names.
 
-Capture and permanent-note view headings use the selected vault's folder names, preserving their spelling and case. Switching vaults updates these headings; counts follow `stemlink.showCounts`. Without a selected vault, the headings remain Fleeting and Notes.
+Capture and permanent-note view headings use the selected vault's folder names, preserving their spelling and case. View descriptions identify the selected vault, disambiguating duplicate names by workspace. Switching vaults updates these headings; counts follow `stemlink.showCounts`. Without a selected vault, the headings remain Fleeting and Notes.
 
 Vault creation copies the bundled manual to the vault root and personalizes its folder summary with your chosen names. Editable Markdown examples go into the mapped templates folder (`templates/` by default). `INDEX.md` routers and accepted `AGENTS.md` instructions also include configured folder names; existing files are preserved. The root router links to folder routers; each folder router maps local Markdown filenames to YAML `description`, falling back to `title`. Missing metadata is labeled explicitly. Routers help choose files to read, not replace reading them; Stemlink's in-memory note/reference index is authoritative for live state. Stemlink updates only generated sections on discovery, observed filesystem changes, edits (including unsaved metadata), and **Refresh**. Promotion preserves the capture's content; rewrite it as needed.
 
-New fleeting note reads `_fleeting.md` from the mapped templates folder first and falls back to the configured notes folder for existing vaults.
+New fleeting note reads `_fleeting.md` from the mapped templates folder first and falls back to the configured notes folder for existing vaults. If both are missing, **Use bundled template once** creates one capture without installing a template or changing settings. Dismissal creates nothing.
 
 By default, **New fleeting note** asks for a headline. It adds the full headline as a Markdown heading before the template body and uses a filename such as `202611161400-short-headline.md`. Filename slugs are capped at 48 characters; duplicates get numeric suffixes. Cancel creates nothing. Disable **Capture > Prompt For Capture Headline** (`stemlink.promptForCaptureHeadline`) to copy the template unchanged with a timestamped `capture` filename. Existing captures are unchanged.
 
@@ -36,13 +38,17 @@ Promote selected captures through their context menu or by dragging them from Fl
 
 Right-click a permanent note for **Edit metadata…** or **Delete…**. Metadata changes preserve the filename, body, and unrelated YAML. Delete asks for confirmation, warns that inbound wiki links may break, and moves the file to trash when supported; it never rewrites links. Save or revert unsaved changes before deletion. Workspace Trust is required.
 
+Deleted files leave navigation and reference indexes even if an editor remains open. Indexing does not discard editor buffers; recreating the file indexes it again. Confirmed deletion uses native VS Code file operations and honors `files.enableTrash`.
+
 Metadata prompts identify the target file or vault. Editing metadata saves an originally clean document, but leaves an already-dirty document unsaved, including its body and metadata changes. Save it through the editor when ready; the in-memory index follows unsaved content.
 
 Use **Filter by tags…** in the Notes view menu to select existing tags. The native picker lists tags alphabetically with counts across that vault; typing narrows choices without clearing checked tags. Enter applies and Escape keeps the previous filter. Notes match any checked tag; selecting none or choosing **Clear tag filter** shows all notes. Active tags appear in the view description, and the heading count shows matching notes when counts are enabled.
 
+Creating or promoting a note does not clear an active tag filter. If the displayed vault's filter hides the new note, a notice offers **Clear tag filter**. The note still opens normally.
+
 Tag filters are independent per vault and last only for the current session. Matching ignores surrounding whitespace and case without changing YAML. Counts include unsaved note edits and count each note once per tag. A selected tag that disappears stays selected with count 0. Invalid YAML or tag lists are reported and excluded from matches; affected notes remain visible when unfiltered. Filtering is read-only and available without Workspace Trust.
 
-Invalid tag metadata appears as file-level **Stemlink tags** Problems, separate from manual validation. Notifications summarize the affected count and offer **Show Problems** instead of listing every file. Editing an already-invalid file updates diagnostics quietly; fixes and deletions clear obsolete entries.
+Invalid tag metadata appears as **Stemlink tags** Problems at the invalid YAML or tags key, separate from manual validation. Notifications summarize the affected count and offer **Show Problems** instead of listing every file. Editing an already-invalid file updates diagnostics quietly; fixes and deletions clear obsolete entries. An empty tag picker explains how to add YAML tags.
 
 Files starting with `_` are hidden from capture and permanent-note views and counts, and excluded from note indexing, completion, backlinks, and audits as source notes. Wiki links to these files are invalid and reported by **Validate vault**. Existing files remain on disk.
 
@@ -59,6 +65,8 @@ Use **Settings** in the **Vaults** view menu or **Stemlink: Settings** to open S
 Settings are resource-scoped and apply to the workspace folder containing each vault. Defaults:
 
 The `stemlink.root`, `stemlink.inbox`, `stemlink.notes`, and `stemlink.templates` settings appear together under **Stemlink › Vault Folders** in VS Code Settings.
+
+Create vault checks folder names and collisions before accepting each answer. New vaults reject reserved Windows device names such as `CON` and `COM1.txt` on every platform; existing vaults remain readable. Invalid template defaults offer Settings before any folder is created.
 
 **Display** contains sidebar count visibility. **AI Context** contains router indexes and agent-instruction prompts; these prepare local files for AI tools without adding built-in AI or provider calls.
 
@@ -121,7 +129,7 @@ Related: [[202411130915-ids-as-timestamps]]
 
 - Click a link or press **F12** to navigate; type `[[` for completion.
 - In VS Code's built-in Markdown preview, existing `[[stem]]` targets render as clickable links without changing source text. Workspace Trust is required. Code, escaped references, and existing Markdown links stay unchanged; missing or invalid targets remain literal.
-- Use **Shift+F12** or **References > Inbound** for backlinks. **Outbound** shows links from the active note in the selected vault. Counts are link occurrences.
+- Use **Shift+F12** or **References > Inbound** for backlinks. Inbound rows include the source line and an excerpt. **Outbound** shows links from the active note in the selected vault; missing links open their source location. Counts are link occurrences.
 - Run **Validate vault** to find broken links and other note issues in the Problems panel. Files starting with `_` are excluded from the check.
 
 Keep permanent filenames stable: renaming can break links. Stemlink warns about renames reported by VS Code, but cannot prevent all renames.

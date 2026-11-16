@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { isExcludedNoteFile, linksIn, normalizeTags, noteTags } from "./core";
-import { Vault, VaultNote, directChild, reportError } from "./vault";
+import { Vault, VaultNote, directChild, reportError, textPosition } from "./vault";
 
 export type VaultSection = "Vaults" | "Fleeting" | "Notes" | "References";
 type Section = VaultSection | "Inbound" | "Outbound";
@@ -227,6 +227,28 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
     return this.tagStates.get(vault)?.selected ?? [];
   }
 
+  vaultLabel(vault: Vault): string {
+    const name = vault.paths.root.path.split("/").pop() || vault.folder.name;
+    const duplicates = this.vaults().filter(
+      (candidate) => (candidate.paths.root.path.split("/").pop() || candidate.folder.name) === name,
+    );
+    if (duplicates.length < 2) return name;
+    const workspace =
+      duplicates.some(
+        (candidate) => candidate !== vault && candidate.folder.name === vault.folder.name,
+      ) || vault.folder.name === name
+        ? vault.folder.uri.fsPath
+        : vault.folder.name;
+    return `${name} (${workspace})`;
+  }
+
+  isVisibleNote(vault: Vault, uri: vscode.Uri): boolean {
+    return (
+      !this.tagFilter(vault).length ||
+      this.filteredNotes(vault).some((note) => note.uri.toString() === uri.toString())
+    );
+  }
+
   setTagFilter(vault: Vault, tags: readonly string[]): void {
     const state = this.tagState(vault);
     state.selected = normalizeTags(tags);
@@ -270,7 +292,10 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
       if (metadata.problem) {
         problems.add(note.uri.toString());
         const diagnostic = new vscode.Diagnostic(
-          new vscode.Range(0, 0, 0, 0),
+          new vscode.Range(
+            textPosition(note.text, metadata.start ?? 0),
+            textPosition(note.text, metadata.end ?? metadata.start ?? 0),
+          ),
           metadata.problem,
           vscode.DiagnosticSeverity.Warning,
         );
@@ -513,7 +538,12 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
           .filter((link) => link.valid)
           .map((link) => {
             const target = vault.target(link.stem);
-            const item = new Item(link.stem, "reference", target?.uri);
+            const item = new Item(
+              link.stem,
+              "reference",
+              target?.uri ?? document.uri,
+              target ? undefined : link.start,
+            );
             if (!target) {
               item.description = "Missing";
               item.iconPath = new vscode.ThemeIcon("warning");
@@ -525,9 +555,20 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
       if (element.kind === "Inbound") {
         await vault.ensure();
         const name = document.uri.path.slice(document.uri.path.lastIndexOf("/") + 1, -3);
-        return vault
-          .references(name)
-          .map((ref) => new Item(ref.note.name, "reference", ref.note.uri, ref.link.start));
+        return vault.references(name).map((ref) => {
+          const item = new Item(ref.note.name, "reference", ref.note.uri, ref.link.start);
+          const before = ref.note.text.slice(0, ref.link.start);
+          const line = before.split("\n").length;
+          const end = ref.note.text.indexOf("\n", ref.link.start);
+          const excerpt = ref.note.text
+            .slice(before.lastIndexOf("\n") + 1, end === -1 ? undefined : end)
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, 80);
+          item.description = `${line}: ${excerpt}`;
+          item.tooltip = `${ref.note.uri.fsPath}:${line}\n${excerpt}`;
+          return item;
+        });
       }
       return [];
     } catch (error) {
