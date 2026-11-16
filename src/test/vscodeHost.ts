@@ -1326,8 +1326,16 @@ async function testVaultActions(
     api.showInputBox = original.input;
     api.showErrorMessage = original.error;
     api.showInformationMessage = original.info;
-    for (const uri of [...created, probe, otherProbe]) await remove(uri);
+    for (const uri of [...created, probe, otherProbe]) {
+      const document = vscode.workspace.textDocuments.find((entry) => sameUri(entry.uri, uri));
+      if (document) {
+        await vscode.window.showTextDocument(document);
+        await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor");
+      }
+      await remove(uri);
+    }
     if (createIndex) await remove(index);
+    await Promise.all([...new Set([vault, selected.vault])].map((item) => item.refresh()));
   }
 }
 
