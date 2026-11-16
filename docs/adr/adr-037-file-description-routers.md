@@ -1,8 +1,10 @@
 ---
-status: Accepted
+status: Accepted; superseded in part by ADR 044
 ---
 
 # ADR 037: File-description routers
+
+[ADR 044](adr-044-fleeting-router-titles.md) replaces inbox metadata descriptions with body-derived titles.
 
 ## Context
 

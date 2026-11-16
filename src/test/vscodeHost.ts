@@ -377,7 +377,9 @@ async function testRouterMappings(folder: vscode.WorkspaceFolder): Promise<void>
     );
     await waitForFileText(
       inboxIndex,
-      (text) => text.includes("[capture.md](./capture.md) | No description or title."),
+      (text) =>
+        text.includes("| File | Title |") &&
+        text.includes("[capture.md](./capture.md) | Unprocessed capture |"),
       "capture router omitted local file",
     );
 
@@ -415,7 +417,9 @@ async function testRouterMappings(folder: vscode.WorkspaceFolder): Promise<void>
     const added = vscode.Uri.joinPath(inbox, "new capture.md");
     const renamed = vscode.Uri.joinPath(inbox, "renamed capture.md");
     const creation = new vscode.WorkspaceEdit();
-    creation.createFile(added, { contents: Buffer.from("---\ndescription: New capture\n---\n") });
+    creation.createFile(added, {
+      contents: Buffer.from("---\ndescription: Metadata ignored\n---\nNew capture\n"),
+    });
     assert.equal(await vscode.workspace.applyEdit(creation), true);
     await waitForFileText(
       inboxIndex,

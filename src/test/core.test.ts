@@ -4,6 +4,7 @@ import { parseDocument } from "yaml";
 import {
   auditNotes,
   frontMatter,
+  fleetingTitle,
   isRouterIndex,
   isVaultInstructionFile,
   linksIn,
@@ -214,6 +215,16 @@ test("audit handles duplicate, self, broken, and malformed links", () => {
   const invalidFindings = auditNotes([invalid]);
   assert.ok(invalidFindings.some((f) => f.message === "Invalid note filename."));
   assert.ok(invalidFindings.some((f) => f.message === "No outgoing references."));
+});
+
+test("fleeting router titles summarize body text and truncate long titles", () => {
+  assert.equal(fleetingTitle("\nFirst sentence. Second sentence.\nNext line"), "First sentence.");
+  assert.equal(fleetingTitle("\r\n# Capture heading\r\nBody text"), "Capture heading");
+  assert.equal(fleetingTitle("---\ntitle: Metadata\n---\nBody title\nMore"), "Body title");
+  assert.equal(fleetingTitle(" \n\t"), "Empty capture.");
+  assert.equal(fleetingTitle("x".repeat(120)), "x".repeat(120));
+  assert.equal(fleetingTitle("x".repeat(121)), `${"x".repeat(120)}...`);
+  assert.throws(() => fleetingTitle("---\ntitle: Unclosed"), /Unclosed/);
 });
 
 test("router descriptions use YAML description, then title, and reject invalid metadata", () => {

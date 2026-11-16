@@ -160,6 +160,8 @@ Search the files for a distinctive word, tag, or filename stem. Browse `permanen
 
 ## 10. Templates
 
+Inbox `INDEX.md` tables show body-derived titles: the first non-empty line or sentence, capped at 120 characters with `...` when truncated. YAML front matter is skipped. Empty captures show `Empty capture.`; permanent-note routers continue to use YAML description or title.
+
 Stemlink copies these editable examples into the configured templates folder (`templates/` by default) during **Create Vault**. They are starting points, not enforced formats. Copy and rename a template before editing:
 
 - `_template.md`: a complete permanent-note example.

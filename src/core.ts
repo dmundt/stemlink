@@ -37,6 +37,22 @@ export interface RouterEntry {
   description: string;
 }
 
+export function fleetingTitle(text: string): string {
+  const matter = frontMatter(text);
+  if (!matter && /^(?:\uFEFF)?---[ \t]*\r?\n/.test(text))
+    throw new Error("Unclosed YAML front matter.");
+  const body = matter ? text.slice(matter.end) : text;
+  const line = body
+    .split(/\r?\n/)
+    .map((value) => value.trim())
+    .find(Boolean);
+  if (!line) return "Empty capture.";
+  const title = line.replace(/^#{1,6}\s+/, "").replace(/\s+/g, " ");
+  const sentence = title.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? title;
+  const characters = Array.from(sentence);
+  return characters.length > 120 ? `${characters.slice(0, 120).join("").trimEnd()}...` : sentence;
+}
+
 export function routerDescription(text: string): string {
   const matter = frontMatter(text);
   if (!matter) {
@@ -98,8 +114,8 @@ export function renderRouterIndexes(
   const notesCount = notesEntries.length;
   const escape = (text: string) =>
     text.replace(/[&<>"'\\`*_[\]{}|]/g, (character) => `&#${character.charCodeAt(0)};`);
-  const listing = (entries: readonly RouterEntry[]) => [
-    "| File | Description |",
+  const listing = (entries: readonly RouterEntry[], column = "Description") => [
+    `| File | ${column} |`,
     "| --- | --- |",
     ...[...entries]
       .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
@@ -136,9 +152,9 @@ export function renderRouterIndexes(
       "",
       `Markdown captures: ${inboxCount}`,
       "",
-      "Use the file descriptions below to choose captures to read. Descriptions come from YAML description, then title; read each file for its full content.",
+      "Use the titles below to choose captures to read. Titles use the first non-empty body line or sentence, limited to 120 characters followed by ... when truncated. Read each file for its full content.",
       "",
-      ...listing(inboxEntries),
+      ...listing(inboxEntries, "Title"),
     ]),
     notes: section([
       `# Notes router: ${markdownCodeSpan(`${notesName}/`)}`,
