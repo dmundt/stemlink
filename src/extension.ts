@@ -1188,13 +1188,12 @@ export async function activate(
         `Stemlink: ${vault.paths.root.fsPath}: ${count("error")} errors, ${count("warning")} warnings, ${count("info")} info across ${notes.length} permanent notes. Previous Stemlink validation results replaced.`,
         "Show Problems",
       )
-      .then(
-        (answer) =>
-          answer === "Show Problems"
-            ? vscode.commands.executeCommand("workbench.actions.view.problems")
-            : undefined,
-        reportError,
-      );
+      .then((answer) =>
+        answer === "Show Problems"
+          ? vscode.commands.executeCommand("workbench.actions.view.problems")
+          : undefined,
+      )
+      .then(undefined, reportError);
   }
   command("stemlink.checkReferences", async () => {
     await validateVault(requireActiveVault());
