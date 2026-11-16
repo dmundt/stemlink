@@ -75,6 +75,7 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
   >();
   private readonly pendingNames = new Set<Vault>();
   private readonly failedNames = new Set<Vault>();
+  private readonly failures = new Map<Vault, Partial<Record<VaultSection, string>>>();
   private readonly namePaths = new Map<Vault, string>();
   private readonly tagStates = new Map<Vault, TagState>();
   private readonly parsedTags = new WeakMap<VaultNote, ReturnType<typeof noteTags>>();
@@ -109,6 +110,7 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
         this.vaultItems.delete(vault);
         this.captureCounts.delete(vault);
         this.failedNames.delete(vault);
+        this.failures.delete(vault);
         this.namePaths.delete(vault);
         this.tagStates.delete(vault);
       }
@@ -119,6 +121,7 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
         this.vaultSubscriptions.set(
           vault,
           vault.changed.event(() => {
+            this.failures.delete(vault);
             const state = this.tagStates.get(vault);
             if (state) state.summary = undefined;
             this.refresh();
@@ -280,6 +283,42 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
     if (this.refreshTimer) clearTimeout(this.refreshTimer);
     this.refreshTimer = setTimeout(() => this.emitter.fire(undefined), 100);
   }
+  reset(vault: Vault): void {
+    this.captureCounts.delete(vault);
+    this.failedNames.delete(vault);
+    this.failures.delete(vault);
+    this.refresh();
+  }
+
+  message(section: VaultSection): string | undefined {
+    const vault = this.activeVault();
+    if (section === "Vaults") return undefined;
+    if (!vault) return "Open or create a vault in Vaults.";
+    if (this.failures.get(vault)?.[section])
+      return "Unable to load this view. Use Refresh in Vaults to retry.";
+    if (section === "Fleeting") {
+      const state = this.captureCounts.get(vault);
+      if (state?.failed) return "Unable to load captures. Use Refresh in Vaults to retry.";
+      if (state?.count === 0) return "No captures. Use New fleeting note to capture a thought.";
+    }
+    if (section === "Notes") {
+      if (this.failedNames.has(vault) || vault.indexState === "failed")
+        return "Unable to load notes. Use Refresh in Vaults to retry.";
+      if (this.tagFilter(vault).length) {
+        if (vault.indexState === "ready" && !this.filteredNotes(vault).length)
+          return "No notes match selected tags. Use Clear tag filter in the view menu.";
+      } else if (vault.namesReady && !vault.allTargets.length) {
+        return "No permanent notes. Use New permanent note to create one.";
+      }
+    }
+    if (section === "References" && !this.activeNote(vault)) {
+      const owner = this.vaults().find((candidate) => this.activeNote(candidate));
+      if (owner)
+        return `Active note belongs to ${owner.paths.root.fsPath}. Select that vault in Vaults to see references.`;
+      return `Open a permanent note in ${vault.paths.root.fsPath} to see references.`;
+    }
+    return undefined;
+  }
   getTreeItem(element: Item): vscode.TreeItem {
     return element;
   }
@@ -366,7 +405,10 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
             ),
             "Notes",
           ),
-          new Item(label("References", references), "References"),
+          new Item(
+            vault && this.activeNote(vault) ? label("References", references) : "References",
+            "References",
+          ),
         ];
       }
       if (element.kind === "Vaults")
@@ -408,6 +450,7 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
       }
       const document = this.activeNote(vault);
       if (element.kind === "References") {
+        if (!document) return [];
         const counts = this.referenceCounts(vault, document);
         return [
           new Item(
@@ -442,7 +485,25 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
       }
       return [];
     } catch (error) {
-      reportError(error);
+      const vault = this.activeVault();
+      const section =
+        element?.kind === "Inbound" || element?.kind === "Outbound" ? "References" : element?.kind;
+      if (
+        vault &&
+        (section === "Vaults" ||
+          section === "Fleeting" ||
+          section === "Notes" ||
+          section === "References")
+      ) {
+        const failures = this.failures.get(vault) ?? {};
+        const message = error instanceof Error ? error.message : String(error);
+        if (failures[section] !== message) {
+          failures[section] = message;
+          this.failures.set(vault, failures);
+          reportError(error);
+          this.refresh();
+        }
+      } else reportError(error);
       return [];
     }
   }

@@ -44,6 +44,8 @@ Vault `AGENTS.md` files are optional. With `stemlink.offerAgentInstructions` ena
 
 ## Extension settings
 
+Refresh rediscovers vaults and retries the selected vault's note index and failed listing counts. Views explain empty lists, tag filters with no matches, and loading failures. References asks for a permanent note in the selected vault rather than showing zero for an unrelated active editor; selecting another vault remains manual.
+
 Use the gear in the **Vaults** view or **Stemlink: Settings** to open Stemlink settings.
 
 Settings are resource-scoped and apply to the workspace folder containing each vault. Defaults:

@@ -270,8 +270,8 @@ export async function activate(
             ? undefined
             : "Use Open Vault or Create Vault."
           : selectedVault
-            ? undefined
-            : "Select a vault in Vaults.";
+            ? tree.message(section)
+            : "Open or create a vault in Vaults.";
     }
   };
   const updateTreeViewTitles = async (): Promise<void> => {
@@ -286,6 +286,7 @@ export async function activate(
   context.subscriptions.push(
     tree.onDidChangeTreeData(() => {
       void updateTreeViewTitles().catch(reportError);
+      updateTreeViewMessages();
       void syncVaultSelection().catch(reportError);
     }),
   );
@@ -1141,9 +1142,16 @@ export async function activate(
   });
 
   command("stemlink.refresh", async () => {
-    const vault = requireActiveVault();
+    await queueDiscovery();
+    const vault = activeVault();
+    if (!vault) {
+      tree.refresh();
+      return;
+    }
+    tree.reset(vault);
     await vault.refresh();
-    if (routerIndexesEnabled(vault.paths)) await routerIndexes.refresh(vault.paths);
+    if (vscode.workspace.isTrusted && routerIndexesEnabled(vault.paths))
+      await routerIndexes.refresh(vault.paths);
     tree.refresh();
   });
 
