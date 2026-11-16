@@ -477,6 +477,37 @@ async function testMockVaultFiles(extensionUri: vscode.Uri): Promise<void> {
     for (const directory of [root, inbox, notes]) {
       assert.equal(files.get(`${directory.path}/AGENTS.md`), "Existing instructions\n");
     }
+    const deleted = vscode.Uri.joinPath(notes, "202601021234-delete-race.md");
+    const stem = "202601021234-delete-race";
+    files.set(deleted.path, "References [[202601011200-note]].\n");
+    const vault = new Vault({ uri: root, name: "Synthetic vault", index: 0 });
+    vault.selectPaths(paths);
+    const doc = await vscode.workspace.openTextDocument(deleted);
+    try {
+      await vscode.window.showTextDocument(doc);
+      await vault.recordFile(deleted);
+      assert.ok(vault.target(stem));
+      files.delete(deleted.path);
+      await vault.recordFile(deleted);
+      assert.equal(vault.target(stem), undefined, "late read resurrected deleted open note");
+      assert.equal(vault.get(stem), undefined);
+      assert.equal(vault.references("202601011200-note").length, 0);
+      const edit = new vscode.WorkspaceEdit();
+      edit.insert(deleted, doc.positionAt(doc.getText().length), "Preserved buffer\n");
+      assert.ok(await vscode.workspace.applyEdit(edit));
+      await vault.recordFile(deleted);
+      assert.equal(vault.target(stem), undefined, "editing orphaned buffer restored target");
+      assert.ok(doc.isDirty, "deletion handling discarded editor contents");
+      files.set(deleted.path, "Recreated on disk\n");
+      await vault.recordFile(deleted);
+      assert.ok(vault.target(stem), "legitimate recreation was not indexed");
+      assert.equal(vault.get(stem)?.text, doc.getText(), "recreation lost unsaved precedence");
+    } finally {
+      files.set(deleted.path, "Fixture restored\n");
+      await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor");
+      vault.dispose();
+      files.delete(deleted.path);
+    }
   } finally {
     windowApi.showWarningMessage = originalWarning;
     router.dispose();
@@ -915,6 +946,16 @@ async function testPermanentNoteActions(
     assert.equal(await read(), "Changed during confirmation\n");
     await vault.ensureNames();
     assert.ok(vault.target("202601021234-context-note"));
+    const workspaceApi = vscode.workspace as { applyEdit: typeof vscode.workspace.applyEdit };
+    const originalApplyEdit = workspaceApi.applyEdit;
+    try {
+      workspaceApi.applyEdit = async () => false;
+      await expectError("stemlink.deleteNote", "could not be deleted");
+      assert.ok((await vscode.workspace.fs.stat(uri)).type & vscode.FileType.File);
+      assert.ok(vault.target("202601021234-context-note"));
+    } finally {
+      workspaceApi.applyEdit = originalApplyEdit;
+    }
     await vscode.commands.executeCommand("stemlink.deleteNote", { uri });
     await assert.rejects(async () => vscode.workspace.fs.stat(uri));
     await waitFor(

@@ -1052,7 +1052,10 @@ export async function activate(
       throw new Error(
         `${kind === "capture" ? "Capture" : "Note"} changed while confirming ${action.toLowerCase()}; nothing was deleted.`,
       );
-    await vscode.workspace.fs.delete(uri, { useTrash: true });
+    const deletion = new vscode.WorkspaceEdit();
+    deletion.deleteFile(uri);
+    if (!(await vscode.workspace.applyEdit(deletion)))
+      throw new Error(`${kind === "capture" ? "Capture" : "Note"} could not be deleted.`);
     tree.refresh();
   }
   command("stemlink.discardCapture", async (item?: Item, selection?: Item[]) => {

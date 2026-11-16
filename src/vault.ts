@@ -76,6 +76,7 @@ export class Vault implements vscode.Disposable {
   private revision = 0;
   private namesRevision = 0;
   private readonly fileRevisions = new Map<string, number>();
+  private readonly missingFiles = new Set<string>();
   private initialized = false;
   private namesInitialized = false;
   private indexFailed = false;
@@ -91,9 +92,12 @@ export class Vault implements vscode.Disposable {
       watcher.onDidCreate((uri) => void this.onFile(uri, false)),
       watcher.onDidChange((uri) => void this.onFile(uri, false)),
       watcher.onDidDelete((uri) => void this.onFile(uri, true)),
+      vscode.workspace.onDidDeleteFiles((event) => {
+        event.files.forEach((uri) => void this.onFile(uri, true));
+      }),
       vscode.workspace.onDidChangeTextDocument((event) => {
         if (event.document.uri.scheme === this.folder.uri.scheme) {
-          void this.onDocument(event.document);
+          this.onDocument(event.document);
         }
       }),
       vscode.workspace.onDidCloseTextDocument((document) => void this.onFile(document.uri, false)),
@@ -121,6 +125,7 @@ export class Vault implements vscode.Disposable {
     this.notes.clear();
     this.targets.clear();
     this.incoming.clear();
+    this.missingFiles.clear();
     this.changed.fire();
   }
   get all(): VaultNote[] {
@@ -244,6 +249,7 @@ export class Vault implements vscode.Disposable {
       return this.load();
     }
     this.notes = next;
+    for (const note of next.values()) this.missingFiles.delete(note.uri.toString());
     this.rebuildIncoming();
     this.initialized = true;
     this.changed.fire();
@@ -256,7 +262,12 @@ export class Vault implements vscode.Disposable {
     const document = openDocuments
       ? openDocuments.get(uri.toString())
       : vscode.workspace.textDocuments.find((doc) => sameUri(doc.uri, uri));
-    if (document) return document.getText();
+    if (document) {
+      const stat = await vscode.workspace.fs.stat(uri);
+      if (!(stat.type & vscode.FileType.File))
+        throw new Error(`Note path is not a file: ${uri.path}`);
+      return document.getText();
+    }
     if (uri.scheme !== "file")
       return Buffer.from(await vscode.workspace.fs.readFile(uri)).toString("utf8");
     try {
@@ -301,29 +312,6 @@ export class Vault implements vscode.Disposable {
     }
   }
 
-  private async onDocument(document: vscode.TextDocument): Promise<void> {
-    try {
-      if (this.disposed) return;
-      const uri = document.uri;
-      if (
-        !directChild(uri, this.paths.notes) ||
-        !uri.path.endsWith(".md") ||
-        isExcludedNoteFile(uri.path.slice(uri.path.lastIndexOf("/") + 1))
-      )
-        return;
-      this.revision++;
-      this.fileRevisions.set(uri.toString(), this.revision);
-      const name = uri.path.slice(uri.path.lastIndexOf("/") + 1);
-      const text = document.getText();
-      const stem = name.slice(0, -3);
-      this.targets.set(stem, { uri, name, stem });
-      this.replace({ uri, name, stem, text, links: linksIn(text) });
-      this.changed.fire();
-    } catch (error) {
-      reportError(error);
-    }
-  }
-
   private async onFile(uri: vscode.Uri, deleted: boolean): Promise<void> {
     try {
       if (this.disposed) return;
@@ -350,14 +338,40 @@ export class Vault implements vscode.Disposable {
       }
       if (this.disposed || this.fileRevisions.get(uri.toString()) !== currentRevision) return;
       if (text === undefined) {
+        this.missingFiles.add(uri.toString());
         this.targets.delete(stem);
         const old = this.notes.get(stem);
         if (old) this.removeReferences(old);
         this.notes.delete(stem);
       } else {
+        this.missingFiles.delete(uri.toString());
         this.targets.set(stem, { uri, name, stem });
         this.replace({ uri, name, stem, text, links: linksIn(text) });
       }
+      this.changed.fire();
+    } catch (error) {
+      reportError(error);
+    }
+  }
+
+  private onDocument(document: vscode.TextDocument): void {
+    try {
+      const uri = document.uri;
+      if (
+        this.disposed ||
+        this.missingFiles.has(uri.toString()) ||
+        !directChild(uri, this.paths.notes) ||
+        !uri.path.endsWith(".md") ||
+        isExcludedNoteFile(uri.path.slice(uri.path.lastIndexOf("/") + 1))
+      )
+        return;
+      this.revision++;
+      this.fileRevisions.set(uri.toString(), this.revision);
+      const name = uri.path.slice(uri.path.lastIndexOf("/") + 1);
+      const text = document.getText();
+      const stem = name.slice(0, -3);
+      this.targets.set(stem, { uri, name, stem });
+      this.replace({ uri, name, stem, text, links: linksIn(text) });
       this.changed.fire();
     } catch (error) {
       reportError(error);
