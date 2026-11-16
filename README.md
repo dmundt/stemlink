@@ -66,6 +66,8 @@ Settings are resource-scoped and apply to the workspace folder containing each v
 
 The `stemlink.root`, `stemlink.inbox`, `stemlink.notes`, and `stemlink.templates` settings appear together under **Stemlink › Vault Folders** in VS Code Settings.
 
+Create vault checks folder names and collisions before accepting each answer. New vaults reject reserved Windows device names such as `CON` and `COM1.txt` on every platform; existing vaults remain readable. Invalid template defaults offer Settings before any folder is created.
+
 **Display** contains sidebar count visibility. **AI Context** contains router indexes and agent-instruction prompts; these prepare local files for AI tools without adding built-in AI or provider calls.
 
 **Capture** contains headline and promotion metadata prompts. `stemlink.promptForPromotionMetadata` defaults to `false`; an empty tags list still prompts for optional tags, and submitting it empty is allowed.

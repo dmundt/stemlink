@@ -451,6 +451,20 @@ async function testMockVaultFiles(extensionUri: vscode.Uri): Promise<void> {
     await assert.rejects(() => readVaultMarker(root), /Injected read failure/);
     deniedReadFile = undefined;
 
+    files.set(
+      "/vault/.stemlink.json",
+      JSON.stringify({
+        version: 1,
+        inbox: "CON",
+        notes: "NUL.txt",
+        templates: "AUX",
+      }),
+    );
+    const compatible = await readVaultMarker(root);
+    assert.equal(compatible?.inbox.path, "/vault/CON");
+    assert.equal(compatible?.notes.path, "/vault/NUL.txt");
+    files.delete("/vault/.stemlink.json");
+
     assert.deepEqual(await router.initialize(paths), ["INDEX.md"]);
     assert.equal(files.get("/vault/INDEX.md"), "User-owned index\n");
     assert.match(files.get("/vault/capture/INDEX.md") ?? "", /Markdown captures: 1/);
@@ -3415,6 +3429,23 @@ async function testDynamicVaultFiles(
       api.showInputBox = async (options) => {
         assert.ok(answers.length, "unexpected input prompt during synthetic vault creation");
         const answer = answers.shift();
+        assert.ok(await options?.validateInput?.("CON.md"), "reserved folder accepted inline");
+        if (options?.title === "Create vault: inbox folder")
+          assert.ok(
+            await options.validateInput?.(templatesName.toUpperCase()),
+            "template collision accepted inline",
+          );
+        if (options?.title === "Create vault: permanent-note folder") {
+          assert.ok(
+            await options.validateInput?.(scenario.inbox.toUpperCase()),
+            "inbox collision accepted inline",
+          );
+          assert.ok(
+            await options.validateInput?.(templatesName.toUpperCase()),
+            "template collision accepted inline",
+          );
+        }
+        assert.equal(await options?.validateInput?.(answer ?? ""), undefined);
         if (scenario.root === "notes" || "templates" in scenario) {
           assert.equal(options?.value, answer, "new-vault prompt did not offer the default layout");
           return options?.value;
@@ -3529,6 +3560,41 @@ async function testDynamicVaultFiles(
           "configured creation installed a template in the capture folder named templates",
         );
       }
+    }
+    const workspaceApi = vscode.workspace as {
+      getConfiguration: typeof vscode.workspace.getConfiguration;
+    };
+    const originalConfig = workspaceApi.getConfiguration;
+    const errorCount = errors.length;
+    const inputBeforeValidation = api.showInputBox;
+    const prompts: string[] = [];
+    try {
+      workspaceApi.getConfiguration = new Proxy(originalConfig, {
+        apply: (target, thisArg, args: Parameters<typeof vscode.workspace.getConfiguration>) => {
+          const current = Reflect.apply(target, thisArg, args) as vscode.WorkspaceConfiguration;
+          if (args[0] !== "stemlink" || args[1]?.toString() !== folder.uri.toString())
+            return current;
+          return {
+            ...current,
+            get: (key: string, fallback: unknown) =>
+              key === "templates" ? "NUL" : current.get(key, fallback),
+          };
+        },
+      });
+      api.showInputBox = async (options) => {
+        prompts.push(options?.title ?? "");
+        return "invalid-template-default";
+      };
+      await vscode.commands.executeCommand("stemlink.createVault");
+      assert.deepEqual(prompts, ["Create vault: root folder"]);
+      assert.ok(errors.slice(errorCount).some((message) => message.includes("templates folder")));
+      await assert.rejects(async () =>
+        vscode.workspace.fs.stat(vscode.Uri.joinPath(folder.uri, "invalid-template-default")),
+      );
+    } finally {
+      workspaceApi.getConfiguration = originalConfig;
+      errors.splice(errorCount);
+      api.showInputBox = inputBeforeValidation;
     }
     const root = vscode.Uri.joinPath(folder.uri, "vault");
     const customTemplates = vscode.Uri.joinPath(root, "examples");

@@ -4,6 +4,7 @@ import {
   auditNotes,
   captureMetadata,
   isExcludedNoteFile,
+  isReservedFolderName,
   linksIn,
   makeCapture,
   makeNote,
@@ -655,21 +656,30 @@ export async function activate(
           });
     if (!selected) return;
     const config = vscode.workspace.getConfiguration("stemlink", selected.uri);
-    const prompt = async (label: string, value: string) =>
-      vscode.window.showInputBox({
+    const prompt = async (
+      label: string,
+      value: string,
+      validateCollision?: (input: string) => string | undefined,
+    ) => {
+      const validateInput = (input: string) =>
+        !validFolderName(input)
+          ? "Enter a single valid folder name."
+          : isReservedFolderName(input)
+            ? "Choose a folder name that is not a reserved Windows device name."
+            : validateCollision?.(input);
+      const answer = await vscode.window.showInputBox({
         title: `Create vault: ${label}`,
         value,
-        validateInput: (input) =>
-          validFolderName(input) ? undefined : "Enter a single valid folder name.",
+        validateInput,
       });
+      if (answer !== undefined) {
+        const problem = validateInput(answer);
+        if (problem) throw new Error(problem);
+      }
+      return answer;
+    };
     const root = await prompt("root folder", config.get<string>("root", "notes"));
     if (root === undefined) return;
-    const inbox = await prompt("inbox folder", config.get<string>("inbox", "inbox"));
-    if (inbox === undefined) return;
-    const notes = await prompt("permanent-note folder", config.get<string>("notes", "permanent"));
-    if (notes === undefined) return;
-    if (inbox.toLowerCase() === notes.toLowerCase())
-      throw new Error("Inbox and notes must be different folders.");
     const rootUri = vscode.Uri.joinPath(selected.uri, root);
     const existingMarker = await readVaultMarker(rootUri);
     const templateSetting = config.inspect<string>("templates");
@@ -682,11 +692,34 @@ export async function activate(
       existingMarker && !templatesExplicit
         ? existingMarker.templates.path.slice(existingMarker.templates.path.lastIndexOf("/") + 1)
         : config.get<string>("templates", "templates");
-    if (!validFolderName(templatesName))
-      throw new Error("The templates folder must be a valid folder name.");
-    if ([inbox, notes].some((name) => name.toLowerCase() === templatesName.toLowerCase())) {
-      throw new Error("The templates folder must be distinct from inbox and notes.");
+    if (!validFolderName(templatesName) || isReservedFolderName(templatesName)) {
+      const choice = await vscode.window.showErrorMessage(
+        "Stemlink: The templates folder must be a valid folder name, not a reserved Windows device name.",
+        "Settings",
+      );
+      if (choice === "Settings") await vscode.commands.executeCommand("stemlink.openSettings");
+      return;
     }
+    const templateCollision = (input: string) =>
+      input.toLowerCase() === templatesName.toLowerCase()
+        ? "The templates folder must be distinct from inbox and notes."
+        : undefined;
+    const inbox = await prompt(
+      "inbox folder",
+      config.get<string>("inbox", "inbox"),
+      templateCollision,
+    );
+    if (inbox === undefined) return;
+    const notes = await prompt(
+      "permanent-note folder",
+      config.get<string>("notes", "permanent"),
+      (input) =>
+        templateCollision(input) ??
+        (input.toLowerCase() === inbox.toLowerCase()
+          ? "Inbox and notes must be different folders."
+          : undefined),
+    );
+    if (notes === undefined) return;
     const configured = ["root", "inbox", "notes", "templates"].some((key) => {
       const info = config.inspect(key);
       return info?.workspaceValue !== undefined || info?.workspaceFolderValue !== undefined;
@@ -717,6 +750,8 @@ export async function activate(
         `The existing ${rootUri.path}/.stemlink.json specifies different folders. Update it before reusing this vault.`,
       );
     }
+    if (!vscode.workspace.isTrusted)
+      throw new Error("Trust the workspace before creating a vault.");
     await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(rootUri, inbox));
     await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(rootUri, notes));
     const templateDirectory = desiredPaths.templates;
