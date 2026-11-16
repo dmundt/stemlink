@@ -5,6 +5,7 @@ When hovering over an item in the Stemlink tree view (vaults, inbox, permanent, 
 ## Proposed popup content
 
 ### Inbox captures
+
 - **Title** from front matter
 - **Description** from front matter
 - **Date created** (parsed from the stem timestamp, e.g. `202611161146`)
@@ -12,6 +13,7 @@ When hovering over an item in the Stemlink tree view (vaults, inbox, permanent, 
 - **Promote** action hint: "Use `Stemlink: Promote Capture to Note` to promote this capture."
 
 ### Permanent notes
+
 - **Title** from front matter
 - **Description** from front matter
 - **Tags** from front matter
@@ -19,6 +21,7 @@ When hovering over an item in the Stemlink tree view (vaults, inbox, permanent, 
 - **Backlinks**: list of notes that link to this note
 
 ### Reference notes
+
 - **Title** from front matter
 - **Description** from front matter
 - **Tags** from front matter
@@ -26,6 +29,7 @@ When hovering over an item in the Stemlink tree view (vaults, inbox, permanent, 
 - **Date created** (parsed from the stem timestamp)
 
 ### Vault root items
+
 - **Name** of the vault section (e.g. Inbox, Permanent, References)
 - **Count** of notes in that section
 
@@ -36,5 +40,3 @@ When hovering over an item in the Stemlink tree view (vaults, inbox, permanent, 
 - Extract the timestamp from the stem filename to display a human-readable creation date.
 - Backlinks can be computed by scanning all permanent notes for wikilinks (`[[stem]]`) pointing to the current note's stem.
 - The tooltip should be set when the `TreeItem` is constructed in the tree data provider, or lazily via `resolveTreeItem` for expensive operations like backlink scanning.
-
-

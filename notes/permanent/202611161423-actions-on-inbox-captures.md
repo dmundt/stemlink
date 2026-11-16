@@ -20,6 +20,7 @@ Do not add separate Edit, Title, Tag, Link, View, or Rename actions. Editing alr
 Promotion turns a fleeting inbox capture into a permanent note in the same vault. A permanent note expresses one clear idea in your own words, with enough context to remain understandable later. Review and refine the capture before promoting it; moving a file alone does not make its content permanent-note quality.
 
 The Promote action:
+
 - Reuses valid, non-empty YAML `title` and `tags` without asking again by default. If either field is missing or empty, asks only for that field: a non-empty title or optional tags.
 - Creates a note in the configured permanent-note folder with a timestamped, title-based filename and YAML `title` and `tags`.
 - Preserves the capture body, existing unrelated YAML fields, and wiki links. It does not summarize, rewrite, or invent content.
@@ -31,6 +32,7 @@ The Promote action:
 **Edit Metadata...** uses two native VS Code textboxes: a required title, then optional comma-separated tags. Prefill existing values. Add YAML front matter if missing; otherwise update only these fields. Save tags as a single-line YAML list. Preserve unrelated fields and the entire body. Cancel either prompt without applying partial changes. Report invalid YAML or invalid field types instead of silently replacing them.
 
 Add resource-scoped `stemlink.promptForPromotionMetadata`, default `false`, under Capture settings:
+
 - `false`: Reuse each valid, non-empty metadata field; ask only for missing or empty fields. An empty tags list triggers the optional tags prompt, but submitting it empty still permits promotion.
 - `true`: Always ask for title and tags during promotion, prefilling existing values.
 

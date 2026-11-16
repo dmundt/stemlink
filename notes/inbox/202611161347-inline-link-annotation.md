@@ -21,4 +21,3 @@ Idea: Show the number of inbound links in Markdown Preview as an inline annotati
 - Reuse the current Markdown Preview integration and vault reference index; do not scan files separately.
 - Resolve the previewed document and its vault from the preview environment before querying inbound references.
 - Keep the annotation informational and visually unobtrusive.
-

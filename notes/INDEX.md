@@ -1,4 +1,5 @@
 <!-- stemlink:generated:start -->
+
 # Stemlink vault router: `notes/`
 
 Start here. Use the folder indexes to route work, then read the relevant Markdown files directly.
