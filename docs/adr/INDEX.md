@@ -70,6 +70,8 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [017: Build and publication](adr-017-build-and-publication.md) — quality matrix, VSIX, release, and Marketplace OIDC.
 - [034: Quality and publication alignment](adr-034-quality-and-publication-alignment.md) — lint, formatting, strict audit, and independent release jobs.
 
+- [054: Restricted workspace onboarding](adr-054-restricted-workspace-onboarding.md) — limited Restricted Mode support, command prerequisites, and native welcome content.
+
 ## Maintenance rules
 
 - Add an ADR for each feature decision, using the next available `adr-NNN-short-name.md` filename.

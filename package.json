@@ -33,6 +33,12 @@
     "onView:stemlink.references"
   ],
   "main": "./dist/extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Browse, filter, and validate notes in Restricted Mode. Creating or changing files, generated indexes, agent instructions, and Markdown preview links require Workspace Trust."
+    }
+  },
   "contributes": {
     "markdown.markdownItPlugins": true,
     "configuration": [
@@ -121,30 +127,35 @@
       {
         "command": "stemlink.openVault",
         "title": "Open Vault",
+        "enablement": "isWorkspaceTrusted",
         "category": "Stemlink",
         "icon": "$(folder-opened)"
       },
       {
         "command": "stemlink.createVault",
         "title": "Create Vault",
+        "enablement": "isWorkspaceTrusted && workspaceFolderCount != 0",
         "category": "Stemlink",
         "icon": "$(new-folder)"
       },
       {
         "command": "stemlink.addFleetingNote",
         "title": "Add Fleeting Note",
+        "enablement": "isWorkspaceTrusted && stemlink.hasVault",
         "category": "Stemlink",
         "icon": "$(add)"
       },
       {
         "command": "stemlink.addNote",
         "title": "Add Note",
+        "enablement": "isWorkspaceTrusted && stemlink.hasVault",
         "category": "Stemlink",
         "icon": "$(add)"
       },
       {
         "command": "stemlink.filterByTags",
         "title": "Filter by tags…",
+        "enablement": "stemlink.hasVault",
         "category": "Stemlink"
       },
       {
@@ -155,36 +166,43 @@
       {
         "command": "stemlink.promote",
         "title": "Promote to Note...",
+        "enablement": "isWorkspaceTrusted && stemlink.hasVault",
         "category": "Stemlink"
       },
       {
         "command": "stemlink.editCaptureMetadata",
         "title": "Edit Metadata...",
+        "enablement": "isWorkspaceTrusted && stemlink.hasVault",
         "category": "Stemlink"
       },
       {
         "command": "stemlink.discardCapture",
         "title": "Discard...",
+        "enablement": "isWorkspaceTrusted && stemlink.hasVault",
         "category": "Stemlink"
       },
       {
         "command": "stemlink.editNoteMetadata",
         "title": "Edit Metadata...",
+        "enablement": "isWorkspaceTrusted && stemlink.hasVault",
         "category": "Stemlink"
       },
       {
         "command": "stemlink.deleteNote",
         "title": "Delete...",
+        "enablement": "isWorkspaceTrusted && stemlink.hasVault",
         "category": "Stemlink"
       },
       {
         "command": "stemlink.checkReferences",
         "title": "Check References",
+        "enablement": "stemlink.hasVault",
         "category": "Stemlink"
       },
       {
         "command": "stemlink.newPermanentNote",
         "title": "New permanent note",
+        "enablement": "isWorkspaceTrusted && stemlink.hasVault",
         "category": "Stemlink"
       },
       {
@@ -235,6 +253,23 @@
         }
       ]
     },
+    "viewsWelcome": [
+      {
+        "view": "stemlink.vaults",
+        "when": "!stemlink.hasVault && workspaceFolderCount == 0",
+        "contents": "Open a workspace folder to create a vault.\n[Open folder](command:vscode.openFolder)"
+      },
+      {
+        "view": "stemlink.vaults",
+        "when": "!stemlink.hasVault && isWorkspaceTrusted",
+        "contents": "[Open Vault](command:stemlink.openVault)\n[Create Vault](command:stemlink.createVault)"
+      },
+      {
+        "view": "stemlink.vaults",
+        "when": "!stemlink.hasVault && !isWorkspaceTrusted",
+        "contents": "Existing vaults can be browsed in Restricted Mode. Trust this workspace before opening or creating a vault."
+      }
+    ],
     "menus": {
       "view/title": [
         {
@@ -362,6 +397,7 @@
     "format:check": "prettier --check .",
     "test": "npm run compile && node --test dist/test/*.test.js",
     "test:integration": "npm run compile && node dist/test/runIntegration.js",
+    "test:restricted": "npm run compile && node dist/test/runIntegration.js --restricted",
     "test:multi-root": "npm run compile && node dist/test/runMultiRoot.js",
     "test:discovery": "npm run compile && node dist/test/runDiscovery.js",
     "test:coverage": "npm run compile && node --experimental-test-coverage --test --test-concurrency=1 --test-coverage-include=dist/*.js dist/test/core.test.js dist/test/runIntegration.js dist/test/runMultiRoot.js dist/test/runDiscovery.js",

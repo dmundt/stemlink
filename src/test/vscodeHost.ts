@@ -3237,7 +3237,76 @@ async function testNativeVaultSelection(
   await vscode.commands.executeCommand("stemlink.selectVault", firstRoot);
 }
 
+async function testRestrictedWorkspace(): Promise<void> {
+  assert.equal(vscode.workspace.isTrusted, false, "host did not start in Restricted Mode");
+  const extension = vscode.extensions.getExtension("dmundt.stemlink");
+  assert.ok(extension);
+  const api = vscode.window as {
+    createQuickPick: typeof vscode.window.createQuickPick;
+    showErrorMessage: typeof vscode.window.showErrorMessage;
+  };
+  const originalPicker = api.createQuickPick;
+  const originalError = api.showErrorMessage;
+  const errors: string[] = [];
+  let picker: vscode.QuickPick<vscode.QuickPickItem> | undefined;
+  api.createQuickPick = new Proxy(originalPicker, {
+    apply: (target, receiver, args) => {
+      picker = Reflect.apply(target, receiver, args) as vscode.QuickPick<vscode.QuickPickItem>;
+      return picker;
+    },
+  });
+  api.showErrorMessage = new Proxy(originalError, {
+    apply: (_target, _receiver, args: unknown[]) => {
+      errors.push(String(args[0]));
+      return Promise.resolve(undefined);
+    },
+  });
+  try {
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    assert.ok(folder);
+    const paths = pathsFor(folder);
+    const before = await Promise.all(
+      [paths.root, paths.inbox, paths.notes].map((uri) => vscode.workspace.fs.readDirectory(uri)),
+    );
+    await extension.activate();
+    assert.ok(extension.isActive, "extension did not activate in Restricted Mode");
+    await vscode.commands.executeCommand("stemlink.filterByTags");
+    assert.ok(picker, "tag picker did not open");
+    assert.ok(picker.items.some((item) => item.label === "test"));
+    picker.hide();
+    await vscode.commands.executeCommand("stemlink.clearTagFilter");
+    await vscode.commands.executeCommand("stemlink.refresh");
+    await vscode.commands.executeCommand("stemlink.checkReferences");
+    assert.equal(errors.length, 0, "read-only operations attempted trusted work");
+    for (const command of [
+      "stemlink.addNote",
+      "stemlink.addFleetingNote",
+      "stemlink.createVault",
+      "stemlink.openVault",
+    ]) {
+      await vscode.commands.executeCommand(command);
+    }
+    assert.equal(errors.length, 4);
+    assert.ok(errors.every((message) => message.includes("Trust the workspace")));
+    assert.deepEqual(
+      await Promise.all(
+        [paths.root, paths.inbox, paths.notes].map((uri) => vscode.workspace.fs.readDirectory(uri)),
+      ),
+      before,
+      "Restricted Mode changed vault files",
+    );
+  } finally {
+    picker?.hide();
+    api.createQuickPick = originalPicker;
+    api.showErrorMessage = originalError;
+  }
+}
+
 export async function run(): Promise<void> {
+  if (process.env.STEMLINK_RESTRICTED === "1") {
+    await testRestrictedWorkspace();
+    return;
+  }
   const folder = vscode.workspace.workspaceFolders?.[0];
   assert.ok(folder, "test workspace missing");
   const extension = vscode.extensions.getExtension("dmundt.stemlink");
@@ -3255,6 +3324,7 @@ export async function run(): Promise<void> {
         dragControllers.set(String(args[0]), options.dragAndDropController);
         if (args[0] === "stemlink.fleeting") assert.equal(options.canSelectMany, true);
       }
+
       const view = Reflect.apply(target, thisArg, args) as vscode.TreeView<Item>;
       views.set(String(args[0]), view);
       if (args[0] === "stemlink.vaults") {
