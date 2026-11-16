@@ -8,6 +8,8 @@ Use Refresh in Vaults to rediscover vaults and retry failed lists. View messages
 
 Metadata dialogs identify their target. Editing metadata leaves an already-unsaved document dirty rather than saving unfinished body edits. Originally clean documents are saved normally; indexes still include unsaved content.
 
+Validation identifies the checked vault and offers Show Problems. Successful validation replaces previous Stemlink validation results globally; a failed run keeps them.
+
 <!-- stemlink:configured-folders -->
 
 ## 1. Folder layout

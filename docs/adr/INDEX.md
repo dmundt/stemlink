@@ -73,6 +73,7 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [054: Restricted workspace onboarding](adr-054-restricted-workspace-onboarding.md) — limited Restricted Mode support, command prerequisites, and native welcome content.
 - [055: Tree recovery states](adr-055-tree-recovery-states.md) — reliable refresh, distinct empty/error feedback, and explicit reference scope.
 - [056: Metadata editor state](adr-056-metadata-editor-state.md) — preserve dirty documents and identify prompt targets.
+- [057: Validation feedback](adr-057-validation-feedback.md) — preserve failed-run results and identify validation scope with native Problems navigation.
 
 ## Maintenance rules
 

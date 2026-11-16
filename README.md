@@ -50,6 +50,8 @@ Refresh rediscovers vaults and retries the selected vault's note index and faile
 
 Metadata prompts identify the target file or vault. Editing metadata saves an originally clean document, but leaves an originally dirty document unsaved, including its body and metadata changes. Save it through the editor when ready; the in-memory index still follows unsaved content.
 
+Validation reports the checked vault and permanent-note scope, with a Show Problems action. A successful run replaces previous Stemlink validation results globally; a failed refresh keeps previous results.
+
 Use the gear in the **Vaults** view or **Stemlink: Settings** to open Stemlink settings.
 
 Settings are resource-scoped and apply to the workspace folder containing each vault. Defaults:
