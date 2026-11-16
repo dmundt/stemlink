@@ -90,6 +90,12 @@
             "default": false,
             "scope": "resource",
             "description": "Always ask for title and tags when promoting a capture, prefilling existing values. When disabled, reuse non-empty metadata and ask only for missing or empty fields."
+          },
+          "stemlink.confirmPromotion": {
+            "type": "boolean",
+            "default": true,
+            "scope": "resource",
+            "description": "Ask for confirmation before each capture is promoted, including context-menu and drag-and-drop promotion. Metadata prompts are controlled separately."
           }
         }
       },

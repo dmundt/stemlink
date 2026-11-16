@@ -43,6 +43,7 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [047: Capture headlines](adr-047-capture-headlines.md) — default-on headline prompt, short filename slug, and preserved template body.
 - [048: Capture context actions](adr-048-capture-context-actions.md) — text-only item actions for metadata, promotion, and confirmed discard.
 - [049: Permanent-note context actions](adr-049-permanent-note-context-actions.md) — metadata editing and confirmed deletion with broken-link warning.
+- [050: Drag promotion and confirmation](adr-050-drag-promotion-confirmation.md) — sequential source-vault promotion and default-on confirmation.
 
 ## Links and references
 
