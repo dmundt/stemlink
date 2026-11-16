@@ -53,7 +53,7 @@ These are folder names, not note IDs. Stemlink's permanent-note filenames still 
 
 Set `stemlink.showCounts` to `false` to hide sidebar and reference-group counts. It defaults to `true`; errors remain visible. The Activity Bar badge still shows the number of discovered vaults when there is at least one.
 
-Use the gear in the **Vaults** view or **Stemlink: Settings** to open Stemlink settings.
+Use **Settings** in the **Vaults** view's overflow menu or **Stemlink: Settings** to open Stemlink settings.
 
 The capture and permanent-note view headings match the selected vault's configured folder names, including their case. Selecting another vault updates them; without a selected vault, they remain Fleeting and Notes.
 
