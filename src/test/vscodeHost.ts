@@ -5355,9 +5355,23 @@ export async function run(): Promise<void> {
         "openAt did not select the requested position",
       );
 
-      const errorApi = vscode.window as { showErrorMessage: typeof vscode.window.showErrorMessage };
+      const errorApi = vscode.window as {
+        showErrorMessage: typeof vscode.window.showErrorMessage;
+        showWarningMessage: typeof vscode.window.showWarningMessage;
+      };
       const originalError = errorApi.showErrorMessage;
+      const originalTemplateWarning = errorApi.showWarningMessage;
       const errors: string[] = [];
+      const missingTemplateWarnings: string[] = [];
+      errorApi.showWarningMessage = new Proxy(originalTemplateWarning, {
+        apply: (target, thisArg, args: unknown[]) => {
+          if (!String(args[0]).includes("Fleeting template not found"))
+            return Reflect.apply(target, thisArg, args);
+          missingTemplateWarnings.push(String(args[0]));
+          assert.equal(args[1], "Use bundled template once");
+          return Promise.resolve(undefined);
+        },
+      });
       errorApi.showErrorMessage = new Proxy(originalError, {
         apply: (_target, _thisArg, args: unknown[]) => {
           errors.push(String(args[0]));
@@ -5368,11 +5382,16 @@ export async function run(): Promise<void> {
         await vscode.workspace.fs.delete(fleetingTemplate);
         await vscode.commands.executeCommand("stemlink.addFleetingNote");
         assert.ok(
-          errors.some(
+          missingTemplateWarnings.some(
             (message) =>
               message.includes("Fleeting template not found") && message.includes("_fleeting.md"),
           ),
           "missing fleeting template was not reported",
+        );
+        assert.equal(
+          errors.length,
+          0,
+          "missing template reported an error instead of offering recovery",
         );
         assert.equal(
           (await vscode.workspace.fs.readDirectory(inbox)).filter(
@@ -5405,6 +5424,7 @@ export async function run(): Promise<void> {
         }
       } finally {
         errorApi.showErrorMessage = originalError;
+        errorApi.showWarningMessage = originalTemplateWarning;
         await vscode.workspace.fs.writeFile(fleetingTemplate, Buffer.from(fleetingText));
       }
 
