@@ -8,6 +8,7 @@ import {
   isRouterIndex,
   isVaultInstructionFile,
   linksIn,
+  makeCapture,
   makeNote,
   metadataProblem,
   promoteNote,
@@ -21,6 +22,17 @@ import {
   slug,
   timestamp,
 } from "../core";
+
+test("capture headlines preserve template content and front matter", () => {
+  assert.equal(makeCapture("Prompt\n", "  A thought  "), "# A thought\n\nPrompt\n");
+  assert.equal(
+    makeCapture("---\r\ntags: [idea]\r\n---\r\nBody\r\n", "A thought"),
+    "---\r\ntags: [idea]\r\n---\r\n\r\n# A thought\r\n\r\nBody\r\n",
+  );
+  assert.equal(makeCapture("\uFEFFPrompt\n", "Idea"), "\uFEFF# Idea\n\nPrompt\n");
+  assert.equal(makeCapture("---\ntags: []\n---", "Idea"), "---\ntags: []\n---\n\n# Idea\n\n");
+  assert.throws(() => makeCapture("---\ntags: []\n", "Idea"), /unclosed YAML/);
+});
 
 test("parses references in prose, not front matter or Markdown code", () => {
   const text = [

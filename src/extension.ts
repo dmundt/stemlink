@@ -4,6 +4,7 @@ import {
   auditNotes,
   isExcludedNoteFile,
   linksIn,
+  makeCapture,
   makeNote,
   promoteNote,
   renderVaultReadme,
@@ -714,7 +715,23 @@ export async function activate(
   }
 
   command("stemlink.addFleetingNote", async () => {
+    if (!vscode.workspace.isTrusted)
+      throw new Error("Trust the workspace before creating a capture.");
     const vault = requireActiveVault();
+    let headline: string | undefined;
+    if (
+      vscode.workspace
+        .getConfiguration("stemlink", vault.paths.root)
+        .get<boolean>("promptForCaptureHeadline", true)
+    ) {
+      headline = await vscode.window.showInputBox({
+        title: "Capture headline",
+        prompt: "Describe this fleeting thought.",
+        validateInput: (value) => (value.trim() ? undefined : "Enter a headline."),
+      });
+      if (headline === undefined) return;
+      headline = headline.trim();
+    }
     const template = vscode.Uri.joinPath(vault.paths.templates, "_fleeting.md");
     const legacyTemplate = vscode.Uri.joinPath(vault.paths.notes, "_fleeting.md");
     let text: string;
@@ -734,7 +751,12 @@ export async function activate(
         throw legacyError;
       }
     }
-    const uri = await createFile(vault.paths.inbox, "capture", text);
+    const name = headline ? slug(headline).slice(0, 48).replace(/-+$/g, "") : "capture";
+    const uri = await createFile(
+      vault.paths.inbox,
+      name,
+      headline ? makeCapture(text, headline) : text,
+    );
     tree.refresh();
     await vscode.window.showTextDocument(uri);
   });

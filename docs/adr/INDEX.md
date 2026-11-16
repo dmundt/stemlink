@@ -40,6 +40,7 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [028: Inline YAML tags](adr-028-inline-yaml-tags.md) — single-line tag lists for generated metadata and vault authoring.
 - [015: Note templates](adr-015-note-templates.md) — bundled examples and audit exclusion.
 - [016: Fleeting note command](adr-016-fleeting-note-command.md) — creating captures from the vault template.
+- [047: Capture headlines](adr-047-capture-headlines.md) — default-on headline prompt, short filename slug, and preserved template body.
 
 ## Links and references
 

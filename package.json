@@ -77,6 +77,17 @@
         }
       },
       {
+        "title": "Capture",
+        "properties": {
+          "stemlink.promptForCaptureHeadline": {
+            "type": "boolean",
+            "default": true,
+            "scope": "resource",
+            "description": "Ask for a headline when adding a fleeting note. Add the headline to the capture and use a shortened slug in its filename. When disabled, copy the template unchanged with a timestamp-capture filename."
+          }
+        }
+      },
+      {
         "title": "AI Context",
         "properties": {
           "stemlink.enableRouterIndexes": {

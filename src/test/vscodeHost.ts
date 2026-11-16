@@ -2187,7 +2187,7 @@ export async function run(): Promise<void> {
   }[];
   assert.deepEqual(
     settingGroups.map((group) => group.title),
-    ["Vault Folders", "Display", "AI Context"],
+    ["Vault Folders", "Display", "Capture", "AI Context"],
     "settings groups or order changed",
   );
   assert.deepEqual(
@@ -2238,6 +2238,7 @@ export async function run(): Promise<void> {
     ["stemlink.enableRouterIndexes", true],
     ["stemlink.offerAgentInstructions", true],
     ["stemlink.showCounts", true],
+    ["stemlink.promptForCaptureHeadline", true],
   ] as const) {
     assert.equal(settings[key]?.default, value, `${key} default changed`);
     assert.equal(settings[key]?.scope, "resource", `${key} must remain resource-scoped`);
@@ -2758,6 +2759,10 @@ export async function run(): Promise<void> {
     const titles: (string | undefined)[] = [];
     windowApi.showInputBox = async (options) => {
       assert.ok(answers.length, "unexpected input prompt");
+      if (options?.title === "Capture headline") {
+        assert.ok(await options.validateInput?.("   "), "blank headline was accepted");
+        assert.equal(await options.validateInput?.("A thought"), undefined);
+      }
       defaults.push(options?.value);
       titles.push(options?.title);
       return answers.shift();
@@ -3492,6 +3497,57 @@ export async function run(): Promise<void> {
         );
       } finally {
         warningApi.showWarningMessage = originalWarning;
+      }
+      const captureConfig = vscode.workspace.getConfiguration("stemlink", vaultRoot);
+      const previousHeadline = captureConfig.inspect<boolean>(
+        "promptForCaptureHeadline",
+      )?.workspaceFolderValue;
+      try {
+        await captureConfig.update(
+          "promptForCaptureHeadline",
+          true,
+          vscode.ConfigurationTarget.WorkspaceFolder,
+        );
+        const beforeCancel = await vscode.workspace.fs.readDirectory(inbox);
+        answers.push(undefined);
+        await vscode.commands.executeCommand("stemlink.addFleetingNote");
+        assert.deepEqual(
+          await vscode.workspace.fs.readDirectory(inbox),
+          beforeCancel,
+          "cancelled headline created a capture",
+        );
+        const headline = "Café ideas for a useful and deliberately long capture headline ".repeat(
+          3,
+        );
+        const filenames = new Set<string>();
+        for (let attempt = 0; attempt < 2; attempt++) {
+          answers.push(`  ${headline}  `);
+          await vscode.commands.executeCommand("stemlink.addFleetingNote");
+          const uri: vscode.Uri | undefined = vscode.window.activeTextEditor?.document.uri;
+          assert.ok(uri);
+          const name = uri.path.slice(uri.path.lastIndexOf("/") + 1);
+          assert.match(
+            name,
+            /^\d{12}-cafe-ideas-for-a-useful-and-deliberately-long-[a-z]+(?:-2)?\.md$/,
+          );
+          const shortSlug = name.slice(13, -3).replace(/-2$/, "");
+          assert.ok(shortSlug.length <= 48, "headline filename slug was not shortened");
+          assert.ok(!shortSlug.endsWith("-"), "headline slug ends with a hyphen");
+          filenames.add(name);
+          const text: string = Buffer.from(await vscode.workspace.fs.readFile(uri))
+            .toString("utf8")
+            .replace(/\r\n/g, "\n");
+          assert.equal(text, `# ${headline.trim()}\n\n${fleetingText}`);
+        }
+        assert.equal(filenames.size, 2, "repeated headline overwrote an existing capture");
+        assert.equal(titles.at(-1), "Capture headline");
+        assert.equal(answers.length, 0);
+      } finally {
+        await captureConfig.update(
+          "promptForCaptureHeadline",
+          previousHeadline,
+          vscode.ConfigurationTarget.WorkspaceFolder,
+        );
       }
     } finally {
       windowApi.showInputBox = originalInput;

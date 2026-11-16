@@ -20,6 +20,8 @@ Vault creation copies the bundled manual to the vault root and personalizes its 
 
 Add Fleeting Note reads `_fleeting.md` from the mapped templates folder first and falls back to the configured notes folder for existing vaults.
 
+By default, **Add Fleeting Note** asks for a headline. It adds the full headline as a Markdown heading before the template body and uses a filename such as `202611161400-short-headline.md`. Filename slugs are capped at 48 characters; duplicates get numeric suffixes. Cancel creates nothing. Disable **Capture > Prompt For Capture Headline** (`stemlink.promptForCaptureHeadline`) to copy the template unchanged with a timestamped `capture` filename. Existing captures are unchanged.
+
 Files starting with `_` are hidden from capture and permanent-note views and counts, and excluded from note indexing, completion, backlinks, and audits as source notes. Wiki links to these files are invalid and reported by **Check References**. Existing files remain on disk.
 
 Inbox router tables use a **Title** column derived from the first non-empty body line or sentence, capped at 120 characters with `...` when truncated. Empty captures are labeled explicitly. Permanent-note routers retain YAML descriptions with title fallback.

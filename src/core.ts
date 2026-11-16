@@ -225,6 +225,17 @@ export function makeNote(title: string, tags: string[], body = ""): string {
   return `---\n${noteMetadata(new Document(), title, tags)}---\n\n${body}`;
 }
 
+export function makeCapture(template: string, headline: string): string {
+  const matter = frontMatter(template);
+  if (!matter && /^(?:\uFEFF)?---[ \t]*\r?\n/.test(template))
+    throw new Error("Capture template has unclosed YAML front matter.");
+  const offset = matter?.end ?? (template.startsWith("\uFEFF") ? 1 : 0);
+  const prefix = template.slice(0, offset);
+  const newline = template.includes("\r\n") ? "\r\n" : "\n";
+  const separator = matter ? (prefix.endsWith("\n") ? newline : newline.repeat(2)) : "";
+  return `${prefix}${separator}# ${headline.trim()}${newline}${newline}${template.slice(offset)}`;
+}
+
 function noteMetadata(document: Document, title: string, tags: string[]): string {
   const sequence = document.createNode(tags);
   sequence.flow = true;

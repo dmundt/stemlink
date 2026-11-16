@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Ask for a headline when adding a fleeting note, preserving the full headline in the body and using a shortened filename slug. The new Capture setting is enabled by default; disable it to retain template-only captures.
 - Render existing wiki-link targets as clickable links in VS Code's Markdown preview without changing note source; require Workspace Trust and preserve code, escaped references, and existing Markdown links.
 - Group count visibility under **Display** and router indexes and agent-instruction prompts under **AI Context** in Settings.
 - Show body-derived titles in inbox router tables, truncated after 120 characters with `...`, instead of missing-description placeholders.
