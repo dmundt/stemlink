@@ -2,6 +2,8 @@
 
 This is a collection of plain Markdown files: one idea per permanent note, connected by filename. There is no database or required application. Stemlink is optional.
 
+Metadata dialogs identify their target. Editing metadata leaves an already-unsaved document dirty rather than saving unfinished body edits. Originally clean documents are saved normally; indexes still include unsaved content.
+
 <!-- stemlink:configured-folders -->
 
 ## 1. Folder layout

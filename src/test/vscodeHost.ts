@@ -774,6 +774,7 @@ async function testPermanentNoteActions(
     await vscode.commands.executeCommand("stemlink.editNoteMetadata", { uri });
     assert.equal(await read(), initial);
     assert.equal(inputs[0].value, "Old title");
+    assert.ok(inputs[0].title?.includes(uri.fsPath), "metadata prompt omitted edited file");
     assert.equal(inputs[1].value, "idea");
     answers.push("Changed", "two");
     await vscode.commands.executeCommand("stemlink.editNoteMetadata", { uri });
@@ -788,7 +789,9 @@ async function testPermanentNoteActions(
     assert.ok(await vscode.workspace.applyEdit(unsaved));
     answers.push("Dirty title", "idea");
     await vscode.commands.executeCommand("stemlink.editNoteMetadata", { uri });
-    assert.ok((await read()).endsWith("Unsaved body\n"), "metadata edit lost unsaved content");
+    assert.ok(doc.getText().endsWith("Unsaved body\n"), "metadata edit lost unsaved content");
+    assert.ok(doc.isDirty, "metadata edit saved unrelated body changes");
+    assert.equal(await read(), updated, "metadata edit changed dirty note's disk content");
 
     answers.push("Ignored", "two");
     duringPrompt = async () => {
@@ -947,6 +950,7 @@ async function testCaptureActions(
     await vscode.commands.executeCommand("stemlink.editCaptureMetadata", { uri });
     assert.equal(await read(), text, "cancelled metadata edit changed capture");
     assert.equal(prompts[0].value, "Existing title");
+    assert.ok(prompts[0].title?.includes(uri.fsPath), "capture prompt omitted edited file");
     assert.equal(prompts[1].value, "idea");
     answers.push("Changed", "one, two");
     await vscode.commands.executeCommand("stemlink.editCaptureMetadata", { uri });
@@ -973,7 +977,9 @@ async function testCaptureActions(
     assert.ok(await vscode.workspace.applyEdit(unsaved));
     answers.push("Dirty metadata", "idea");
     await vscode.commands.executeCommand("stemlink.editCaptureMetadata", { uri });
-    assert.ok((await read()).endsWith("Unsaved content\n"), "metadata edit lost unsaved content");
+    assert.ok(dirty.getText().endsWith("Unsaved content\n"), "metadata edit lost unsaved content");
+    assert.ok(dirty.isDirty, "metadata edit saved unrelated capture changes");
+    assert.equal(await read(), text, "metadata edit changed dirty capture's disk content");
 
     await write(text);
     answers.push("Ignored", "idea");

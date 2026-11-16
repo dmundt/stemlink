@@ -44,6 +44,8 @@ Vault `AGENTS.md` files are optional. With `stemlink.offerAgentInstructions` ena
 
 ## Extension settings
 
+Metadata prompts identify the target file or vault. Editing metadata saves an originally clean document, but leaves an originally dirty document unsaved, including its body and metadata changes. Save it through the editor when ready; the in-memory index still follows unsaved content.
+
 Use the gear in the **Vaults** view or **Stemlink: Settings** to open Stemlink settings.
 
 Settings are resource-scoped and apply to the workspace folder containing each vault. Defaults:

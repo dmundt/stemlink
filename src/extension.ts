@@ -817,6 +817,7 @@ export async function activate(
   });
 
   async function askMetadata(
+    purpose: string,
     defaultTitle = "",
     defaultTags: string[] = [],
     reuse: { title: boolean; tags: boolean } = { title: false, tags: false },
@@ -826,7 +827,8 @@ export async function activate(
       reuse.title && defaultTitle.trim()
         ? defaultTitle
         : await vscode.window.showInputBox({
-            title: "Note title",
+            title: purpose,
+            prompt: "Note title",
             value: defaultTitle,
             validateInput: (value) => (value.trim() ? undefined : "Enter a title."),
           });
@@ -835,7 +837,8 @@ export async function activate(
       reuse.tags && defaultTags.some((tag) => tag.trim())
         ? defaultTags.join(", ")
         : await vscode.window.showInputBox({
-            title: "Tags (comma-separated, optional)",
+            title: purpose,
+            prompt: "Tags (comma-separated, optional)",
             value: defaultTags.join(", "),
           });
     if (rawTags === undefined) return undefined;
@@ -940,7 +943,7 @@ export async function activate(
     if (!vscode.workspace.isTrusted) throw new Error("Trust the workspace before creating a note.");
     registeredVault(vault);
     const destination = vault.paths.notes.toString();
-    const metadata = await askMetadata();
+    const metadata = await askMetadata(`New permanent note: ${vault.paths.root.fsPath}`);
     if (!metadata) return;
     if (!vscode.workspace.isTrusted) throw new Error("Trust the workspace before creating a note.");
     registeredVault(vault);
@@ -995,11 +998,16 @@ export async function activate(
 
   async function editMetadata(item: Item | undefined, kind: "capture" | "note") {
     const { uri, doc } = await noteSource(item, kind);
+    const wasDirty = doc.isDirty;
     const snapshot = doc.getText();
     const version = doc.version;
     const originalBytes = Buffer.from(await vscode.workspace.fs.readFile(uri));
     const existing = captureMetadata(snapshot);
-    const metadata = await askMetadata(existing.title ?? "", existing.tags);
+    const metadata = await askMetadata(
+      `Edit metadata: ${uri.fsPath}`,
+      existing.title ?? "",
+      existing.tags,
+    );
     if (!metadata) return;
     await noteSource(item, kind);
     const currentBytes = Buffer.from(await vscode.workspace.fs.readFile(uri));
@@ -1015,7 +1023,7 @@ export async function activate(
     );
     if (!(await vscode.workspace.applyEdit(edit)))
       throw new Error(`Could not update ${kind} metadata.`);
-    if (!(await doc.save()))
+    if (!wasDirty && !(await doc.save()))
       throw new Error(
         `${kind === "capture" ? "Capture" : "Note"} metadata was updated in the editor but could not be saved.`,
       );
@@ -1099,6 +1107,7 @@ export async function activate(
       .getConfiguration("stemlink", vault.paths.root)
       .get<boolean>("promptForPromotionMetadata", false);
     const metadata = await askMetadata(
+      `Promote to permanent note: ${uri.fsPath}`,
       existing.title?.trim() || suggestedCaptureTitle(name),
       existing.tags,
       { title: !force && !!existing.title?.trim(), tags: !force },
