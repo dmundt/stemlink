@@ -11,7 +11,9 @@
     "vscode": "^1.90.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "Education",
+    "Programming Languages"
   ],
   "keywords": [
     "markdown",
