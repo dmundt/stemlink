@@ -127,6 +127,36 @@ export async function activate(
   context.subscriptions.push(routerIndexes);
   const treeSections: VaultSection[] = ["Vaults", "Fleeting", "Notes", "References"];
   const treeViews = new Map<VaultSection, vscode.TreeView<Item>>();
+  interface TagPickItem extends vscode.QuickPickItem {
+    tag: string;
+  }
+  let tagPickerScope:
+    { picker: vscode.QuickPick<TagPickItem>; vault: Vault; notesPath: string } | undefined;
+  let hasTagFilter: boolean | undefined;
+  const updateTagFilterView = () => {
+    const tags = selectedVault ? tree.tagFilter(selectedVault) : [];
+    const view = treeViews.get("Notes");
+    if (view) view.description = tags.length ? `Tags: ${tags.join(", ")}` : undefined;
+    if (hasTagFilter !== Boolean(tags.length)) {
+      hasTagFilter = Boolean(tags.length);
+      void vscode.commands
+        .executeCommand("setContext", "stemlink.hasTagFilter", hasTagFilter)
+        .then(undefined, reportError);
+    }
+    const scope = tagPickerScope;
+    if (
+      scope &&
+      (scope.vault !== selectedVault ||
+        !allVaults().includes(scope.vault) ||
+        scope.notesPath !== scope.vault.paths.notes.toString())
+    )
+      scope.picker.hide();
+  };
+  context.subscriptions.push(
+    new vscode.Disposable(() => {
+      tagPickerScope?.picker.dispose();
+    }),
+  );
   const captureMime = "application/vnd.stemlink.captures";
   let draggedCaptures: Item[] | undefined;
   let dropping = false;
@@ -226,6 +256,7 @@ export async function activate(
       }),
     );
   const updateTreeViewMessages = (): void => {
+    updateTagFilterView();
     if (vaultView) {
       const count = vaults.size;
       vaultView.badge = count
@@ -244,6 +275,7 @@ export async function activate(
     }
   };
   const updateTreeViewTitles = async (): Promise<void> => {
+    updateTagFilterView();
     const items = await tree.getChildren();
     for (const section of treeSections) {
       const item = items.find((candidate) => candidate.kind === section);
@@ -380,6 +412,68 @@ export async function activate(
 
   command("stemlink.openSettings", async () => {
     await vscode.commands.executeCommand("workbench.action.openSettings", "@ext:dmundt.stemlink");
+  });
+
+  command("stemlink.filterByTags", async () => {
+    const vault = requireActiveVault();
+    tagPickerScope?.picker.hide();
+    const picker = vscode.window.createQuickPick<TagPickItem>();
+    const scope = { picker, vault, notesPath: vault.paths.notes.toString() };
+    tagPickerScope = scope;
+    picker.title = "Filter by tags";
+    picker.placeholder = "Select tags; notes matching any selected tag are shown.";
+    picker.canSelectMany = true;
+    picker.matchOnDescription = false;
+    picker.matchOnDetail = false;
+    picker.busy = true;
+    picker.enabled = false;
+    const subscriptions = [
+      picker.onDidAccept(() => {
+        if (
+          tagPickerScope === scope &&
+          selectedVault === vault &&
+          allVaults().includes(vault) &&
+          scope.notesPath === vault.paths.notes.toString() &&
+          !picker.busy
+        ) {
+          tree.setTagFilter(
+            vault,
+            picker.selectedItems.map((item) => item.tag),
+          );
+          updateTagFilterView();
+        }
+        picker.hide();
+      }),
+      picker.onDidHide(() => {
+        if (tagPickerScope === scope) tagPickerScope = undefined;
+        subscriptions.forEach((subscription) => subscription.dispose());
+        picker.dispose();
+      }),
+    ];
+    picker.show();
+    try {
+      const choices = await tree.tagChoices(vault);
+      if (tagPickerScope !== scope) return;
+      updateTagFilterView();
+      if (tagPickerScope !== scope) return;
+      const selected = new Set(tree.tagFilter(vault));
+      picker.items = choices.map(({ tag, count }) => ({
+        label: tag,
+        tag,
+        description: `${count} ${count === 1 ? "note" : "notes"}`,
+      }));
+      picker.selectedItems = picker.items.filter((item) => selected.has(item.tag));
+      picker.busy = false;
+      picker.enabled = true;
+    } catch (error) {
+      if (tagPickerScope === scope) picker.hide();
+      throw error;
+    }
+  });
+  command("stemlink.clearTagFilter", async () => {
+    tree.setTagFilter(requireActiveVault(), []);
+    tagPickerScope?.picker.hide();
+    updateTagFilterView();
   });
 
   command("stemlink.selectVault", async (root: vscode.Uri) => {

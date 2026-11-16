@@ -143,6 +143,16 @@
         "icon": "$(add)"
       },
       {
+        "command": "stemlink.filterByTags",
+        "title": "Filter by tags…",
+        "category": "Stemlink"
+      },
+      {
+        "command": "stemlink.clearTagFilter",
+        "title": "Clear tag filter",
+        "category": "Stemlink"
+      },
+      {
         "command": "stemlink.promote",
         "title": "Promote to Note...",
         "category": "Stemlink"
@@ -228,6 +238,16 @@
     "menus": {
       "view/title": [
         {
+          "command": "stemlink.filterByTags",
+          "when": "view == stemlink.notes",
+          "group": "filter@1"
+        },
+        {
+          "command": "stemlink.clearTagFilter",
+          "when": "view == stemlink.notes && stemlink.hasTagFilter",
+          "group": "filter@2"
+        },
+        {
           "command": "stemlink.createVault",
           "when": "view == stemlink.vaults",
           "group": "navigation@1"
@@ -259,6 +279,14 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "stemlink.filterByTags",
+          "when": "false"
+        },
+        {
+          "command": "stemlink.clearTagFilter",
+          "when": "false"
+        },
         {
           "command": "stemlink.newPermanentNote",
           "when": "false"

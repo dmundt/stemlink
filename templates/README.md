@@ -174,6 +174,10 @@ Right-click a vault in **Vaults** for **New permanent note** or **Validate vault
 
 Right-click a permanent note in the Notes tree for **Edit Metadata...** or **Delete...**. Metadata editing preserves its filename, body, and unrelated YAML. Delete warns that inbound wiki links may break and requires confirmation; links are not rewritten. Save or revert unsaved changes first. Both actions require Workspace Trust.
 
+Choose **Filter by tags…** in the Notes view menu for a native multi-select picker with alphabetical tags and full-vault note counts. Search preserves checked tags. Enter applies; Escape keeps the previous selection. Notes matching any selected tag are shown; no selection shows all notes. Active tags appear beside the view heading, whose count reflects matching notes. **Clear tag filter** appears only while filtering.
+
+Filters are per vault and session-only. Tag matching trims whitespace and ignores case without editing metadata. Unsaved note edits update results and counts; duplicate tags count once per note. Missing selected tags remain selectable with count 0. Invalid YAML or tag lists are reported, excluded from tag matches, and remain visible unfiltered. Filtering requires no Workspace Trust and does not change note opening or audit diagnostics.
+
 ## 10. Templates
 
 Inbox `INDEX.md` tables show body-derived titles: the first non-empty line or sentence, capped at 120 characters with `...` when truncated. YAML front matter is skipped. Empty captures show `Empty capture.`; permanent-note routers continue to use YAML description or title.
