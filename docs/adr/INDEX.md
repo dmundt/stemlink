@@ -70,6 +70,8 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [017: Build and publication](adr-017-build-and-publication.md) — quality matrix, VSIX, release, and Marketplace OIDC.
 - [034: Quality and publication alignment](adr-034-quality-and-publication-alignment.md) — lint, formatting, strict audit, and independent release jobs.
 
+- [058: Capture batch feedback](adr-058-capture-batch-feedback.md) — selection parity, native progress, and explicit partial promotion outcomes.
+
 ## Maintenance rules
 
 - Add an ADR for each feature decision, using the next available `adr-NNN-short-name.md` filename.

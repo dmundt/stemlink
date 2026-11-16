@@ -44,6 +44,8 @@ Vault `AGENTS.md` files are optional. With `stemlink.offerAgentInstructions` ena
 
 ## Extension settings
 
+Promote applies to the selected captures from either the context menu or drag/drop. Multi-capture batches retain per-capture confirmation, show native progress and completed/remaining counts, and open the last created note once. Metadata and Discard remain single-capture actions and are disabled for multiple selections.
+
 Use the gear in the **Vaults** view or **Stemlink: Settings** to open Stemlink settings.
 
 Settings are resource-scoped and apply to the workspace folder containing each vault. Defaults:

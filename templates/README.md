@@ -2,6 +2,8 @@
 
 This is a collection of plain Markdown files: one idea per permanent note, connected by filename. There is no database or required application. Stemlink is optional.
 
+Context-menu promotion and drag/drop process the same capture selection sequentially, with per-capture confirmation and batch progress. Cancellation or failure leaves completed work intact and reports remaining captures. Batches open only the last created note. Metadata and Discard apply to one capture at a time.
+
 <!-- stemlink:configured-folders -->
 
 ## 1. Folder layout

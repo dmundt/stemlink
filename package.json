@@ -160,11 +160,13 @@
       {
         "command": "stemlink.editCaptureMetadata",
         "title": "Edit Metadata...",
+        "enablement": "!listMultiSelection",
         "category": "Stemlink"
       },
       {
         "command": "stemlink.discardCapture",
         "title": "Discard...",
+        "enablement": "!listMultiSelection",
         "category": "Stemlink"
       },
       {
