@@ -12,6 +12,8 @@ Build a Stemlink vault in VS Code with plain Markdown files. Capture ideas, conn
 
 The Activity Bar badge shows the number of discovered vaults in the workspace; it is hidden when there are none. It remains visible when `stemlink.showCounts` hides view counts.
 
+Right-click a vault under **Vaults** for **New permanent note** or **Validate vault**. Both use that vault without changing the selection. Creation asks for title and optional tags, opens the new note, and requires Workspace Trust. Validation runs the existing reference audit, includes unsaved note content, and replaces previous Stemlink Problems results across vaults; it does not change files.
+
 The default root holds the collection; `inbox/` holds captures, `permanent/` holds permanent notes, and `templates/` holds editable examples. The bundled manual lists alternatives: `zk/inbox/notes`, `Stemlink vault/Fleeting/Permanent`, `vault/capture/notes`, and `vault/inbox/permanent`. Use Open Vault or settings for these layouts; Stemlink does not infer a layout from its folder names.
 
 Capture and permanent-note view headings use the selected vault's folder names, preserving their spelling and case. Switching vaults updates these headings; counts follow `stemlink.showCounts`. Without a selected vault, the headings remain Fleeting and Notes.

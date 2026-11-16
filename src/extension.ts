@@ -830,17 +830,42 @@ export async function activate(
     await vscode.window.showTextDocument(uri);
   });
 
-  command("stemlink.addNote", async () => {
-    const vault = requireActiveVault();
+  function registeredVault(vault: Vault): Vault {
+    if (vaults.get(vault.paths.root.toString()) !== vault)
+      throw new Error("The selected vault is no longer available.");
+    return vault;
+  }
+
+  function itemVault(item?: Item): Vault {
+    if (item?.kind !== "vault" || !item.vault)
+      throw new Error("Select a vault from its context menu.");
+    return registeredVault(item.vault);
+  }
+
+  async function addNote(vault: Vault): Promise<void> {
+    if (!vscode.workspace.isTrusted) throw new Error("Trust the workspace before creating a note.");
+    registeredVault(vault);
+    const destination = vault.paths.notes.toString();
     const metadata = await askMetadata();
     if (!metadata) return;
+    if (!vscode.workspace.isTrusted) throw new Error("Trust the workspace before creating a note.");
+    registeredVault(vault);
+    if (vault.paths.notes.toString() !== destination)
+      throw new Error("The vault's notes folder changed; try again.");
     const uri = await createFile(
       vault.paths.notes,
       metadata.title,
       makeNote(metadata.title, metadata.tags),
     );
     await vault.recordFile(uri);
+    tree.refresh();
     await vscode.window.showTextDocument(uri);
+  }
+  command("stemlink.addNote", async () => {
+    await addNote(requireActiveVault());
+  });
+  command("stemlink.newPermanentNote", async (item?: Item) => {
+    await addNote(itemVault(item));
   });
 
   async function noteSource(item: Item | undefined, kind: "capture" | "note") {
@@ -1028,10 +1053,11 @@ export async function activate(
     tree.refresh();
   });
 
-  command("stemlink.checkReferences", async () => {
-    const vault = requireActiveVault();
+  async function validateVault(vault: Vault): Promise<void> {
+    registeredVault(vault);
     diagnostics.clear();
     await vault.refresh();
+    registeredVault(vault);
     const notes = vault.all;
     const findings = auditNotes(notes);
     const grouped = new Map<string, vscode.Diagnostic[]>();
@@ -1065,6 +1091,12 @@ export async function activate(
     void vscode.window.showInformationMessage(
       `Stemlink: ${count("error")} errors, ${count("warning")} warnings, ${count("info")} info across ${notes.length} notes.`,
     );
+  }
+  command("stemlink.checkReferences", async () => {
+    await validateVault(requireActiveVault());
+  });
+  command("stemlink.validateVault", async (item?: Item) => {
+    await validateVault(itemVault(item));
   });
 
   const selector: vscode.DocumentSelector = [{ language: "markdown" }];

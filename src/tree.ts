@@ -39,6 +39,7 @@ export class Item extends vscode.TreeItem {
     if (kind === "capture") this.contextValue = "stemlink.capture";
     if (kind === "note") this.contextValue = "stemlink.note";
     if (kind === "vault" && vault) {
+      this.contextValue = "stemlink.vault";
       this.iconPath = new vscode.ThemeIcon("archive");
       this.id = `stemlink.vault:${vault.paths.root.toString()}`;
       this.command = {

@@ -170,6 +170,8 @@ Alternatively, select captures in Fleeting and drag them onto the Notes view bac
 
 Search the files for a distinctive word, tag, or filename stem. Browse `permanent/` by timestamp for a rough timeline. Search for a stem to find references to it. In Stemlink, use the Notes tree, link navigation, or **References > Inbound**; run **Check References** when you want an audit.
 
+Right-click a vault in **Vaults** for **New permanent note** or **Validate vault** without selecting it first. Creation asks for title and optional tags, writes to that vault's configured permanent-note folder, and requires Workspace Trust. Validation runs the same audit as Check References, includes unsaved note content, and replaces previous Stemlink Problems results across vaults without changing files. Neither action changes the selected vault.
+
 Right-click a permanent note in the Notes tree for **Edit Metadata...** or **Delete...**. Metadata editing preserves its filename, body, and unrelated YAML. Delete warns that inbound wiki links may break and requires confirmation; links are not rewritten. Save or revert unsaved changes first. Both actions require Workspace Trust.
 
 ## 10. Templates
