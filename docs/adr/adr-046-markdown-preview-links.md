@@ -14,6 +14,8 @@ Contribute VS Code's native `markdown.markdownItPlugins` extension point and exp
 
 Require Workspace Trust. Preserve note source, code spans and blocks, escaped references, existing Markdown links, and front matter. Leave missing or invalid references literal and retain Check References diagnostics. Escape rendered link attributes and labels. Do not guess targets or add command links, scripts, network calls, or runtime dependencies.
 
+Render resolved targets as source-relative, percent-encoded paths in both `href` and `data-href`. The native Markdown preview intercepts relative links and opens them through its navigation handler; raw `file:` anchors bypass that handler.
+
 If a preview needs a cold filename index, load names asynchronously and refresh the preview when ready. Refresh after observed vault index changes. Keep Markdown parsing independent of VS Code through a minimal structural interface for the host-supplied parser.
 
 ## Consequences

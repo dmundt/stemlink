@@ -177,7 +177,7 @@
       },
       {
         "command": "stemlink.discardCapture",
-        "title": "Discard…",
+        "title": "Delete…",
         "enablement": "isWorkspaceTrusted && stemlink.hasVault && !listMultiSelection",
         "category": "Stemlink"
       },
@@ -188,15 +188,15 @@
         "category": "Stemlink"
       },
       {
-        "command": "stemlink.deleteNote",
-        "title": "Delete…",
-        "enablement": "isWorkspaceTrusted && stemlink.hasVault",
-        "category": "Stemlink"
-      },
-      {
         "command": "stemlink.checkReferences",
         "title": "Validate vault",
         "enablement": "stemlink.hasVault",
+        "category": "Stemlink"
+      },
+      {
+        "command": "stemlink.newFleetingNote",
+        "title": "New fleeting note",
+        "enablement": "isWorkspaceTrusted && stemlink.hasVault",
         "category": "Stemlink"
       },
       {
@@ -325,6 +325,10 @@
       ],
       "commandPalette": [
         {
+          "command": "stemlink.newFleetingNote",
+          "when": "false"
+        },
+        {
           "command": "stemlink.filterByTags",
           "when": "false"
         },
@@ -355,47 +359,43 @@
         {
           "command": "stemlink.editNoteMetadata",
           "when": "false"
-        },
-        {
-          "command": "stemlink.deleteNote",
-          "when": "false"
         }
       ],
       "view/item/context": [
         {
+          "command": "stemlink.newFleetingNote",
+          "when": "view == stemlink.vaults && viewItem == stemlink.vault",
+          "group": "1_creation@1"
+        },
+        {
           "command": "stemlink.newPermanentNote",
           "when": "view == stemlink.vaults && viewItem == stemlink.vault",
-          "group": "vault@1"
+          "group": "1_creation@2"
         },
         {
           "command": "stemlink.validateVault",
           "when": "view == stemlink.vaults && viewItem == stemlink.vault",
-          "group": "vault@2"
-        },
-        {
-          "command": "stemlink.editCaptureMetadata",
-          "when": "view == stemlink.fleeting && viewItem == stemlink.capture",
-          "group": "capture@1"
+          "group": "3_validation@1"
         },
         {
           "command": "stemlink.promote",
           "when": "view == stemlink.fleeting && viewItem == stemlink.capture",
-          "group": "capture@2"
+          "group": "2_actions@1"
+        },
+        {
+          "command": "stemlink.editCaptureMetadata",
+          "when": "view == stemlink.fleeting && viewItem == stemlink.capture",
+          "group": "2_actions@2"
         },
         {
           "command": "stemlink.discardCapture",
           "when": "view == stemlink.fleeting && viewItem == stemlink.capture",
-          "group": "discard@1"
+          "group": "9_delete@1"
         },
         {
           "command": "stemlink.editNoteMetadata",
           "when": "view == stemlink.notes && viewItem == stemlink.note",
-          "group": "note@1"
-        },
-        {
-          "command": "stemlink.deleteNote",
-          "when": "view == stemlink.notes && viewItem == stemlink.note",
-          "group": "delete@1"
+          "group": "2_actions@1"
         }
       ]
     }

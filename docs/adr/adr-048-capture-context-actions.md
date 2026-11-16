@@ -1,5 +1,5 @@
 ---
-status: Superseded in part by ADRs 050 and 060
+status: Superseded in part by ADRs 050, 060, and 069
 ---
 
 # ADR 048: Capture context actions

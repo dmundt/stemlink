@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Route wiki-link preview clicks through native Markdown navigation using source-relative links.
+- Fix cross-view drag promotion with serialized drag tokens, native duplicate MIME entries, and cancellation-token snapshots.
+- Add **New fleeting note** alongside **New permanent note** on vault rows, using the clicked vault without changing selection.
+- Rename capture **Discard…** to **Delete…** and remove permanent-note deletion from Stemlink, including its command. Put promotion before metadata editing and capture deletion last; separate destructive actions and vault validation into native menu groups.
 - Remove deleted open notes from navigation and reference indexes without discarding editor buffers; index them again when recreated on disk.
 - Offer a one-time bundled template when an existing vault has no fleeting template.
 - Identify selected vaults in view descriptions and capture prompts; explain notes hidden by active tag filters.
@@ -23,7 +27,7 @@
 - Filter Notes by tags through a native multi-select picker with note counts, search-preserved selections, per-vault session state, and a conditional clear action. Show matching counts and active tags; matching ignores case and surrounding whitespace without changing metadata.
 - Add vault-row context actions **New permanent note** and **Validate vault**, targeting the right-clicked vault without changing selection. Note creation requires Workspace Trust; validation reuses the reference audit and replaces previous Stemlink Problems results.
 - Promote multiple captures by dragging from Fleeting to Notes. Each capture stays in its source vault; cancellation or failure stops the remaining batch. Add `stemlink.confirmPromotion`, enabled by default, to confirm every context-menu or drag promotion separately from metadata prompts.
-- Add permanent-note context actions for editing metadata and confirmed deletion, with a warning that inbound links may break.
+- Add a permanent-note context action for editing metadata.
 - Replace the inline/Command Palette promotion action with text-only inbox item context actions: Edit Metadata, Promote to Note, and confirmed Discard. Promotion reuses non-empty YAML title and tags; `stemlink.promptForPromotionMetadata` defaults to `false`. Existing captures require no migration.
 - Ask for a headline when adding a fleeting note, preserving the full headline in the body and using a shortened filename slug. The new Capture setting is enabled by default; disable it to retain template-only captures.
 - Render existing wiki-link targets as clickable links in VS Code's Markdown preview without changing note source; require Workspace Trust and preserve code, escaped references, and existing Markdown links.
