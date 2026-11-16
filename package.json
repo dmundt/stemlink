@@ -13,6 +13,15 @@
   "categories": [
     "Other"
   ],
+  "keywords": [
+    "markdown",
+    "note-taking",
+    "knowledge-management",
+    "backlinks",
+    "wiki-links",
+    "personal-knowledge-base",
+    "local-first"
+  ],
   "activationEvents": [
     "onStartupFinished",
     "onLanguage:markdown",
