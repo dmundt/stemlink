@@ -36,6 +36,8 @@ Promote selected captures through their context menu or by dragging them from Fl
 
 Right-click a permanent note for **Edit metadata…** or **Delete…**. Metadata changes preserve the filename, body, and unrelated YAML. Delete asks for confirmation, warns that inbound wiki links may break, and moves the file to trash when supported; it never rewrites links. Save or revert unsaved changes before deletion. Workspace Trust is required.
 
+Deleted files leave navigation and reference indexes even if an editor remains open. Indexing does not discard editor buffers; recreating the file indexes it again. Confirmed deletion uses native VS Code file operations and honors `files.enableTrash`.
+
 Metadata prompts identify the target file or vault. Editing metadata saves an originally clean document, but leaves an already-dirty document unsaved, including its body and metadata changes. Save it through the editor when ready; the in-memory index follows unsaved content.
 
 Use **Filter by tags…** in the Notes view menu to select existing tags. The native picker lists tags alphabetically with counts across that vault; typing narrows choices without clearing checked tags. Enter applies and Escape keeps the previous filter. Notes match any checked tag; selecting none or choosing **Clear tag filter** shows all notes. Active tags appear in the view description, and the heading count shows matching notes when counts are enabled.
