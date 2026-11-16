@@ -2107,7 +2107,7 @@ export async function run(): Promise<void> {
   }[];
   assert.deepEqual(
     settingGroups.map((group) => group.title),
-    ["Vault Folders", "Features"],
+    ["Vault Folders", "Display", "AI Context"],
     "settings groups or order changed",
   );
   assert.deepEqual(

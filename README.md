@@ -34,6 +34,8 @@ Settings are resource-scoped and apply to the workspace folder containing each v
 
 The `stemlink.root`, `stemlink.inbox`, `stemlink.notes`, and `stemlink.templates` settings appear together under **Stemlink › Vault Folders** in VS Code Settings.
 
+**Display** contains sidebar count visibility. **AI Context** contains router indexes and agent-instruction prompts; these prepare local files for AI tools without adding built-in AI or provider calls.
+
 | Setting                           |     Default | Purpose                                                                                                                                                                           |
 | --------------------------------- | ----------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `stemlink.root`                   |     `notes` | Workspace-relative vault root for settings-based discovery.                                                                                                                       |
