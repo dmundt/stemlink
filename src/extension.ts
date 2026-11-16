@@ -1149,7 +1149,6 @@ export async function activate(
 
   async function validateVault(vault: Vault): Promise<void> {
     registeredVault(vault);
-    diagnostics.clear();
     await vault.refresh();
     registeredVault(vault);
     const notes = vault.all;
@@ -1176,15 +1175,26 @@ export async function activate(
       list.push(diagnostic);
       grouped.set(finding.note.uri.toString(), list);
     }
-    for (const note of notes) {
+    const replacement: [vscode.Uri, vscode.Diagnostic[]][] = notes.flatMap((note) => {
       const list = grouped.get(note.uri.toString());
-      if (list) diagnostics.set(note.uri, list);
-    }
+      return list ? [[note.uri, list]] : [];
+    });
+    diagnostics.clear();
+    diagnostics.set(replacement);
     const count = (severity: string) =>
       findings.filter((finding) => finding.severity === severity).length;
-    void vscode.window.showInformationMessage(
-      `Stemlink: ${count("error")} errors, ${count("warning")} warnings, ${count("info")} info across ${notes.length} notes.`,
-    );
+    void vscode.window
+      .showInformationMessage(
+        `Stemlink: ${vault.paths.root.fsPath}: ${count("error")} errors, ${count("warning")} warnings, ${count("info")} info across ${notes.length} permanent notes. Previous Stemlink validation results replaced.`,
+        "Show Problems",
+      )
+      .then(
+        (answer) =>
+          answer === "Show Problems"
+            ? vscode.commands.executeCommand("workbench.actions.view.problems")
+            : undefined,
+        reportError,
+      );
   }
   command("stemlink.checkReferences", async () => {
     await validateVault(requireActiveVault());

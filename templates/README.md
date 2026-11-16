@@ -2,6 +2,8 @@
 
 This is a collection of plain Markdown files: one idea per permanent note, connected by filename. There is no database or required application. Stemlink is optional.
 
+Validation identifies the checked vault and offers Show Problems. Successful validation replaces previous Stemlink validation results globally; a failed run keeps them.
+
 <!-- stemlink:configured-folders -->
 
 ## 1. Folder layout

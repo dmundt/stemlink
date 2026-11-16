@@ -1222,6 +1222,7 @@ async function testVaultActions(
   let duringPrompt: (() => void) | undefined;
   const probe = vscode.Uri.joinPath(paths.notes, "vault-action-probe.md");
   const otherProbe = vscode.Uri.joinPath(selected.vault.paths.notes, "vault-action-other.md");
+  const summaries: string[] = [];
   const error = async (command: string, message: string, item: unknown = target) => {
     const before = errors.length;
     await vscode.commands.executeCommand(command, item);
@@ -1242,7 +1243,11 @@ async function testVaultActions(
     },
   });
   api.showInformationMessage = new Proxy(original.info, {
-    apply: () => Promise.resolve(undefined),
+    apply: (_target, _receiver, args: unknown[]) => {
+      summaries.push(String(args[0]));
+      assert.equal(args[1], "Show Problems");
+      return Promise.resolve(undefined);
+    },
   });
   const untrust = () =>
     Object.defineProperty(vscode.workspace, "isTrusted", {
@@ -1350,6 +1355,27 @@ async function testVaultActions(
     );
     assert.ok(document.isDirty, "validation saved an unsaved document");
     if (selected !== target) assert.equal(stemlinkProblems(otherProbe).length, 0);
+    assert.ok(
+      summaries.some(
+        (message) => message.includes(paths.root.fsPath) && message.includes("permanent notes"),
+      ),
+      "validation summary omitted vault or scope",
+    );
+    const previousProblems = stemlinkProblems(probe);
+    const originalRefresh = vault.refresh;
+    vault.refresh = async () => {
+      throw new Error("validation refresh rejected");
+    };
+    try {
+      await error("stemlink.validateVault", "validation refresh rejected");
+      assert.deepEqual(
+        stemlinkProblems(probe),
+        previousProblems,
+        "failed validation erased results",
+      );
+    } finally {
+      vault.refresh = originalRefresh;
+    }
     assert.equal(view.selection[0], selected, "vault actions changed selection");
     assert.equal(answers.length, 0);
   } finally {
