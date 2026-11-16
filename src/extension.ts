@@ -127,6 +127,13 @@ export async function activate(
     vscode.workspace
       .getConfiguration("stemlink", paths.root)
       .get<boolean>("offerAgentInstructions", true);
+  const syncRouterIndexes = () =>
+    routerIndexes.sync(
+      allVaults()
+        .filter((vault) => routerIndexesEnabled(vault.paths))
+        .map((vault) => vault.paths),
+    );
+  let discoveryFailed = false;
   context.subscriptions.push(tree);
   context.subscriptions.push(routerIndexes);
   const treeSections: VaultSection[] = ["Vaults", "Fleeting", "Notes", "References"];
@@ -248,6 +255,9 @@ export async function activate(
     void vscode.commands
       .executeCommand("setContext", "stemlink.hasVault", vaults.size > 0)
       .then(undefined, reportError);
+    void vscode.commands
+      .executeCommand("setContext", "stemlink.discoveryFailed", discoveryFailed)
+      .then(undefined, reportError);
     if (vaultView) {
       const count = vaults.size;
       vaultView.badge = count
@@ -317,18 +327,23 @@ export async function activate(
       }),
     );
   const syncVaults = async (preferred?: vscode.Uri): Promise<void> => {
+    let failed = false;
+    const onError = (error: unknown) => {
+      failed = true;
+      reportError(error);
+    };
     const descriptors = new Map<string, { folder: vscode.WorkspaceFolder; paths: VaultPaths }>();
     const folders = [...(vscode.workspace.workspaceFolders ?? [])].sort(
       (a, b) => b.uri.path.length - a.uri.path.length,
     );
     for (const folder of folders) {
       try {
-        for (const paths of await resolveVaultPaths(folder, context.workspaceState)) {
+        for (const paths of await resolveVaultPaths(folder, context.workspaceState, onError)) {
           if (!descriptors.has(paths.root.toString()))
             descriptors.set(paths.root.toString(), { folder, paths });
         }
       } catch (error) {
-        reportError(error);
+        onError(error);
       }
     }
     for (const [key, vault] of vaults) {
@@ -346,11 +361,8 @@ export async function activate(
       }
       vault.selectPaths(descriptor.paths);
     }
-    routerIndexes.sync(
-      allVaults()
-        .filter((vault) => routerIndexesEnabled(vault.paths))
-        .map((vault) => vault.paths),
-    );
+    discoveryFailed = failed;
+    syncRouterIndexes();
     const saved = context.workspaceState.get<string>(selectionKey);
     const wanted = [preferred?.toString(), selectedVault?.paths.root.toString(), saved].find(
       (root) => root !== undefined && vaults.has(root),
@@ -1426,7 +1438,14 @@ export async function activate(
   );
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((event) => {
-      if (!configuring && event.affectsConfiguration("stemlink")) scheduleDiscovery();
+      if (configuring) return;
+      if (
+        ["root", "inbox", "notes", "templates"].some((key) =>
+          event.affectsConfiguration(`stemlink.${key}`),
+        )
+      )
+        scheduleDiscovery();
+      else if (event.affectsConfiguration("stemlink.enableRouterIndexes")) syncRouterIndexes();
     }),
   );
   context.subscriptions.push(
