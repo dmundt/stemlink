@@ -112,7 +112,11 @@ export async function activate(
     }
     return vault.target(stem)?.uri.toString();
   };
-  const tree = new VaultTree(activeVault, allVaults);
+  const tree = new VaultTree(
+    activeVault,
+    allVaults,
+    vscode.languages.createDiagnosticCollection("Stemlink tags"),
+  );
   const routerIndexes = new VaultRouterIndexes();
   const agentInstructions = new VaultAgentInstructions(context.extensionUri);
   const routerIndexesEnabled = (paths: VaultPaths): boolean =>

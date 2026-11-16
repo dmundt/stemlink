@@ -10,8 +10,10 @@ interface TagSummary {
 }
 interface TagState {
   selected: readonly string[];
+  path: string;
   summary?: TagSummary;
-  problems?: string;
+  problems?: ReadonlySet<string>;
+  diagnosticUris?: readonly vscode.Uri[];
 }
 export class Item extends vscode.TreeItem {
   constructor(
@@ -85,6 +87,7 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
   constructor(
     private readonly activeVault: () => Vault | undefined,
     private readonly vaults: () => readonly Vault[],
+    private readonly tagDiagnostics?: vscode.DiagnosticCollection,
   ) {
     const watcher = vscode.workspace.createFileSystemWatcher("**/*.md");
     this.subscriptions = [
@@ -110,6 +113,8 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
         this.captureCounts.delete(vault);
         this.failedNames.delete(vault);
         this.namePaths.delete(vault);
+        const state = this.tagStates.get(vault);
+        if (state) this.clearTagDiagnostics(state);
         this.tagStates.delete(vault);
       }
     }
@@ -120,7 +125,10 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
           vault,
           vault.changed.event(() => {
             const state = this.tagStates.get(vault);
-            if (state) state.summary = undefined;
+            if (state) {
+              state.summary = undefined;
+              if (state.path !== vault.paths.notes.toString()) this.clearTagDiagnostics(state);
+            }
             this.refresh();
           }),
         );
@@ -225,10 +233,20 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
   private tagState(vault: Vault): TagState {
     let state = this.tagStates.get(vault);
     if (!state) {
-      state = { selected: [] };
+      state = { selected: [], path: vault.paths.notes.toString() };
       this.tagStates.set(vault, state);
+    } else if (state.path !== vault.paths.notes.toString()) {
+      this.clearTagDiagnostics(state);
+      state.path = vault.paths.notes.toString();
+      state.summary = undefined;
+      state.problems = undefined;
     }
     return state;
+  }
+
+  private clearTagDiagnostics(state: TagState): void {
+    for (const uri of state.diagnosticUris ?? []) this.tagDiagnostics?.delete(uri);
+    state.diagnosticUris = [];
   }
 
   private tagSummary(vault: Vault): TagSummary {
@@ -236,7 +254,8 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
     if (state.summary) return state.summary;
     const notes: TagSummary["notes"] = [];
     const counts = new Map<string, number>();
-    const problems: string[] = [];
+    const problems = new Set<string>();
+    const diagnostics: [vscode.Uri, vscode.Diagnostic[]][] = [];
     for (const note of vault.all) {
       let metadata = this.parsedTags.get(note);
       if (!metadata) {
@@ -245,14 +264,36 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
       }
       notes.push({ note, tags: metadata.tags });
       for (const tag of metadata.tags) counts.set(tag, (counts.get(tag) ?? 0) + 1);
-      if (metadata.problem) problems.push(`${note.name}: ${metadata.problem}`);
+      if (metadata.problem) {
+        problems.add(note.uri.toString());
+        const diagnostic = new vscode.Diagnostic(
+          new vscode.Range(0, 0, 0, 0),
+          metadata.problem,
+          vscode.DiagnosticSeverity.Warning,
+        );
+        diagnostic.source = "Stemlink tags";
+        diagnostics.push([note.uri, [diagnostic]]);
+      }
     }
-    const problemKey = problems.sort().join("\n");
-    if (problemKey && problemKey !== state.problems)
-      void vscode.window.showWarningMessage(
-        `Stemlink: Cannot filter tags in ${vault.paths.root.fsPath}:\n${problemKey}`,
-      );
-    state.problems = problemKey;
+    for (const uri of state.diagnosticUris ?? []) {
+      if (!problems.has(uri.toString())) this.tagDiagnostics?.delete(uri);
+    }
+    this.tagDiagnostics?.set(diagnostics);
+    state.diagnosticUris = diagnostics.map(([uri]) => uri);
+    if ([...problems].some((uri) => !state.problems?.has(uri))) {
+      void vscode.window
+        .showWarningMessage(
+          `Stemlink: ${problems.size} ${problems.size === 1 ? "note has" : "notes have"} invalid tag metadata in ${vault.paths.root.fsPath}.`,
+          "Show Problems",
+        )
+        .then((answer) =>
+          answer === "Show Problems"
+            ? vscode.commands.executeCommand("workbench.actions.view.problems")
+            : undefined,
+        )
+        .then(undefined, reportError);
+    }
+    state.problems = problems;
     state.summary = { notes, counts };
     return state.summary;
   }
@@ -278,7 +319,12 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
   refresh(): void {
     if (this.disposed) return;
     if (this.refreshTimer) clearTimeout(this.refreshTimer);
-    this.refreshTimer = setTimeout(() => this.emitter.fire(undefined), 100);
+    this.refreshTimer = setTimeout(() => {
+      for (const [vault, state] of this.tagStates) {
+        if (!state.summary && vault.indexState === "ready") this.tagSummary(vault);
+      }
+      this.emitter.fire(undefined);
+    }, 100);
   }
   getTreeItem(element: Item): vscode.TreeItem {
     return element;
@@ -452,7 +498,9 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
     if (this.refreshTimer) clearTimeout(this.refreshTimer);
     this.vaultSubscriptions.forEach((item) => item.dispose());
     this.vaultItems.clear();
+    for (const state of this.tagStates.values()) this.clearTagDiagnostics(state);
     this.tagStates.clear();
+    this.tagDiagnostics?.dispose();
     this.subscriptions.forEach((item) => item.dispose());
     this.emitter.dispose();
   }

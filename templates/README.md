@@ -2,6 +2,8 @@
 
 This is a collection of plain Markdown files: one idea per permanent note, connected by filename. There is no database or required application. Stemlink is optional.
 
+Tag metadata errors appear under Stemlink tags in Problems. A short notification gives their count and offers Show Problems. These diagnostics update with the note index and do not replace manual validation results.
+
 <!-- stemlink:configured-folders -->
 
 ## 1. Folder layout
