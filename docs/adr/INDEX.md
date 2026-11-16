@@ -72,6 +72,8 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 
 ## UI consistency and feedback
 
+- [066: Portable inline creation](adr-066-portable-inline-vault-creation.md) — early folder collision checks and creation-only reserved-name rejection.
+
 - [054: Restricted workspace onboarding](adr-054-restricted-workspace-onboarding.md) — limited Restricted Mode support, command prerequisites, and native welcome content.
 - [055: Tree recovery states](adr-055-tree-recovery-states.md) — reliable refresh, distinct empty/error feedback, and explicit reference scope.
 - [056: Metadata editor state](adr-056-metadata-editor-state.md) — preserve dirty documents and identify prompt targets.

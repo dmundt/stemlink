@@ -14,6 +14,12 @@ export const agentInstructionsName = "AGENTS.md";
 export const routerIndexStart = "<!-- stemlink:generated:start -->";
 export const routerIndexEnd = "<!-- stemlink:generated:end -->";
 
+export function isReservedFolderName(value: string): boolean {
+  return /^(?:con|prn|aux|nul|com[1-9\u00b9\u00b2\u00b3]|lpt[1-9\u00b9\u00b2\u00b3])(?:\.|$)/i.test(
+    value,
+  );
+}
+
 export function isRouterIndex(name: string): boolean {
   return name.toLowerCase() === routerIndexName.toLowerCase();
 }

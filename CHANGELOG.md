@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Validate new-vault folder collisions inline and reject reserved Windows device names on every platform; existing vault readers remain compatible.
+
 - Support read-only vault browsing, tag filtering, and validation in Restricted Mode; keep writes and preview trust-gated. Add native Vaults onboarding and disable creation actions when prerequisites are missing.
 - Make Refresh rediscover vaults and retry failed counts. Explain empty, filtered, failed, and out-of-scope reference views without changing vault selection.
 - Preserve unsaved document state during metadata edits and identify the target file or vault in note prompts.

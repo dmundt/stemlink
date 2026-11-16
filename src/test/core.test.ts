@@ -13,6 +13,7 @@ import {
   makeNote,
   metadataProblem,
   noteTags,
+  isReservedFolderName,
   promoteNote,
   markdownCodeSpan,
   renderRouterIndexes,
@@ -24,6 +25,25 @@ import {
   slug,
   timestamp,
 } from "../core";
+
+test("portable creation rejects Windows device basenames including extensions", () => {
+  for (const name of [
+    "CON",
+    "con.txt",
+    "PrN.md",
+    "AUX",
+    "NUL",
+    "COM1",
+    "COM9.md",
+    "LPT1",
+    "lpt9.txt",
+    "COM\u00b9.md",
+    "LPT\u00b2",
+  ])
+    assert.ok(isReservedFolderName(name), name);
+  for (const name of ["console", "auxiliary", "COM0", "COM10", "LPT0", "LPT10", "my.CON", "notes"])
+    assert.equal(isReservedFolderName(name), false, name);
+});
 
 test("note tags normalize case and whitespace without changing metadata", () => {
   const text =
