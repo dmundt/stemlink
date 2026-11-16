@@ -257,6 +257,9 @@ export async function activate(
     );
   const updateTreeViewMessages = (): void => {
     updateTagFilterView();
+    void vscode.commands
+      .executeCommand("setContext", "stemlink.hasVault", vaults.size > 0)
+      .then(undefined, reportError);
     if (vaultView) {
       const count = vaults.size;
       vaultView.badge = count
@@ -265,13 +268,7 @@ export async function activate(
     }
     for (const [section, view] of treeViews) {
       view.message =
-        section === "Vaults"
-          ? vaults.size
-            ? undefined
-            : "Use Open Vault or Create Vault."
-          : selectedVault
-            ? undefined
-            : "Select a vault in Vaults.";
+        section === "Vaults" ? undefined : selectedVault ? undefined : "Select a vault in Vaults.";
     }
   };
   const updateTreeViewTitles = async (): Promise<void> => {
@@ -390,7 +387,7 @@ export async function activate(
   await queueDiscovery(pendingOpen ? vscode.Uri.parse(pendingOpen) : undefined);
   if (pendingOpen) {
     const vault = vaults.get(pendingOpen);
-    if (vault) {
+    if (vault && vscode.workspace.isTrusted) {
       if (routerIndexesEnabled(vault.paths))
         await routerIndexes.initialize(vault.paths).catch(reportError);
       if (agentInstructionsEnabled(vault.paths))
@@ -1143,7 +1140,8 @@ export async function activate(
   command("stemlink.refresh", async () => {
     const vault = requireActiveVault();
     await vault.refresh();
-    if (routerIndexesEnabled(vault.paths)) await routerIndexes.refresh(vault.paths);
+    if (vscode.workspace.isTrusted && routerIndexesEnabled(vault.paths))
+      await routerIndexes.refresh(vault.paths);
     tree.refresh();
   });
 
@@ -1348,7 +1346,7 @@ export async function activate(
           try {
             await queueDiscovery(root.uri);
             const vault = vaults.get(pending);
-            if (vault) {
+            if (vault && vscode.workspace.isTrusted) {
               if (routerIndexesEnabled(vault.paths)) await routerIndexes.initialize(vault.paths);
               if (agentInstructionsEnabled(vault.paths)) await agentInstructions.offer(vault.paths);
             }

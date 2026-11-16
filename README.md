@@ -44,6 +44,8 @@ Vault `AGENTS.md` files are optional. With `stemlink.offerAgentInstructions` ena
 
 ## Extension settings
 
+Restricted Mode supports browsing, navigation, tag filtering, validation, and read-only refresh. File changes, generated indexes, agent instructions, and Markdown preview links require Workspace Trust. When no vault exists, the Vaults welcome explains workspace prerequisites and links to existing open/create actions.
+
 Use the gear in the **Vaults** view or **Stemlink: Settings** to open Stemlink settings.
 
 Settings are resource-scoped and apply to the workspace folder containing each vault. Defaults:
