@@ -225,6 +225,33 @@ export function makeNote(title: string, tags: string[], body = ""): string {
   return `---\n${noteMetadata(new Document(), title, tags)}---\n\n${body}`;
 }
 
+export function captureMetadata(text: string): { title?: string; tags?: string[] } {
+  const document = captureFrontMatter(text);
+  if (!document) return {};
+  const fields: Record<string, unknown> = document.toJS();
+  const title = fields.title;
+  const tags = fields.tags;
+  if (title !== undefined && typeof title !== "string")
+    throw new Error("Capture title must be text.");
+  if (tags !== undefined && (!Array.isArray(tags) || !tags.every((tag) => typeof tag === "string")))
+    throw new Error("Capture tags must be a list of text values.");
+  return { title, tags };
+}
+
+function captureFrontMatter(text: string): Document | undefined {
+  const matter = frontMatter(text);
+  if (!matter) {
+    if (/^(?:\uFEFF)?---[ \t]*\r?\n/.test(text))
+      throw new Error("Capture has unclosed YAML front matter.");
+    return undefined;
+  }
+  const document = parseDocument(matter.yaml, { uniqueKeys: true });
+  if (document.errors.length) throw new Error("Capture has invalid YAML front matter.");
+  if (!isMap(document.contents))
+    throw new Error("Capture has invalid YAML: front matter must be a YAML mapping.");
+  return document;
+}
+
 export function makeCapture(template: string, headline: string): string {
   const matter = frontMatter(template);
   if (!matter && /^(?:\uFEFF)?---[ \t]*\r?\n/.test(template))
@@ -245,21 +272,17 @@ function noteMetadata(document: Document, title: string, tags: string[]): string
 }
 
 export function promoteNote(text: string, title: string, tags: string[]): string {
+  captureMetadata(text);
   const matter = frontMatter(text);
   if (!matter) {
-    if (/^(?:\uFEFF)?---[ \t]*\r?\n/.test(text))
-      throw new Error("Capture has unclosed YAML front matter.");
-    return makeNote(title, tags, text);
+    const bom = text.startsWith("\uFEFF") ? "\uFEFF" : "";
+    return bom + makeNote(title, tags, text.slice(bom.length));
   }
-  const document = parseDocument(matter.yaml, { uniqueKeys: true });
-  if (document.errors.length || (document.contents && !document.contents.toJSON())) {
-    throw new Error("Capture has invalid YAML front matter.");
-  }
-  const value: unknown = document.toJS();
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new Error("Capture front matter must be a YAML mapping.");
-  }
-  return `---\n${noteMetadata(document, title, tags)}---\n${text.slice(matter.end)}`;
+  const document = captureFrontMatter(text)!;
+  const newline = text.includes("\r\n") ? "\r\n" : "\n";
+  const yaml = noteMetadata(document, title, tags).replace(/\r?\n/g, newline);
+  const bom = text.startsWith("\uFEFF") ? "\uFEFF" : "";
+  return `${bom}---${newline}${yaml}---${newline}${text.slice(matter.end)}`;
 }
 
 export function slug(title: string): string {

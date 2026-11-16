@@ -4,6 +4,7 @@ import * as os from "node:os";
 import * as vscode from "vscode";
 import { discoverVaults, readVaultMarker, resolveVaultPaths } from "../discovery";
 import {
+  captureMetadata,
   isVaultInstructionFile,
   renderRouterIndexes,
   renderVaultReadme,
@@ -518,6 +519,228 @@ async function testRouterMappings(folder: vscode.WorkspaceFolder): Promise<void>
   }
 }
 
+async function testCaptureActions(
+  root: vscode.Uri,
+  inbox: vscode.Uri,
+  notes: vscode.Uri,
+): Promise<void> {
+  const uri = vscode.Uri.joinPath(inbox, "context-actions.md");
+  const api = vscode.window as {
+    showInputBox: typeof vscode.window.showInputBox;
+    showWarningMessage: typeof vscode.window.showWarningMessage;
+    showErrorMessage: typeof vscode.window.showErrorMessage;
+  };
+  const originals = {
+    input: api.showInputBox,
+    warning: api.showWarningMessage,
+    error: api.showErrorMessage,
+  };
+  const config = vscode.workspace.getConfiguration("stemlink", root);
+  const previous = config.inspect<boolean>("promptForPromotionMetadata")?.workspaceFolderValue;
+  const answers: (string | undefined)[] = [];
+  const prompts: vscode.InputBoxOptions[] = [];
+  const errors: string[] = [];
+  let choice: string | undefined;
+  let duringPrompt: (() => Promise<void>) | undefined;
+  let duringConfirmation: (() => Promise<void>) | undefined;
+  const body = "\nCapture body with [[202601011200-note-1]].\n";
+  const text = `---\ncustom: kept\ntitle: Existing title\ntags: [idea]\n---\n${body}`;
+  const targets: vscode.Uri[] = [];
+  const read = async () =>
+    Buffer.from(await vscode.workspace.fs.readFile(uri))
+      .toString("utf8")
+      .replace(/\r\n/g, "\n");
+  const removeCapture = async () => {
+    try {
+      await vscode.workspace.fs.delete(uri);
+    } catch (error) {
+      if (!(error instanceof vscode.FileSystemError && error.code === "FileNotFound")) throw error;
+    }
+  };
+  const write = async (value: string) => {
+    await vscode.workspace.fs.writeFile(uri, Buffer.from(value));
+    const doc = await vscode.workspace.openTextDocument(uri);
+    await waitFor(
+      () => doc.getText().replace(/\r\n/g, "\n") === value,
+      "capture document did not reload",
+    );
+    return doc;
+  };
+  const expectError = async (command: string, message: string, item: unknown = { uri }) => {
+    const count = errors.length;
+    await vscode.commands.executeCommand(command, item);
+    assert.ok(
+      errors.slice(count).some((error) => error.includes(message)),
+      errors.slice(count).join("; "),
+    );
+  };
+  api.showInputBox = async (options) => {
+    assert.ok(answers.length, "unexpected capture metadata prompt");
+    prompts.push(options ?? {});
+    await duringPrompt?.();
+    return answers.shift();
+  };
+  api.showWarningMessage = new Proxy(originals.warning, {
+    apply: async (_target, _thisArg, args: unknown[]) => {
+      assert.ok(String(args[0]).includes("context-actions.md"));
+      assert.equal((args[1] as vscode.MessageOptions).modal, true);
+      assert.equal(args[2], "Discard");
+      await duringConfirmation?.();
+      return choice;
+    },
+  });
+  api.showErrorMessage = new Proxy(originals.error, {
+    apply: (_target, _thisArg, args: unknown[]) => {
+      errors.push(String(args[0]));
+      return Promise.resolve(undefined);
+    },
+  });
+  try {
+    await config.update(
+      "promptForPromotionMetadata",
+      false,
+      vscode.ConfigurationTarget.WorkspaceFolder,
+    );
+    await write(text);
+    answers.push("Changed", undefined);
+    await vscode.commands.executeCommand("stemlink.editCaptureMetadata", { uri });
+    assert.equal(await read(), text, "cancelled metadata edit changed capture");
+    assert.equal(prompts[0].value, "Existing title");
+    assert.equal(prompts[1].value, "idea");
+    answers.push("Changed", "one, two");
+    await vscode.commands.executeCommand("stemlink.editCaptureMetadata", { uri });
+    assert.match(await read(), /title: Changed/);
+    assert.match(await read(), /tags: \[one, two\]/);
+    assert.match(await read(), /custom: kept/);
+    assert.ok((await read()).endsWith(body));
+
+    const workspaceApi = vscode.workspace as { applyEdit: typeof vscode.workspace.applyEdit };
+    const originalApply = workspaceApi.applyEdit;
+    try {
+      workspaceApi.applyEdit = async () => false;
+      const before = await read();
+      answers.push("Rejected metadata", "idea");
+      await expectError("stemlink.editCaptureMetadata", "Could not update");
+      assert.equal(await read(), before, "failed metadata edit changed capture");
+    } finally {
+      workspaceApi.applyEdit = originalApply;
+    }
+
+    const dirty = await write(text);
+    const unsaved = new vscode.WorkspaceEdit();
+    unsaved.insert(uri, dirty.positionAt(dirty.getText().length), "Unsaved content\n");
+    assert.ok(await vscode.workspace.applyEdit(unsaved));
+    answers.push("Dirty metadata", "idea");
+    await vscode.commands.executeCommand("stemlink.editCaptureMetadata", { uri });
+    assert.ok((await read()).endsWith("Unsaved content\n"), "metadata edit lost unsaved content");
+
+    await write(text);
+    answers.push("Ignored", "idea");
+    duringPrompt = async () => {
+      duringPrompt = undefined;
+      await vscode.workspace.fs.writeFile(uri, Buffer.from(text + "Concurrent edit\n"));
+    };
+    await expectError("stemlink.editCaptureMetadata", "changed");
+    assert.ok((await read()).endsWith("Concurrent edit\n"));
+
+    for (const [source, queued, expectedPrompts] of [
+      [text, [], 0],
+      [text.replace("[idea]", "['idea,with-comma']"), [], 0],
+      [`---\ntags: [kept]\n---\n${body}`, ["Provided title"], 1],
+      [`---\ntitle: Empty tags\ntags: []\n---\n${body}`, [""], 1],
+    ] as const) {
+      await write(source);
+      answers.push(...queued);
+      const before = prompts.length;
+      await vscode.commands.executeCommand("stemlink.promote", { uri });
+      assert.equal(prompts.length - before, expectedPrompts);
+      const target = vscode.window.activeTextEditor?.document.uri;
+      assert.ok(target && directChild(target, notes), "promotion used wrong vault");
+      targets.push(target);
+      const promoted = Buffer.from(await vscode.workspace.fs.readFile(target))
+        .toString("utf8")
+        .replace(/\r\n/g, "\n");
+      assert.ok(promoted.endsWith(body));
+      if (source.includes("idea,with-comma"))
+        assert.deepEqual(captureMetadata(promoted).tags, ["idea,with-comma"]);
+      await assert.rejects(async () => vscode.workspace.fs.stat(uri));
+    }
+
+    await write(text);
+    await config.update(
+      "promptForPromotionMetadata",
+      true,
+      vscode.ConfigurationTarget.WorkspaceFolder,
+    );
+    answers.push("Forced title", "changed");
+    const beforeForce = prompts.length;
+    await vscode.commands.executeCommand("stemlink.promote", { uri });
+    assert.equal(prompts.length - beforeForce, 2);
+    assert.equal(prompts[beforeForce].value, "Existing title");
+    const forced = vscode.window.activeTextEditor?.document.uri;
+    assert.ok(forced && directChild(forced, notes));
+    targets.push(forced);
+
+    const doc = await write(text);
+    await vscode.window.showTextDocument(doc);
+    for (const command of [
+      "stemlink.promote",
+      "stemlink.editCaptureMetadata",
+      "stemlink.discardCapture",
+    ])
+      await expectError(command, "context menu", null);
+    for (const cancelled of [undefined, "Cancel"]) {
+      choice = cancelled;
+      await vscode.commands.executeCommand("stemlink.discardCapture", { uri });
+      assert.equal(await read(), text);
+    }
+    const edit = new vscode.WorkspaceEdit();
+    edit.insert(uri, new vscode.Position(0, 0), "Unsaved\n");
+    assert.ok(await vscode.workspace.applyEdit(edit));
+    choice = "Discard";
+    await expectError("stemlink.discardCapture", "Save or revert");
+    assert.ok(doc.isDirty);
+    await doc.save();
+    duringConfirmation = async () => {
+      duringConfirmation = undefined;
+      await vscode.workspace.fs.writeFile(uri, Buffer.from("Changed during confirmation\n"));
+    };
+    await expectError("stemlink.discardCapture", "changed");
+    assert.equal(await read(), "Changed during confirmation\n");
+    await write(text);
+    const trust = Object.getOwnPropertyDescriptor(vscode.workspace, "isTrusted");
+    assert.ok(trust);
+    try {
+      Object.defineProperty(vscode.workspace, "isTrusted", {
+        configurable: true,
+        get: () => false,
+      });
+      for (const command of [
+        "stemlink.promote",
+        "stemlink.editCaptureMetadata",
+        "stemlink.discardCapture",
+      ])
+        await expectError(command, "Trust the workspace");
+    } finally {
+      Object.defineProperty(vscode.workspace, "isTrusted", trust);
+    }
+    await vscode.commands.executeCommand("stemlink.discardCapture", { uri });
+    await assert.rejects(async () => vscode.workspace.fs.stat(uri));
+    assert.equal(answers.length, 0);
+  } finally {
+    api.showInputBox = originals.input;
+    api.showWarningMessage = originals.warning;
+    api.showErrorMessage = originals.error;
+    await config.update(
+      "promptForPromotionMetadata",
+      previous,
+      vscode.ConfigurationTarget.WorkspaceFolder,
+    );
+    for (const target of targets) await vscode.workspace.fs.delete(target);
+    await removeCapture();
+  }
+}
+
 async function testCommandFailures(
   root: vscode.Uri,
   inbox: vscode.Uri,
@@ -575,7 +798,6 @@ async function testCommandFailures(
     const invalidText = "---\ntitle: [\n---\nCapture body\n";
     await fs.writeFile(invalidCapture, Buffer.from(invalidText));
     try {
-      answers.push("Invalid capture", "");
       await assertError("stemlink.promote", "invalid YAML", { uri: invalidCapture });
       assert.equal(Buffer.from(await fs.readFile(invalidCapture)).toString("utf8"), invalidText);
       assert.deepEqual(await readNotes(), initialNotes, "invalid capture created a note");
@@ -680,6 +902,49 @@ async function testMultiRoot(views: Map<string, vscode.TreeView<Item>>): Promise
       "notes",
       "creating a second vault changed the first workspace's settings",
     );
+    const firstCapture = vscode.Uri.joinPath(folders[0].uri, "notes", "inbox", "item-vault.md");
+    const firstConfig = vscode.workspace.getConfiguration("stemlink", folders[0].uri);
+    const oldPrompt = firstConfig.inspect<boolean>(
+      "promptForPromotionMetadata",
+    )?.workspaceFolderValue;
+    await firstConfig.update(
+      "promptForPromotionMetadata",
+      false,
+      vscode.ConfigurationTarget.WorkspaceFolder,
+    );
+    {
+      const config = vscode.workspace.getConfiguration("stemlink", folders[1].uri);
+      const old = config.inspect<boolean>("promptForPromotionMetadata")?.workspaceFolderValue;
+      try {
+        await config.update(
+          "promptForPromotionMetadata",
+          true,
+          vscode.ConfigurationTarget.WorkspaceFolder,
+        );
+        await vscode.workspace.fs.writeFile(
+          firstCapture,
+          Buffer.from("---\ntitle: Item vault target\ntags: [idea]\n---\nBody\n"),
+        );
+        await vscode.commands.executeCommand("stemlink.promote", { uri: firstCapture });
+        const target = vscode.window.activeTextEditor?.document.uri;
+        assert.ok(
+          target && directChild(target, vscode.Uri.joinPath(folders[0].uri, "notes", "permanent")),
+          "promotion did not use right-clicked capture's vault and setting",
+        );
+        await vscode.workspace.fs.delete(target);
+      } finally {
+        await config.update(
+          "promptForPromotionMetadata",
+          old,
+          vscode.ConfigurationTarget.WorkspaceFolder,
+        );
+        await firstConfig.update(
+          "promptForPromotionMetadata",
+          oldPrompt,
+          vscode.ConfigurationTarget.WorkspaceFolder,
+        );
+      }
+    }
     const firstSource = vscode.Uri.joinPath(
       folders[0].uri,
       "notes",
@@ -1426,7 +1691,7 @@ async function testOpenVault(folder: vscode.WorkspaceFolder): Promise<void> {
       await vscode.window.showTextDocument(
         await vscode.workspace.openTextDocument(inboxInstructions),
       );
-      await vscode.commands.executeCommand("stemlink.promote");
+      await vscode.commands.executeCommand("stemlink.promote", { uri: inboxInstructions });
     } finally {
       inputApi.showInputBox = originalInput;
     }
@@ -2210,6 +2475,38 @@ export async function run(): Promise<void> {
     title: string;
     icon?: string;
   }[];
+  const captureCommands = [
+    "stemlink.editCaptureMetadata",
+    "stemlink.promote",
+    "stemlink.discardCapture",
+  ];
+  const menus = extension.packageJSON.contributes.menus as Record<
+    string,
+    { command: string; when: string; group?: string }[]
+  >;
+  const captureMenus = menus["view/item/context"].filter((entry) =>
+    captureCommands.includes(entry.command),
+  );
+  assert.deepEqual(
+    captureMenus.map((entry) => entry.command),
+    captureCommands,
+  );
+  for (const command of captureCommands) {
+    assert.equal(commands.find((entry) => entry.command === command)?.icon, undefined);
+    assert.ok(
+      menus.commandPalette.some((entry) => entry.command === command && entry.when === "false"),
+    );
+    assert.ok(
+      captureMenus.some(
+        (entry) =>
+          entry.command === command &&
+          entry.when === "view == stemlink.fleeting && viewItem == stemlink.capture" &&
+          entry.group !== "inline",
+      ),
+    );
+    assert.ok(!menus["view/title"].some((entry) => entry.command === command));
+  }
+  assert.notEqual(captureMenus[0].group?.split("@")[0], captureMenus[2].group?.split("@")[0]);
   assert.equal(
     commands.find((command) => command.command === "stemlink.createVault")?.title,
     "Create Vault",
@@ -2239,6 +2536,7 @@ export async function run(): Promise<void> {
     ["stemlink.offerAgentInstructions", true],
     ["stemlink.showCounts", true],
     ["stemlink.promptForCaptureHeadline", true],
+    ["stemlink.promptForPromotionMetadata", false],
   ] as const) {
     assert.equal(settings[key]?.default, value, `${key} default changed`);
     assert.equal(settings[key]?.scope, "resource", `${key} must remain resource-scoped`);
@@ -3419,7 +3717,7 @@ export async function run(): Promise<void> {
       await vscode.workspace.fs.writeFile(capture, Buffer.from("Capture body\n"));
       await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(capture));
       answers.push("Promoted title", "ideas");
-      await vscode.commands.executeCommand("stemlink.promote");
+      await vscode.commands.executeCommand("stemlink.promote", { uri: capture });
       const after = (await vscode.workspace.fs.readDirectory(permanent)).filter(
         ([name]) => !name.startsWith("_") && !isVaultInstructionFile(name),
       );
@@ -3452,7 +3750,7 @@ export async function run(): Promise<void> {
       });
       try {
         answers.push("Changing capture", "");
-        await vscode.commands.executeCommand("stemlink.promote");
+        await vscode.commands.executeCommand("stemlink.promote", { uri: changing });
       } finally {
         onSave.dispose();
       }
@@ -3549,6 +3847,7 @@ export async function run(): Promise<void> {
           vscode.ConfigurationTarget.WorkspaceFolder,
         );
       }
+      await testCaptureActions(vaultRoot, inbox, permanent);
     } finally {
       windowApi.showInputBox = originalInput;
     }

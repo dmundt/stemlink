@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { parseDocument } from "yaml";
 import {
   auditNotes,
+  captureMetadata,
   frontMatter,
   fleetingTitle,
   isRouterIndex,
@@ -32,6 +33,31 @@ test("capture headlines preserve template content and front matter", () => {
   assert.equal(makeCapture("\uFEFFPrompt\n", "Idea"), "\uFEFF# Idea\n\nPrompt\n");
   assert.equal(makeCapture("---\ntags: []\n---", "Idea"), "---\ntags: []\n---\n\n# Idea\n\n");
   assert.throws(() => makeCapture("---\ntags: []\n", "Idea"), /unclosed YAML/);
+});
+
+test("capture metadata reads optional fields and rejects invalid existing values", () => {
+  assert.deepEqual(captureMetadata("Body\n"), {});
+  assert.deepEqual(captureMetadata("---\ntitle: Idea\ntags: [one, two]\n---\nBody"), {
+    title: "Idea",
+    tags: ["one", "two"],
+  });
+  assert.deepEqual(captureMetadata("---\ntitle: ''\ntags: []\n---\n"), { title: "", tags: [] });
+  assert.deepEqual(captureMetadata("---\nother: kept\n---\n"), {
+    title: undefined,
+    tags: undefined,
+  });
+  for (const fields of ["title: 42", "title: null", "tags: one", "tags: [one, 2]", "tags: null"]) {
+    assert.throws(() => captureMetadata(`---\n${fields}\n---\nBody`), /must be/);
+    assert.throws(() => promoteNote(`---\n${fields}\n---\nBody`, "Title", []), /must be/);
+  }
+  assert.throws(() => captureMetadata("---\ntitle: [\n---\n"), /invalid YAML/);
+  assert.throws(() => captureMetadata("---\ntitle: unfinished\n"), /unclosed/);
+  const body = "\r\nKeep [[202601011200-note-1]].\r\n";
+  const result = promoteNote(`\uFEFF---\r\ncustom: kept\r\n---\r\n${body}`, "Changed", ["one"]);
+  assert.ok(result.startsWith("\uFEFF---\r\n"));
+  assert.ok(result.endsWith(body));
+  assert.match(result, /custom: kept/);
+  assert.deepEqual(captureMetadata(result), { title: "Changed", tags: ["one"] });
 });
 
 test("parses references in prose, not front matter or Markdown code", () => {

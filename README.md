@@ -8,7 +8,7 @@ Build a Stemlink vault in VS Code with plain Markdown files. Capture ideas, conn
 
 1. Open a workspace folder and the **Stemlink** activity bar view.
 2. Run **Stemlink: Create Vault**. Accept `notes/` containing `templates/`, `inbox/`, and `permanent/`, or choose your own names.
-3. Stemlink restores the last available vault or selects the first listed vault. Choose another under **Vaults** when needed. Use **Add Fleeting Note**, **Add Note**, or **Promote Capture to Note**.
+3. Stemlink restores the last available vault or selects the first listed vault. Choose another under **Vaults** when needed. Use **Add Fleeting Note** or **Add Note**; right-click an inbox capture for **Promote to Note...**.
 
 The Activity Bar badge shows the number of discovered vaults in the workspace; it is hidden when there are none. It remains visible when `stemlink.showCounts` hides view counts.
 
@@ -21,6 +21,8 @@ Vault creation copies the bundled manual to the vault root and personalizes its 
 Add Fleeting Note reads `_fleeting.md` from the mapped templates folder first and falls back to the configured notes folder for existing vaults.
 
 By default, **Add Fleeting Note** asks for a headline. It adds the full headline as a Markdown heading before the template body and uses a filename such as `202611161400-short-headline.md`. Filename slugs are capped at 48 characters; duplicates get numeric suffixes. Cancel creates nothing. Disable **Capture > Prompt For Capture Headline** (`stemlink.promptForCaptureHeadline`) to copy the template unchanged with a timestamped `capture` filename. Existing captures are unchanged.
+
+Right-click an inbox capture for **Edit Metadata...**, **Promote to Note...**, or **Discard...**. These text-only actions live in the item context menu, not the toolbar or Command Palette. Edit Metadata asks for title and optional comma-separated tags, preserving the body and unrelated YAML fields. Promotion reuses non-empty title and tags by default; missing or empty fields are prompted separately. Enable `stemlink.promptForPromotionMetadata` under **Capture** to always review both fields. Promotion saves the permanent note before removing the capture. Discard requires confirmation and refuses unsaved changes; save or revert them first. All three actions require Workspace Trust.
 
 Files starting with `_` are hidden from capture and permanent-note views and counts, and excluded from note indexing, completion, backlinks, and audits as source notes. Wiki links to these files are invalid and reported by **Check References**. Existing files remain on disk.
 
@@ -37,6 +39,8 @@ Settings are resource-scoped and apply to the workspace folder containing each v
 The `stemlink.root`, `stemlink.inbox`, `stemlink.notes`, and `stemlink.templates` settings appear together under **Stemlink › Vault Folders** in VS Code Settings.
 
 **Display** contains sidebar count visibility. **AI Context** contains router indexes and agent-instruction prompts; these prepare local files for AI tools without adding built-in AI or provider calls.
+
+**Capture** contains headline and promotion metadata prompts. `stemlink.promptForPromotionMetadata` defaults to `false`; an empty tags list still prompts for optional tags, and submitting it empty is allowed.
 
 | Setting                           |     Default | Purpose                                                                                                                                                                           |
 | --------------------------------- | ----------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -156,7 +156,13 @@ Review the inbox regularly:
 | Worth keeping     | Rewrite it as one permanent idea with front matter and useful links. |
 | Still unfinished  | Leave it in the inbox for another review.                            |
 
-The rewrite is the thinking, not merely moving the file. Stemlink's **Promote Capture to Note** preserves the capture's content; edit it into a permanent note after promotion.
+The rewrite is the thinking, not merely moving the file. Right-click a capture in Stemlink's inbox tree for:
+
+- **Edit Metadata...**: Enter a title and optional comma-separated tags. This adds or updates YAML without changing the body or unrelated fields. Cancel either prompt to leave the capture unchanged.
+- **Promote to Note...**: Create a permanent note in the same vault, preserving the body, unrelated YAML, and wiki links. Non-empty title and tags are reused; only missing or empty fields prompt. Set `stemlink.promptForPromotionMetadata` to `true` under Capture settings to always review both fields (default: `false`). Empty tags are allowed. The source is removed only after the new note is saved.
+- **Discard...**: Confirm deletion in a warning showing the capture filename. Cancel or dismiss changes nothing. Save or revert unsaved changes before discarding.
+
+These are text-only item context actions, not inline buttons or Command Palette commands. They require Workspace Trust and target the right-clicked capture, even when another vault or editor is selected. Invalid YAML or field types are reported rather than silently replaced. Edit the note's content yourself; promotion does not rewrite it.
 
 ## 9. Finding notes
 
