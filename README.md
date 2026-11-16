@@ -89,6 +89,7 @@ Related: [[202411130915-ids-as-timestamps]]
 ```
 
 - Click a link or press **F12** to navigate; type `[[` for completion.
+- In VS Code's built-in Markdown preview, existing `[[stem]]` targets render as clickable links without changing source text. Workspace Trust is required. Code, escaped references, and existing Markdown links stay unchanged; missing or invalid targets remain literal.
 - Use **Shift+F12** or **References > Inbound** for backlinks. **Outbound** shows links from the active note in the selected vault. Counts are link occurrences.
 - Run **Check References** to find broken links and other note issues in the Problems panel. Files starting with `_` are excluded from the check.
 

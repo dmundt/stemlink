@@ -41,6 +41,67 @@ async function waitForFileText(
   }
 }
 
+async function testMarkdownPreview(source: vscode.Uri, target: vscode.Uri): Promise<void> {
+  if (process.env.STEMLINK_DISABLE_MARKDOWN_PROVIDER === "1") return;
+  const markdown = vscode.extensions.getExtension("vscode.markdown-language-features");
+  assert.ok(markdown);
+  await markdown.activate();
+  const stem = target.path.slice(target.path.lastIndexOf("/") + 1, -3);
+  const text = [
+    `Reference [[${stem}]].`,
+    `Missing [[202601011200-missing]] and invalid [[_${stem}]].`,
+    `Inline code \`[[${stem}]]\`.`,
+    `\\[[${stem}]]`,
+    `[Existing [[${stem}]]](https://example.com)`,
+    `After [ordinary link](https://example.com), [[${stem}]].`,
+    `Emphasis **[[${stem}]]**.`,
+    "",
+    "```md",
+    `[[${stem}]]`,
+    "```",
+    "",
+    `    [[${stem}]]`,
+  ].join("\n");
+  const original = (await vscode.workspace.openTextDocument(source)).getText();
+  const render = () =>
+    vscode.commands.executeCommand<string>("markdown.api.render", {
+      uri: source,
+      version: -1,
+      getText: () => text,
+    });
+  let html = await render();
+  for (let attempt = 0; attempt < 20 && !html?.includes(`>${stem}</a>`); attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    html = await render();
+  }
+  assert.ok(html?.includes(`href="${target.toString()}"`), "preview link target is incorrect");
+  assert.equal(
+    html.match(new RegExp(`>${stem}</a>`, "g"))?.length,
+    3,
+    `Only standalone wiki links should become anchors:\n${html}`,
+  );
+  assert.ok(html.includes("[[202601011200-missing]]"), "missing reference was hidden");
+  assert.ok(html.includes(`[[_${stem}]]`), "invalid reference was hidden");
+  assert.ok(html.includes(`<code>[[${stem}]]</code>`), "inline code was converted");
+  assert.ok(html.includes(`[[${stem}]]</a>`), "existing Markdown link was changed");
+  assert.ok(html.includes(`<pre`) && html.includes(`[[${stem}]]\n</code></pre>`));
+  const anonymous = await vscode.commands.executeCommand<string>("markdown.api.render", text);
+  assert.ok(!anonymous?.includes(`>${stem}</a>`), "preview without a source guessed a vault");
+  const trust = Object.getOwnPropertyDescriptor(vscode.workspace, "isTrusted");
+  assert.ok(trust);
+  try {
+    Object.defineProperty(vscode.workspace, "isTrusted", { configurable: true, get: () => false });
+    const restricted = await render();
+    assert.ok(
+      !restricted?.includes(`>${stem}</a>`),
+      "wiki-link preview conversion ran without Workspace Trust",
+    );
+  } finally {
+    Object.defineProperty(vscode.workspace, "isTrusted", trust);
+  }
+  assert.equal((await vscode.workspace.openTextDocument(source)).getText(), original);
+}
+
 async function testVirtualVault(): Promise<void> {
   const changes = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
   const stem = "202601021200-virtual";
@@ -619,6 +680,25 @@ async function testMultiRoot(views: Map<string, vscode.TreeView<Item>>): Promise
       "notes",
       "creating a second vault changed the first workspace's settings",
     );
+    const firstSource = vscode.Uri.joinPath(
+      folders[0].uri,
+      "notes",
+      "permanent",
+      "202601011200-note-0.md",
+    );
+    const firstTarget = vscode.Uri.joinPath(
+      folders[0].uri,
+      "notes",
+      "permanent",
+      "202601011200-note-1.md",
+    );
+    const secondTarget = vscode.Uri.joinPath(notes, "202601011200-note-1.md");
+    await vscode.workspace.fs.writeFile(
+      secondTarget,
+      Buffer.from("---\ntitle: Second vault target\ntags: []\n---\n\nSecond vault.\n"),
+    );
+    await testMarkdownPreview(firstSource, firstTarget);
+    await testMarkdownPreview(secondTarget, secondTarget);
     const secondConfig = vscode.workspace.getConfiguration("stemlink", folders[1].uri);
     const previousCounts = secondConfig.inspect<boolean>("showCounts")?.workspaceFolderValue;
     try {
@@ -2311,6 +2391,7 @@ export async function run(): Promise<void> {
     definitions?.some((location) => location.uri.toString() === second.toString()),
     "definition does not resolve",
   );
+  if (process.env.STEMLINK_BENCHMARK !== "1") await testMarkdownPreview(first, second);
 
   const directVault = new Vault(folder);
   const openDocuments = vscode.workspace.textDocuments.length;
