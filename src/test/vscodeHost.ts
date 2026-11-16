@@ -477,6 +477,53 @@ async function testMockVaultFiles(extensionUri: vscode.Uri): Promise<void> {
     for (const directory of [root, inbox, notes]) {
       assert.equal(files.get(`${directory.path}/AGENTS.md`), "Existing instructions\n");
     }
+    const targetStem = "202601021230-target";
+    const sourceStem = "202601021231-source";
+    const target = vscode.Uri.joinPath(notes, `${targetStem}.md`);
+    const source = vscode.Uri.joinPath(notes, `${sourceStem}.md`);
+    const sourceText = `First\t [[${targetStem}]]\r\n第二  [[${targetStem}]] ${"word ".repeat(30)}\r\n`;
+    files.set(source.path, sourceText);
+    const targetText = `[[${sourceStem}]]\nMissing [[202601021232-missing]].\n`;
+    files.set(target.path, targetText);
+    const vault = new Vault({ uri: root, name: "Synthetic vault", index: 0 });
+    vault.selectPaths(paths);
+    const tree = new VaultTree(
+      () => vault,
+      () => [vault],
+    );
+    try {
+      await vault.ensure();
+      await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(target));
+      const inbound = await tree.getChildren(new Item("Inbound", "Inbound"));
+      assert.equal(inbound.length, 2);
+      assert.equal(inbound[0].description, `1: First [[${targetStem}]]`);
+      assert.equal(typeof inbound[1].description, "string");
+      assert.equal(String(inbound[1].description).slice(3).length, 80);
+      assert.ok(String(inbound[1].description).startsWith("2: 第二 "));
+      for (const [index, item] of inbound.entries()) {
+        const offset = index === 0 ? sourceText.indexOf("[[") : sourceText.lastIndexOf("[[");
+        assert.equal(item.command?.arguments?.[0]?.toString(), source.toString());
+        assert.equal(item.command?.arguments?.[1], offset);
+      }
+      const outbound = await tree.getChildren(new Item("Outbound", "Outbound"));
+      assert.equal(outbound[0].command?.arguments?.[0]?.toString(), source.toString());
+      assert.equal(outbound[0].command?.arguments?.[1], undefined);
+      assert.equal(outbound[1].description, "Missing");
+      const missingOffset = targetText.lastIndexOf("[[");
+      assert.equal(outbound[1].command?.arguments?.[0]?.toString(), target.toString());
+      assert.equal(outbound[1].command?.arguments?.[1], missingOffset);
+      const command = outbound[1].command;
+      assert.ok(command);
+      await vscode.commands.executeCommand(command.command, ...(command.arguments ?? []));
+      const editor = vscode.window.activeTextEditor;
+      assert.ok(editor);
+      assert.equal(editor.document.uri.toString(), target.toString());
+      assert.ok(editor.selection.active.isEqual(editor.document.positionAt(missingOffset)));
+    } finally {
+      tree.dispose();
+      vault.dispose();
+      await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor");
+    }
   } finally {
     windowApi.showWarningMessage = originalWarning;
     router.dispose();

@@ -72,6 +72,8 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 
 ## UI consistency and feedback
 
+- [067: Reference occurrence navigation](adr-067-reference-occurrence-navigation.md) — source line excerpts and actionable missing links.
+
 - [054: Restricted workspace onboarding](adr-054-restricted-workspace-onboarding.md) — limited Restricted Mode support, command prerequisites, and native welcome content.
 - [055: Tree recovery states](adr-055-tree-recovery-states.md) — reliable refresh, distinct empty/error feedback, and explicit reference scope.
 - [056: Metadata editor state](adr-056-metadata-editor-state.md) — preserve dirty documents and identify prompt targets.
