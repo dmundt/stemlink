@@ -139,8 +139,13 @@ export async function activate(
   let hasTagFilter: boolean | undefined;
   const updateTagFilterView = () => {
     const tags = selectedVault ? tree.tagFilter(selectedVault) : [];
-    const view = treeViews.get("Notes");
-    if (view) view.description = tags.length ? `Tags: ${tags.join(", ")}` : undefined;
+    const label = selectedVault ? tree.vaultLabel(selectedVault) : undefined;
+    for (const section of ["Fleeting", "Notes", "References"] as const) {
+      const view = treeViews.get(section);
+      if (view)
+        view.description =
+          section === "Notes" && tags.length ? `${label} · Tags: ${tags.join(", ")}` : label;
+    }
     if (hasTagFilter !== Boolean(tags.length)) {
       hasTagFilter = Boolean(tags.length);
       void vscode.commands
@@ -882,7 +887,7 @@ export async function activate(
     ) {
       headline = await vscode.window.showInputBox({
         title: "Capture headline",
-        prompt: "Describe this fleeting thought.",
+        prompt: `Describe this fleeting thought for ${tree.vaultLabel(vault)}.`,
         validateInput: (value) => (value.trim() ? undefined : "Enter a headline."),
       });
       if (headline === undefined) return;
@@ -923,6 +928,26 @@ export async function activate(
     return vault;
   }
 
+  function explainFilteredCreation(vault: Vault, uri: vscode.Uri): void {
+    if (selectedVault !== vault || tree.isVisibleNote(vault, uri)) return;
+    void vscode.window
+      .showInformationMessage(
+        `Stemlink: Created note in ${tree.vaultLabel(vault)} is not shown by the active tag filter.`,
+        "Clear tag filter",
+      )
+      .then((choice) => {
+        if (
+          choice === "Clear tag filter" &&
+          selectedVault === vault &&
+          vaults.get(vault.paths.root.toString()) === vault
+        ) {
+          tree.setTagFilter(vault, []);
+          updateTagFilterView();
+        }
+      })
+      .then(undefined, reportError);
+  }
+
   function itemVault(item?: Item): Vault {
     if (item?.kind !== "vault" || !item.vault)
       throw new Error("Select a vault from its context menu.");
@@ -947,6 +972,7 @@ export async function activate(
     await vault.recordFile(uri);
     tree.refresh();
     await vscode.window.showTextDocument(uri);
+    explainFilteredCreation(vault, uri);
   }
   command("stemlink.addNote", async () => {
     await addNote(requireActiveVault());
@@ -1143,7 +1169,10 @@ export async function activate(
     }
     await vault.recordFile(target);
     tree.refresh();
-    if (!batchTargets) await vscode.window.showTextDocument(target);
+    if (!batchTargets) {
+      await vscode.window.showTextDocument(target);
+      explainFilteredCreation(vault, target);
+    }
     return true;
   }
   async function promoteBatch(items: Item[], token?: vscode.CancellationToken): Promise<void> {
@@ -1209,7 +1238,11 @@ export async function activate(
           `Stemlink: Promotion ${outcome}: ${completed} of ${captures.size} captures promoted; ${captures.size - completed} not fully promoted.${partial}`,
         );
         const last = targets[targets.length - 1];
-        if (last) await vscode.window.showTextDocument(last).then(undefined, reportError);
+        if (last) {
+          await vscode.window.showTextDocument(last).then(undefined, reportError);
+          const vault = vaultFor(last);
+          if (vault) explainFilteredCreation(vault, last);
+        }
       }
     }
   }

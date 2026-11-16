@@ -227,6 +227,28 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
     return this.tagStates.get(vault)?.selected ?? [];
   }
 
+  vaultLabel(vault: Vault): string {
+    const name = vault.paths.root.path.split("/").pop() || vault.folder.name;
+    const duplicates = this.vaults().filter(
+      (candidate) => (candidate.paths.root.path.split("/").pop() || candidate.folder.name) === name,
+    );
+    if (duplicates.length < 2) return name;
+    const workspace =
+      duplicates.some(
+        (candidate) => candidate !== vault && candidate.folder.name === vault.folder.name,
+      ) || vault.folder.name === name
+        ? vault.folder.uri.fsPath
+        : vault.folder.name;
+    return `${name} (${workspace})`;
+  }
+
+  isVisibleNote(vault: Vault, uri: vscode.Uri): boolean {
+    return (
+      !this.tagFilter(vault).length ||
+      this.filteredNotes(vault).some((note) => note.uri.toString() === uri.toString())
+    );
+  }
+
   setTagFilter(vault: Vault, tags: readonly string[]): void {
     const state = this.tagState(vault);
     state.selected = normalizeTags(tags);
