@@ -84,6 +84,12 @@
             "default": true,
             "scope": "resource",
             "description": "Ask for a headline when adding a fleeting note. Add the headline to the capture and use a shortened slug in its filename. When disabled, copy the template unchanged with a timestamp-capture filename."
+          },
+          "stemlink.promptForPromotionMetadata": {
+            "type": "boolean",
+            "default": false,
+            "scope": "resource",
+            "description": "Always ask for title and tags when promoting a capture, prefilling existing values. When disabled, reuse non-empty metadata and ask only for missing or empty fields."
           }
         }
       },
@@ -132,9 +138,18 @@
       },
       {
         "command": "stemlink.promote",
-        "title": "Promote Capture to Note",
-        "category": "Stemlink",
-        "icon": "$(arrow-right)"
+        "title": "Promote to Note...",
+        "category": "Stemlink"
+      },
+      {
+        "command": "stemlink.editCaptureMetadata",
+        "title": "Edit Metadata...",
+        "category": "Stemlink"
+      },
+      {
+        "command": "stemlink.discardCapture",
+        "title": "Discard...",
+        "category": "Stemlink"
       },
       {
         "command": "stemlink.checkReferences",
@@ -217,11 +232,35 @@
           "group": "navigation@4"
         }
       ],
+      "commandPalette": [
+        {
+          "command": "stemlink.promote",
+          "when": "false"
+        },
+        {
+          "command": "stemlink.editCaptureMetadata",
+          "when": "false"
+        },
+        {
+          "command": "stemlink.discardCapture",
+          "when": "false"
+        }
+      ],
       "view/item/context": [
+        {
+          "command": "stemlink.editCaptureMetadata",
+          "when": "view == stemlink.fleeting && viewItem == stemlink.capture",
+          "group": "capture@1"
+        },
         {
           "command": "stemlink.promote",
           "when": "view == stemlink.fleeting && viewItem == stemlink.capture",
-          "group": "inline"
+          "group": "capture@2"
+        },
+        {
+          "command": "stemlink.discardCapture",
+          "when": "view == stemlink.fleeting && viewItem == stemlink.capture",
+          "group": "discard@1"
         }
       ]
     }

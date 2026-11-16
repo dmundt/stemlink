@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { VaultAgentInstructions } from "./agentInstructions";
 import {
   auditNotes,
+  captureMetadata,
   isExcludedNoteFile,
   linksIn,
   makeCapture,
@@ -670,21 +671,35 @@ export async function activate(
 
   async function askMetadata(
     defaultTitle = "",
+    defaultTags: string[] = [],
+    reuse: { title: boolean; tags: boolean } = { title: false, tags: false },
   ): Promise<{ title: string; tags: string[] } | undefined> {
-    const title = await vscode.window.showInputBox({
-      title: "Note title",
-      value: defaultTitle,
-      validateInput: (value) => (value.trim() ? undefined : "Enter a title."),
-    });
+    const title =
+      reuse.title && defaultTitle.trim()
+        ? defaultTitle
+        : await vscode.window.showInputBox({
+            title: "Note title",
+            value: defaultTitle,
+            validateInput: (value) => (value.trim() ? undefined : "Enter a title."),
+          });
     if (title === undefined) return undefined;
-    const rawTags = await vscode.window.showInputBox({ title: "Tags (comma-separated, optional)" });
+    const rawTags =
+      reuse.tags && defaultTags.some((tag) => tag.trim())
+        ? defaultTags.join(", ")
+        : await vscode.window.showInputBox({
+            title: "Tags (comma-separated, optional)",
+            value: defaultTags.join(", "),
+          });
     if (rawTags === undefined) return undefined;
     return {
       title: title.trim(),
-      tags: rawTags
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter(Boolean),
+      tags:
+        reuse.tags && defaultTags.some((tag) => tag.trim())
+          ? defaultTags
+          : rawTags
+              .split(",")
+              .map((tag) => tag.trim())
+              .filter(Boolean),
     };
   }
 
@@ -774,34 +789,106 @@ export async function activate(
     await vscode.window.showTextDocument(uri);
   });
 
-  command("stemlink.promote", async (item?: Item) => {
-    const uri = item?.uri ?? vscode.window.activeTextEditor?.document.uri;
-    const vault = requireActiveVault();
+  async function captureSource(item?: Item) {
+    if (!vscode.workspace.isTrusted)
+      throw new Error("Trust the workspace before changing a capture.");
+    const uri = item?.uri;
+    const vault = uri ? vaultFor(uri) : undefined;
     const name = uri?.path.slice(uri.path.lastIndexOf("/") + 1) ?? "";
     if (
       !uri ||
+      !vault ||
       !directChild(uri, vault.paths.inbox) ||
       !uri.path.endsWith(".md") ||
       isExcludedNoteFile(name)
     ) {
-      throw new Error("Select an inbox Markdown capture to promote.");
+      throw new Error("Select an inbox Markdown capture from its context menu.");
     }
-    const title = name
+    if (!((await vscode.workspace.fs.stat(uri)).type & vscode.FileType.File))
+      throw new Error("Select an inbox Markdown capture file.");
+    const doc = await vscode.workspace.openTextDocument(uri);
+    return { uri, vault, name, doc };
+  }
+
+  const suggestedCaptureTitle = (name: string) =>
+    name
       .slice(0, -3)
       .replace(/^\d{12}-/, "")
       .replace(/-/g, " ");
-    const metadata = await askMetadata(title);
+
+  command("stemlink.editCaptureMetadata", async (item?: Item) => {
+    const { uri, doc } = await captureSource(item);
+    const snapshot = doc.getText();
+    const version = doc.version;
+    const originalBytes = Buffer.from(await vscode.workspace.fs.readFile(uri));
+    const existing = captureMetadata(snapshot);
+    const metadata = await askMetadata(existing.title ?? "", existing.tags);
     if (!metadata) return;
-    const doc = await vscode.workspace.openTextDocument(uri);
+    await captureSource(item);
+    const currentBytes = Buffer.from(await vscode.workspace.fs.readFile(uri));
+    if (doc.version !== version || !currentBytes.equals(originalBytes))
+      throw new Error("Capture changed while editing metadata; try again.");
+    const edit = new vscode.WorkspaceEdit();
+    edit.replace(
+      uri,
+      new vscode.Range(doc.positionAt(0), doc.positionAt(snapshot.length)),
+      promoteNote(snapshot, metadata.title, metadata.tags),
+    );
+    if (!(await vscode.workspace.applyEdit(edit)))
+      throw new Error("Could not update capture metadata.");
+    if (!(await doc.save()))
+      throw new Error("Capture metadata was updated in the editor but could not be saved.");
+    tree.refresh();
+  });
+
+  command("stemlink.discardCapture", async (item?: Item) => {
+    const { uri, name, doc } = await captureSource(item);
+    if (doc.isDirty) throw new Error("Save or revert unsaved capture changes before discarding.");
+    const version = doc.version;
+    const originalBytes = Buffer.from(await vscode.workspace.fs.readFile(uri));
+    const choice = await vscode.window.showWarningMessage(
+      `Discard capture "${name}"?`,
+      { modal: true, detail: "The capture will be deleted from the inbox." },
+      "Discard",
+    );
+    if (choice !== "Discard") return;
+    await captureSource(item);
+    const currentBytes = Buffer.from(await vscode.workspace.fs.readFile(uri));
+    if (doc.isDirty || doc.version !== version || !currentBytes.equals(originalBytes))
+      throw new Error("Capture changed while confirming discard; nothing was deleted.");
+    await vscode.workspace.fs.delete(uri, { useTrash: true });
+    tree.refresh();
+  });
+
+  command("stemlink.promote", async (item?: Item) => {
+    const { uri, vault, name, doc } = await captureSource(item);
+    const snapshot = doc.getText();
+    const version = doc.version;
+    const originalBytes = Buffer.from(await vscode.workspace.fs.readFile(uri));
+    const existing = captureMetadata(snapshot);
+    const force = vscode.workspace
+      .getConfiguration("stemlink", vault.paths.root)
+      .get<boolean>("promptForPromotionMetadata", false);
+    const metadata = await askMetadata(
+      existing.title?.trim() || suggestedCaptureTitle(name),
+      existing.tags,
+      { title: !force && !!existing.title?.trim(), tags: !force },
+    );
+    if (!metadata) return;
+    await captureSource(item);
+    const currentBytes = Buffer.from(await vscode.workspace.fs.readFile(uri));
+    if (doc.version !== version || !currentBytes.equals(originalBytes))
+      throw new Error("Capture changed during promotion; try again.");
     if (doc.isDirty && !(await doc.save()))
       throw new Error("Could not save the capture; promotion cancelled.");
-    const snapshot = doc.getText();
-    const originalBytes = Buffer.from(await vscode.workspace.fs.readFile(uri));
+    const savedBytes = Buffer.from(await vscode.workspace.fs.readFile(uri));
+    if (doc.getText() !== snapshot)
+      throw new Error("Capture changed while saving; promotion cancelled.");
     const text = promoteNote(snapshot, metadata.title, metadata.tags);
     const target = await createFile(vault.paths.notes, metadata.title, text);
     try {
       const currentBytes = Buffer.from(await vscode.workspace.fs.readFile(uri));
-      if (doc.getText() !== snapshot || !currentBytes.equals(originalBytes)) {
+      if (doc.getText() !== snapshot || !currentBytes.equals(savedBytes)) {
         throw new Error("capture changed during promotion and was retained");
       }
       await vscode.workspace.fs.delete(uri);

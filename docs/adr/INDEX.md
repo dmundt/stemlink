@@ -41,6 +41,7 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [015: Note templates](adr-015-note-templates.md) — bundled examples and audit exclusion.
 - [016: Fleeting note command](adr-016-fleeting-note-command.md) — creating captures from the vault template.
 - [047: Capture headlines](adr-047-capture-headlines.md) — default-on headline prompt, short filename slug, and preserved template body.
+- [048: Capture context actions](adr-048-capture-context-actions.md) — text-only item actions for metadata, promotion, and confirmed discard.
 
 ## Links and references
 
