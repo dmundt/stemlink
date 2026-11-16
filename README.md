@@ -56,6 +56,8 @@ Promote applies to the selected captures from either the context menu or drag/dr
 
 Invalid tag metadata appears as file-level **Stemlink tags** Problems, separate from manual validation. Notifications summarize the affected count and offer Show Problems instead of listing every file. Editing an already-invalid file updates diagnostics without repeating the warning; fixes and deletions clear obsolete entries.
 
+Choosing **Skip** for optional agent instructions suppresses another offer for that vault during the current extension session. Dismissing the dialog does not store a preference. Other vaults still offer; restart resets temporary suppression. Disable `stemlink.offerAgentInstructions` for a permanent opt-out.
+
 Use **Settings** in the **Vaults** view menu or **Stemlink: Settings** to open Stemlink settings.
 
 Settings are resource-scoped and apply to the workspace folder containing each vault. Defaults:

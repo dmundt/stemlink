@@ -16,6 +16,8 @@ Tag metadata errors appear under Stemlink tags in Problems. A short notification
 
 Visible actions use the same names across entry points: New fleeting note, New permanent note, and Validate vault. Settings is in the Vaults view menu. Existing command IDs and note files are unchanged.
 
+Choose Skip to suppress optional agent-instruction offers for this vault during the current extension session. Other vaults remain independent; restart resets suppression. The existing offerAgentInstructions setting provides a permanent opt-out.
+
 <!-- stemlink:configured-folders -->
 
 ## 1. Folder layout
