@@ -137,3 +137,5 @@ Keep permanent filenames stable: renaming can break links. Stemlink warns about 
 ## Large vaults
 
 There is no note-count limit. The selected vault's reference index builds in the background; inbound counts show `...` until ready. A first lookup can wait for indexing. In one 10,000-note benchmark, a cold index took about a minute.
+
+For development, validation, and release instructions, see [Verification](docs/verification.md).
