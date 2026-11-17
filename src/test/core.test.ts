@@ -1,24 +1,29 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parseDocument } from 'yaml';
+import { extendMarkdownPreview, MarkdownParser } from '../preview';
+import {
+  captureHeadlines,
+  captureMetadataValidation,
+  fleetingTitles,
+  frontMatterPosition,
+  invalidTagMetadata,
+  referencesInProse,
+  routerDescriptions,
+  vaultManual,
+} from './coreScenarios';
 import {
   auditNotes,
-  captureMetadata,
   frontMatter,
-  fleetingTitle,
   isRouterIndex,
   isVaultInstructionFile,
   linksIn,
-  makeCapture,
   makeNote,
   metadataProblem,
   noteTags,
   isReservedFolderName,
   promoteNote,
-  markdownCodeSpan,
   renderRouterIndexes,
-  routerDescription,
-  renderVaultReadme,
   replaceRouterIndexSection,
   routerIndexEnd,
   routerIndexStart,
@@ -53,22 +58,7 @@ test('note tags normalize case and whitespace without changing metadata', () => 
     assert.deepEqual(noteTags(text), { tags: [] });
 });
 
-test('invalid tag metadata is reported, not silently treated as untagged', () => {
-  for (const text of [
-    '---\ntags: [',
-    '---\ntags: [\n---\n',
-    '---\n[]\n---\n',
-    '---\nnull\n---\n',
-    '---\ntags: scalar\n---\n',
-    '---\ntags: null\n---\n',
-    '---\ntags: [one, 2]\n---\n',
-    '---\ntags: [one]\ntags: [two]\n---\n',
-  ]) {
-    const result = noteTags(text);
-    assert.ok(result.problem, text);
-    assert.deepEqual(result.tags, []);
-  }
-});
+test('invalid tag metadata is reported, not silently treated as untagged', invalidTagMetadata);
 
 test('tag metadata problems retain source offsets across BOM and line endings', () => {
   for (const newline of ['\n', '\r\n']) {
@@ -88,73 +78,16 @@ test('tag metadata problems retain source offsets across BOM and line endings', 
   }
 });
 
-test('capture headlines preserve template content and front matter', () => {
-  assert.equal(makeCapture('Prompt\n', '  A thought  '), '# A thought\n\nPrompt\n');
-  assert.equal(
-    makeCapture('---\r\ntags: [idea]\r\n---\r\nBody\r\n', 'A thought'),
-    '---\r\ntags: [idea]\r\n---\r\n\r\n# A thought\r\n\r\nBody\r\n',
-  );
-  assert.equal(makeCapture('\uFEFFPrompt\n', 'Idea'), '\uFEFF# Idea\n\nPrompt\n');
-  assert.equal(makeCapture('---\ntags: []\n---', 'Idea'), '---\ntags: []\n---\n\n# Idea\n\n');
-  assert.throws(() => makeCapture('---\ntags: []\n', 'Idea'), /unclosed YAML/);
-});
+test('capture headlines preserve template content and front matter', captureHeadlines);
 
-test('capture metadata reads optional fields and rejects invalid existing values', () => {
-  assert.deepEqual(captureMetadata('Body\n'), {});
-  assert.deepEqual(captureMetadata('---\ntitle: Idea\ntags: [one, two]\n---\nBody'), {
-    title: 'Idea',
-    tags: ['one', 'two'],
-  });
-  assert.deepEqual(captureMetadata("---\ntitle: ''\ntags: []\n---\n"), { title: '', tags: [] });
-  assert.deepEqual(captureMetadata('---\nother: kept\n---\n'), {
-    title: undefined,
-    tags: undefined,
-  });
-  for (const fields of ['title: 42', 'title: null', 'tags: one', 'tags: [one, 2]', 'tags: null']) {
-    assert.throws(() => captureMetadata(`---\n${fields}\n---\nBody`), /must be/);
-    assert.throws(() => promoteNote(`---\n${fields}\n---\nBody`, 'Title', []), /must be/);
-  }
-  assert.throws(() => captureMetadata('---\ntitle: [\n---\n'), /invalid YAML/);
-  assert.throws(() => captureMetadata('---\ntitle: unfinished\n'), /unclosed/);
-  const body = '\r\nKeep [[202601011200-note-1]].\r\n';
-  const result = promoteNote(`\uFEFF---\r\ncustom: kept\r\n---\r\n${body}`, 'Changed', ['one']);
-  assert.ok(result.startsWith('\uFEFF---\r\n'));
-  assert.ok(result.endsWith(body));
-  assert.match(result, /custom: kept/);
-  assert.deepEqual(captureMetadata(result), { title: 'Changed', tags: ['one'] });
-});
+test(
+  'capture metadata reads optional fields and rejects invalid existing values',
+  captureMetadataValidation,
+);
 
-test('parses references in prose, not front matter or Markdown code', () => {
-  const text = [
-    '---',
-    "title: '[[202601011200-hidden]]'",
-    'tags: []',
-    '---',
-    'See [[202601011201-target]] and `[[202601011202-code]]`.',
-    '```markdown',
-    '[[202601011203-fence]]',
-    '```',
-    '[[bad target]] and [[unclosed',
-  ].join('\n');
-  const links = linksIn(text);
-  assert.deepEqual(
-    links.map((link) => [link.stem, link.valid]),
-    [
-      ['202601011201-target', true],
-      ['bad target', false],
-      ['unclosed', false],
-    ],
-  );
-  assert.equal(text.slice(links[0].start, links[0].end), '[[202601011201-target]]');
-  assert.equal(linksIn('An unmatched ` is literal: [[202601011201-target]]')[0]?.valid, true);
-});
+test('parses references in prose, not front matter or Markdown code', referencesInProse);
 
-test('only recognizes front matter at the beginning', () => {
-  assert.equal(frontMatter('text\n---\ntitle: wrong\n---\n'), undefined);
-  assert.ok(metadataProblem('text\n---\ntitle: wrong\n---\n'));
-  assert.ok(metadataProblem('---\ntitle: ok\ntags: nope\n---\n'));
-  assert.equal(metadataProblem(makeNote('Example: title', ['first', 'a: b'])), undefined);
-});
+test('only recognizes front matter at the beginning', frontMatterPosition);
 
 test('promoting preserves body and existing YAML fields', () => {
   const capture = '---\nsource: example\ntitle: Old\ntags: []\n---\n\nBody [[202601011201-link]]\n';
@@ -319,30 +252,70 @@ test('audit handles duplicate, self, broken, and malformed links', () => {
   assert.ok(invalidFindings.some((f) => f.message === 'No outgoing references.'));
 });
 
-test('fleeting router titles summarize body text and truncate long titles', () => {
-  assert.equal(fleetingTitle('\nFirst sentence. Second sentence.\nNext line'), 'First sentence.');
-  assert.equal(fleetingTitle('\r\n# Capture heading\r\nBody text'), 'Capture heading');
-  assert.equal(fleetingTitle('---\ntitle: Metadata\n---\nBody title\nMore'), 'Body title');
-  assert.equal(fleetingTitle(' \n\t'), 'Empty capture.');
-  assert.equal(fleetingTitle('x'.repeat(120)), 'x'.repeat(120));
-  assert.equal(fleetingTitle('x'.repeat(121)), `${'x'.repeat(120)}...`);
-  assert.throws(() => fleetingTitle('---\ntitle: Unclosed'), /Unclosed/);
-});
+test('fleeting router titles summarize body text and truncate long titles', fleetingTitles);
 
-test('router descriptions use YAML description, then title, and reject invalid metadata', () => {
+test(
+  'router descriptions use YAML description, then title, and reject invalid metadata',
+  routerDescriptions,
+);
+
+test('preview parser avoids nested links on older Markdown hosts', () => {
+  let rule: Parameters<MarkdownParser['inline']['ruler']['before']>[2] | undefined;
+  const markdown: MarkdownParser = {
+    inline: {
+      ruler: {
+        before: (_existing, _name, registered) => {
+          rule = registered;
+        },
+      },
+    },
+    renderer: { rules: {} },
+    utils: { escapeHtml: (text) => text.replace(/&/g, '&amp;').replace(/"/g, '&quot;') },
+  };
+  let trusted = true;
+  let target: string | undefined = './note?a=1&b=2';
+  extendMarkdownPreview(
+    markdown,
+    () => trusted,
+    () => target,
+  );
+  assert.ok(rule);
+  const stem = '202601011200-note';
+  const state = {
+    src: `[[${stem}]]`,
+    pos: 0,
+    posMax: stem.length + 4,
+    level: 1,
+    linkLevel: 0,
+    tokens: [{ type: 'link_open', content: '' }],
+    push(type: string) {
+      const token = { type, content: '' };
+      this.tokens.push(token);
+      return token;
+    },
+  };
+  assert.equal(rule(state, false), false);
+  assert.equal(state.pos, 0);
+  state.tokens.push({ type: 'link_close', content: '' });
+  assert.equal(rule(state, false), true);
+  const render = markdown.renderer.rules.stemlink_wikilink;
+  assert.ok(render);
   assert.equal(
-    routerDescription('---\ntitle: Title\ndescription: >-\n  First line\n  second line\n---\nBody'),
-    'First line second line',
+    render([state.tokens.at(-1)!], 0, undefined, undefined),
+    `<a href="./note?a=1&amp;b=2" data-href="./note?a=1&amp;b=2">${stem}</a>`,
   );
-  assert.equal(routerDescription("---\ntitle: Title\ndescription: ''\n---\n"), 'Title');
-  assert.equal(routerDescription('Capture without metadata'), 'No description or title.');
-  assert.throws(() => routerDescription('---\ntitle: Unclosed'), /Unclosed/);
-  assert.throws(() => routerDescription('---\ntitle: [\n---\n'), /Invalid YAML/);
-  assert.throws(() => routerDescription('---\ntitle: One\ntitle: Two\n---\n'), /Invalid YAML/);
-  assert.throws(
-    () => routerDescription('---\ndescription: [one, two]\n---\n'),
-    /description must be text/,
-  );
+  trusted = false;
+  assert.equal(render([state.tokens.at(-1)!], 0, undefined, undefined), `[[${stem}]]`);
+  assert.equal(rule({ ...state, pos: 0 }, false), false);
+  trusted = true;
+  assert.equal(rule({ ...state, pos: 0 }, true), false);
+  assert.equal(rule({ ...state, pos: 0, linkLevel: 1 }, false), false);
+  assert.equal(rule({ ...state, pos: 0, src: 'ordinary text' }, false), false);
+  assert.equal(rule({ ...state, pos: 0, src: `[[${stem}` }, false), false);
+  assert.equal(rule({ ...state, pos: 0, posMax: 3 }, false), false);
+  assert.equal(rule({ ...state, pos: 0, src: '[[invalid]]' }, false), false);
+  target = undefined;
+  assert.equal(render([state.tokens.at(-1)!], 0, undefined, undefined), `[[${stem}]]`);
 });
 
 test('folder routers map local files to escaped descriptions with stable ordering', () => {
@@ -418,25 +391,7 @@ test('router indexes route by folder and replace only their generated section', 
   );
 });
 
-test('vault manual personalizes configured folders and safely renders backticks', () => {
-  const template = ['# Manual', '<!-- stemlink:configured-folders -->'].join('\n');
-  const rendered = renderVaultReadme(template, 'Stemlink vault', 'Fleeting', 'Permanent`Notes');
-  assert.match(rendered, /Vault root: `Stemlink vault\/`/);
-  assert.match(rendered, /Captures: `Fleeting\/`/);
-  assert.match(rendered, /Permanent notes: ``Permanent`Notes\/``/);
-  assert.match(rendered, /Editable examples: `templates\/`/);
-  assert.throws(() => renderVaultReadme('# Manual', 'zk', 'inbox', 'notes'), /exactly one/);
-  assert.equal(markdownCodeSpan('a``b'), '```a``b```');
-  assert.match(
-    renderVaultReadme(template, 'vault', 'capture', 'notes', 'examples'),
-    /Editable examples: `examples\/`/,
-  );
-  const indexes = renderRouterIndexes('vault', 'capture', 'notes', [], [], 'examples');
-  assert.ok(
-    indexes.root.includes('`examples/`') && indexes.notes.includes('`examples/`'),
-    'routers omitted configured templates folder',
-  );
-});
+test('vault manual personalizes configured folders and safely renders backticks', vaultManual);
 
 test('router replacement rejects ambiguous marker pairs without changing user content', () => {
   const generated = renderRouterIndexes(
