@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { downloadAndUnzipVSCode, runTests } from '@vscode/test-electron';
-import { makeNote } from '../core';
+import { makeNote } from '../src/core/documents';
 
 export async function runIntegration(
   multiRoot = false,

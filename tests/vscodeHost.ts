@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 import * as os from 'node:os';
 import * as vscode from 'vscode';
-import { discoverVaults, readVaultMarker, resolveVaultPaths } from '../discovery';
+import { discoverVaults, readVaultMarker, resolveVaultPaths } from '../src/workbench/discovery';
 import {
   captureMetadata,
   isVaultInstructionFile,
@@ -10,7 +10,7 @@ import {
   renderVaultReadme,
   routerIndexName,
   routerIndexStart,
-} from '../core';
+} from '../src/core/documents';
 import {
   Vault,
   VaultConfigurationError,
@@ -18,10 +18,10 @@ import {
   pathsFor,
   sameUri,
   validFolderName,
-} from '../vault';
-import { Item, VaultTree, VaultTreeSection } from '../tree';
-import { VaultRouterIndexes } from '../router';
-import { VaultAgentInstructions } from '../agentInstructions';
+} from '../src/platform/vault';
+import { Item, VaultTree, VaultTreeSection } from '../src/workbench/tree';
+import { VaultRouterIndexes } from '../src/workbench/router';
+import { VaultAgentInstructions } from '../src/workbench/agentInstructions';
 import {
   captureHeadlines,
   captureMetadataValidation,

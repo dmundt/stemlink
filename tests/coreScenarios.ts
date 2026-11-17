@@ -13,7 +13,7 @@ import {
   renderRouterIndexes,
   renderVaultReadme,
   routerDescription,
-} from '../core';
+} from '../src/core/documents';
 
 export function invalidTagMetadata(): void {
   for (const text of [

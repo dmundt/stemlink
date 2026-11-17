@@ -10,7 +10,9 @@ Run the smallest relevant check first. These commands use the scripts in [packag
 | `npm run format`                | Apply repository formatting.                                                      |
 | `npm run compile`               | Compile and type-check.                                                           |
 | `npm run typecheck`             | Type-check without emitting files.                                                |
-| `npm test`                      | Compile and run core tests.                                                       |
+| `npm test`                      | Run mock, core, and tooling tests.                                                |
+| `npm run test:mock`             | Run selected VS Code API mock tests.                                              |
+| `npm run test:ui`               | Exercise native workbench interactions with an isolated VS Code instance.         |
 | `npm run test:integration`      | Run the main VS Code host workflow and virtual filesystem tests.                  |
 | `npm run test:discovery`        | Run discovery, selection, Open Vault, settings, and dynamic vault-file workflows. |
 | `npm run test:multi-root`       | Run multi-root creation, selection, and workspace workflows.                      |
@@ -21,7 +23,7 @@ Run the smallest relevant check first. These commands use the scripts in [packag
 
 Use Node.js 22.13+ within major 22, or Node.js 24+, with npm 10+. Host runners use `STEMLINK_CODE_PATH` when set, an installed VS Code when available, or a downloaded stable build. `VSCODE_TEST_VERSION` selects a downloaded host version. Runners create isolated temporary workspaces and profiles and clean them up afterward.
 
-Coverage gates enforce at least 95% lines, 91% branches, and 93% functions across emitted extension modules. Core scenarios run in both Node and the extension host. `npm run test:release` separately checks numeric release versions, explicit channel selection, tag matching, and both lockfile versions.
+Coverage gates enforce at least 95% lines, 91% branches, and 93% functions across emitted extension modules. Core scenarios run in both Node and the extension host. Vitest mock tests run separately and are not included in this combined coverage measurement. `npm run test:release` separately checks numeric release versions, explicit channel selection, tag matching, and both lockfile versions.
 
 ## Development workflow
 
@@ -36,7 +38,7 @@ npm ci
 git push -u origin feat/example
 ```
 
-Open a pull request into `main`. Branch CI runs install and build on non-main pushes. Pull request CI runs lint, typecheck, unit tests, and host tests; **PR validation** is the required check. Merge only after it passes.
+Open a pull request into `main`. Branch CI runs install and build on non-main pushes. Pull request CI runs lint, typecheck, unit tests, host tests, and interactive UI smoke; **PR validation** is the required check. Merge only after it passes.
 
 Configure `main` to require pull requests and **PR validation**, zero approvals, stale-approval dismissal, and no bypass actors. Block force-pushes and deletion, and enable automatic deletion of merged branches. See [GitHub settings](./github-settings.md).
 
@@ -63,6 +65,6 @@ The host test checks each contributed Stemlink setting's resource scope and defa
 
 Nightly/manual validation runs dependency audit, formatting, coverage, and the host benchmark on Linux stable. Benchmark timings are observations, not enforced latency guarantees. Tests do not establish correctness for every filesystem, theme, platform configuration, or concurrent race.
 
-The manual-only **Compatibility Validation** workflow runs host and Restricted Mode tests on Windows, macOS, and Linux against VS Code 1.90.0 and stable. It does not publish. Dispatch it after its workflow file exists on the default branch.
+The manual-only **Compatibility Validation** workflow runs host, Restricted Mode, and interactive UI tests on Windows, macOS, and Linux against VS Code 1.90.0 and stable. It does not publish. Dispatch it after its workflow file exists on the default branch.
 
 Before a release, follow the validation and authorization requirements in [project rules](../AGENTS.md#github-flow-and-releases). The [publish workflow](../.github/workflows/publish.yml) validates the release tag and uploads the packaged VSIX to both the GitHub Release and Marketplace.

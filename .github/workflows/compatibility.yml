@@ -32,9 +32,9 @@ jobs:
         if: runner.os == 'Linux'
       - run: npm run test:host
         if: runner.os != 'Linux'
-      - run: xvfb-run -a npm run test:restricted
+      - run: xvfb-run -a npm run test:ui
         if: runner.os == 'Linux'
-      - run: npm run test:restricted
+      - run: npm run test:ui
         if: runner.os != 'Linux'
 
   coverage:

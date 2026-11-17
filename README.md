@@ -8,6 +8,12 @@
 - Keep notes readable without Stemlink; no database or account required.
 - Browse and validate vaults in Restricted Mode; trust workspace before changes.
 
+## Documentation
+
+- [Get started](#get-started) and [extension settings](#extension-settings)
+- [Development](./DEVELOPMENT.md), [contributing](./CONTRIBUTING.md), and [engineering standards](./docs/engineering-standards.md)
+- [Architecture](./ARCHITECTURE.md), [verification](./docs/verification.md), and [security](./SECURITY.md)
+
 ## Get started
 
 1. Open a workspace folder and the **Stemlink** activity bar view.
