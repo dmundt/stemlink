@@ -10,7 +10,7 @@ Metadata dialogs identify their target. Editing metadata leaves an already-unsav
 
 Validation identifies the checked vault and offers Show Problems. Successful validation replaces previous Stemlink validation results globally; a failed run keeps them.
 
-Context-menu promotion and drag/drop process the same capture selection sequentially, with per-capture confirmation and batch progress. Cancellation or failure leaves completed work intact and reports remaining captures. Batches open only the last created note. Metadata and Discard apply to one capture at a time.
+Context-menu promotion and drag/drop process the same capture selection sequentially, with per-capture confirmation and batch progress. Cancellation or failure leaves completed work intact and reports remaining captures. Batches open only the last created note. Metadata and Delete apply to one capture at a time.
 
 Tag metadata errors appear under Stemlink tags in Problems. A short notification gives their count and offers Show Problems. These diagnostics update with the note index and do not replace manual validation results.
 
@@ -174,11 +174,11 @@ Review the inbox regularly:
 
 The rewrite is the thinking, not merely moving the file. Right-click a capture in Stemlink's inbox tree for:
 
-- **Edit metadata…**: Enter a title and optional comma-separated tags. This adds or updates YAML without changing the body or unrelated fields. Cancel either prompt to leave the capture unchanged.
 - **Promote to permanent note…**: Create a permanent note in the same vault, preserving the body, unrelated YAML, and wiki links. Non-empty title and tags are reused; only missing or empty fields prompt. Set `stemlink.promptForPromotionMetadata` to `true` under Capture settings to always review both fields (default: `false`). Empty tags are allowed. The source is removed only after the new note is saved.
-- **Discard…**: Confirm deletion in a warning showing the capture filename. Cancel or dismiss changes nothing. Save or revert unsaved changes before discarding.
+- **Edit metadata…**: Enter a title and optional comma-separated tags. This adds or updates YAML without changing the body or unrelated fields. Cancel either prompt to leave the capture unchanged.
+- **Delete…**: Confirm deletion in a warning showing the capture filename. Cancel or dismiss changes nothing. Save or revert unsaved changes before deletion.
 
-These are text-only item context actions, not inline buttons or Command Palette commands. They require Workspace Trust and target the right-clicked capture, even when another vault or editor is selected. Invalid YAML or field types are reported rather than silently replaced. Edit the note's content yourself; promotion does not rewrite it.
+These are text-only item context actions, not inline buttons or Command Palette commands. Delete appears last, separated from promotion and metadata editing. They require Workspace Trust and target the right-clicked capture, even when another vault or editor is selected. Invalid YAML or field types are reported rather than silently replaced. Edit the note's content yourself; promotion does not rewrite it.
 
 Alternatively, select captures in Fleeting and drag them onto the Notes view background or a note row. Each capture promotes into its own vault, not the displayed destination vault; dropping onto a note does not edit it. Each promotion asks for confirmation unless `stemlink.confirmPromotion` is disabled (default: `true`). This is separate from metadata prompts. Batches run sequentially and stop on cancellation or error; completed promotions remain and unprocessed captures stay in the inbox.
 
@@ -186,11 +186,11 @@ Alternatively, select captures in Fleeting and drag them onto the Notes view bac
 
 Search the files for a distinctive word, tag, or filename stem. Browse `permanent/` by timestamp for a rough timeline. Search for a stem to find references to it. In Stemlink, use the Notes tree, link navigation, or **References > Inbound**; run **Validate vault** when you want an audit.
 
-Right-click a vault in **Vaults** for **New permanent note** or **Validate vault** without selecting it first. Creation asks for title and optional tags, writes to that vault's configured permanent-note folder, and requires Workspace Trust. Validation runs the same audit as Validate vault, includes unsaved note content, and replaces previous Stemlink Problems results across vaults without changing files. Neither action changes the selected vault.
+Right-click a vault in **Vaults** for **New fleeting note**, **New permanent note**, or **Validate vault** without selecting it first. Creation actions appear first, separated from validation. Fleeting notes use that vault's template and headline preference; permanent notes ask for title and optional tags. Both write to that vault's configured folder and require Workspace Trust. Validation runs the same audit as Validate vault, includes unsaved note content, and replaces previous Stemlink Problems results across vaults without changing files. These actions do not change the selected vault.
 
 Vaults starts with a small relative allocation in new sidebar layouts. Drag its lower divider to resize it and use the native scrollbar for overflow. Existing saved sizes remain unchanged; the public extension API cannot enforce automatic sizing to exactly 1–8 vault rows.
 
-Right-click a permanent note in the Notes tree for **Edit metadata…** or **Delete…**. Metadata editing preserves its filename, body, and unrelated YAML. Delete warns that inbound wiki links may break and requires confirmation; links are not rewritten. Save or revert unsaved changes first. Both actions require Workspace Trust.
+Right-click a permanent note in the Notes tree for **Edit metadata…**. Metadata editing preserves its filename, body, and unrelated YAML and requires Workspace Trust. Stemlink does not offer deletion of permanent notes; keep them as stable reference targets. Native VS Code file operations remain available outside Stemlink.
 
 Choose **Filter by tags…** in the Notes view menu for a native multi-select picker with alphabetical tags and full-vault note counts. Search preserves checked tags. Enter applies; Escape keeps the previous selection. Notes matching any selected tag are shown; no selection shows all notes. Active tags appear beside the view heading, whose count reflects matching notes. **Clear tag filter** appears only while filtering.
 

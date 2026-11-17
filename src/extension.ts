@@ -1,4 +1,6 @@
 import * as vscode from "vscode";
+import { randomUUID } from "node:crypto";
+import * as path from "node:path";
 import { VaultAgentInstructions } from "./agentInstructions";
 import {
   auditNotes,
@@ -119,7 +121,14 @@ export async function activate(
       }
       return undefined;
     }
-    return vault.target(stem)?.uri.toString();
+    const target = vault.target(stem)?.uri;
+    if (!target || target.scheme !== source.scheme || target.authority !== source.authority)
+      return undefined;
+    const relative =
+      source.scheme === "file"
+        ? path.relative(path.dirname(source.fsPath), target.fsPath).split(path.sep).join("/")
+        : path.posix.relative(path.posix.dirname(source.path), target.path);
+    return `./${relative.split("/").map(encodeURIComponent).join("/")}`;
   };
   const tree = new VaultTree(
     activeVault,
@@ -183,7 +192,7 @@ export async function activate(
     }),
   );
   const captureMime = "application/vnd.stemlink.captures";
-  let draggedCaptures: Item[] | undefined;
+  let draggedCaptures: { id: string; items: Item[] } | undefined;
   let dropping = false;
   const dragController: vscode.TreeDragAndDropController<Item> = {
     dragMimeTypes: [captureMime],
@@ -193,22 +202,39 @@ export async function activate(
       if (token.isCancellationRequested || !vscode.workspace.isTrusted) return;
       const captures = items.filter((item) => item.kind === "capture" && item.uri);
       if (!captures.length) return;
-      draggedCaptures = captures;
-      transfer.set(captureMime, new vscode.DataTransferItem(captures));
+      draggedCaptures = { id: randomUUID(), items: captures };
+      transfer.set(captureMime, new vscode.DataTransferItem(draggedCaptures.id));
     },
   };
   const dropController: vscode.TreeDragAndDropController<Item> = {
     dragMimeTypes: [],
     dropMimeTypes: [captureMime],
     handleDrop: async (target, transfer, token) => {
-      const items: unknown = transfer.get(captureMime)?.value;
-      if (!draggedCaptures || items !== draggedCaptures || (target && target.kind !== "note"))
-        return;
-      const captures = draggedCaptures;
-      draggedCaptures = undefined;
+      const drag = draggedCaptures;
+      if (!drag || (target && target.kind !== "note")) return;
       try {
+        let matches = false;
+        // Native drops can contain a blank browser entry before the extension's entry.
+        for (const [mime, payload] of transfer) {
+          if (mime !== captureMime) continue;
+          const id = await payload.asString();
+          if (draggedCaptures !== drag) return;
+          if (id === drag.id) {
+            matches = true;
+            break;
+          }
+        }
+        if (!matches) return;
+        draggedCaptures = undefined;
+        if (typeof token.isCancellationRequested !== "boolean")
+          throw new Error("The drop cancellation state is unavailable.");
+        if (token.isCancellationRequested) return;
         if (target) await noteSource(target, "note");
-        await promoteBatch(captures, token);
+        // VS Code may marshal the drop token as a snapshot without its event.
+        await promoteBatch(
+          drag.items,
+          typeof token.onCancellationRequested === "function" ? token : undefined,
+        );
       } catch (error) {
         reportError(error);
       }
@@ -932,10 +958,10 @@ export async function activate(
     }
   }
 
-  command("stemlink.addFleetingNote", async () => {
+  async function addFleetingNote(vault: Vault): Promise<void> {
     if (!vscode.workspace.isTrusted)
       throw new Error("Trust the workspace before creating a capture.");
-    const vault = requireActiveVault();
+    registeredVault(vault);
     const destination = vault.paths.inbox.toString();
     let headline: string | undefined;
     if (
@@ -951,6 +977,8 @@ export async function activate(
       if (headline === undefined) return;
       headline = headline.trim();
     }
+    if (vault.paths.inbox.toString() !== destination)
+      throw new Error("The vault's inbox folder changed; try again.");
     const template = vscode.Uri.joinPath(vault.paths.templates, "_fleeting.md");
     const legacyTemplate = vscode.Uri.joinPath(vault.paths.notes, "_fleeting.md");
     let text: string;
@@ -990,6 +1018,12 @@ export async function activate(
     );
     tree.refresh();
     await vscode.window.showTextDocument(uri);
+  }
+  command("stemlink.addFleetingNote", async () => {
+    await addFleetingNote(requireActiveVault());
+  });
+  command("stemlink.newFleetingNote", async (item?: Item) => {
+    await addFleetingNote(itemVault(item));
   });
 
   function registeredVault(vault: Vault): Vault {
@@ -1123,43 +1157,33 @@ export async function activate(
     await editMetadata(item, "note");
   });
 
-  async function deleteItem(item: Item | undefined, kind: "capture" | "note") {
-    const { uri, name, doc } = await noteSource(item, kind);
-    const action = kind === "capture" ? "Discard" : "Delete";
-    if (doc.isDirty)
-      throw new Error(`Save or revert unsaved ${kind} changes before ${action.toLowerCase()}.`);
+  async function deleteCapture(item?: Item) {
+    const { uri, name, doc } = await captureSource(item);
+    if (doc.isDirty) throw new Error("Save or revert unsaved capture changes before deletion.");
     const version = doc.version;
     const originalBytes = Buffer.from(await vscode.workspace.fs.readFile(uri));
     const choice = await vscode.window.showWarningMessage(
-      `${action} ${kind} "${name}"?`,
+      `Delete capture "${name}"?`,
       {
         modal: true,
-        detail:
-          kind === "capture"
-            ? "The capture will be deleted from the inbox."
-            : "Deleting this note can break inbound wiki links.",
+        detail: "The capture will be deleted from the inbox.",
       },
-      action,
+      "Delete",
     );
-    if (choice !== action) return;
-    await noteSource(item, kind);
+    if (choice !== "Delete") return;
+    await captureSource(item);
     const currentBytes = Buffer.from(await vscode.workspace.fs.readFile(uri));
     if (doc.isDirty || doc.version !== version || !currentBytes.equals(originalBytes))
-      throw new Error(
-        `${kind === "capture" ? "Capture" : "Note"} changed while confirming ${action.toLowerCase()}; nothing was deleted.`,
-      );
+      throw new Error("Capture changed while confirming deletion; nothing was deleted.");
     const deletion = new vscode.WorkspaceEdit();
     deletion.deleteFile(uri);
     if (!(await vscode.workspace.applyEdit(deletion)))
-      throw new Error(`${kind === "capture" ? "Capture" : "Note"} could not be deleted.`);
+      throw new Error("Capture could not be deleted.");
     tree.refresh();
   }
   command("stemlink.discardCapture", async (item?: Item, selection?: Item[]) => {
-    if (selection && selection.length > 1) throw new Error("Select one capture to discard.");
-    await deleteItem(item, "capture");
-  });
-  command("stemlink.deleteNote", async (item?: Item) => {
-    await deleteItem(item, "note");
+    if (selection && selection.length > 1) throw new Error("Select one capture to delete.");
+    await deleteCapture(item);
   });
 
   const promoting = new Set<string>();
@@ -1256,14 +1280,15 @@ export async function activate(
       captures.set(item.uri.toString(), item);
     }
     if (!captures.size) throw new Error("Select a capture to promote.");
-    dropping = true;
     const cancellation = new vscode.CancellationTokenSource();
-    const subscription = token?.onCancellationRequested(() => cancellation.cancel());
-    if (token?.isCancellationRequested) cancellation.cancel();
+    let subscription: vscode.Disposable | undefined;
     const targets: vscode.Uri[] = [];
     let completed = 0;
     let outcome = "completed";
+    dropping = true;
     try {
+      subscription = token?.onCancellationRequested(() => cancellation.cancel());
+      if (token?.isCancellationRequested) cancellation.cancel();
       if (captures.size === 1) {
         await promoteCapture([...captures.values()][0], cancellation.token);
         return;
