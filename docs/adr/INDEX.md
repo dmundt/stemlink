@@ -4,6 +4,7 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 
 ## Extension and vault
 
+- [072: Layered extension architecture](adr-072-layered-architecture.md) — core, application, platform, and workbench boundaries.
 - [001: Minimal extension](adr-001-minimal-extension.md) — scope and design constraints.
 - [002: Configurable vault creation](adr-002-vault-creation.md) — folder prompts, settings, and manual.
 - [003: Plain Markdown notes](adr-003-note-format.md) — filenames, YAML front matter, and links.

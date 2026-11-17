@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { agentInstructionsName, markdownCodeSpan } from './core';
-import { VaultPaths } from './vault';
+import { agentInstructionsName, markdownCodeSpan } from '../core/documents';
+import { VaultPaths } from '../platform/vault';
 
 interface AgentInstructionTarget {
   directory: vscode.Uri;

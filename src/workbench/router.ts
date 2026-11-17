@@ -7,8 +7,8 @@ import {
   replaceRouterIndexSection,
   routerIndexName,
   routerDescription,
-} from './core';
-import { directChild, reportError, sameUri, VaultPaths } from './vault';
+} from '../core/documents';
+import { directChild, reportError, sameUri, VaultPaths } from '../platform/vault';
 
 interface WatcherState {
   paths: VaultPaths;

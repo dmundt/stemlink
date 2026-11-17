@@ -24,7 +24,7 @@ import {
   routerIndexStart,
   slug,
   timestamp,
-} from '../core';
+} from '../src/core/documents';
 
 test('portable creation rejects Windows device basenames including extensions', () => {
   for (const name of [

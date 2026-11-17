@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import * as vscode from 'vscode';
-import { isExcludedNoteFile, Link, NoteData, linksIn } from './core';
+import { NoteIndex, NoteReference } from '../application/noteIndex';
+import { isExcludedNoteFile, NoteData, linksIn } from '../core/documents';
 
 export interface VaultPaths {
   root: vscode.Uri;
@@ -81,17 +82,13 @@ export interface NoteTarget {
   uri: vscode.Uri;
 }
 
-export interface Reference {
-  note: VaultNote;
-  link: Link;
-}
+export type Reference = NoteReference<VaultNote>;
 
 export class Vault implements vscode.Disposable {
   readonly changed = new vscode.EventEmitter<void>();
   private readonly disposables: vscode.Disposable[] = [];
-  private notes = new Map<string, VaultNote>();
+  private readonly notes = new NoteIndex<VaultNote>();
   private targets = new Map<string, NoteTarget>();
-  private incoming = new Map<string, Reference[]>();
   private refreshPromise: Promise<void> | undefined;
   private namesPromise: Promise<void> | undefined;
   private revision = 0;
@@ -145,12 +142,11 @@ export class Vault implements vscode.Disposable {
     this.indexFailed = false;
     this.notes.clear();
     this.targets.clear();
-    this.incoming.clear();
     this.missingFiles.clear();
     this.changed.fire();
   }
   get all(): VaultNote[] {
-    return [...this.notes.values()];
+    return this.notes.all;
   }
   get namesReady(): boolean {
     return this.namesInitialized && !this.namesPromise;
@@ -174,7 +170,7 @@ export class Vault implements vscode.Disposable {
     return this.targets.get(stem);
   }
   references(stem: string): Reference[] {
-    return this.incoming.get(stem) ?? [];
+    return this.notes.references(stem);
   }
 
   async ensureNames(): Promise<void> {
@@ -269,9 +265,8 @@ export class Vault implements vscode.Disposable {
       this.initialized = false;
       return this.load();
     }
-    this.notes = next;
+    this.notes.reset(next.values());
     for (const note of next.values()) this.missingFiles.delete(note.uri.toString());
-    this.rebuildIncoming();
     this.initialized = true;
     this.changed.fire();
   }
@@ -298,38 +293,6 @@ export class Vault implements vscode.Disposable {
         throw vscode.FileSystemError.FileNotFound(uri);
       }
       throw error;
-    }
-  }
-
-  private rebuildIncoming(): void {
-    this.incoming.clear();
-    for (const note of this.notes.values()) {
-      for (const link of note.links) {
-        if (!link.valid) continue;
-        const references = this.incoming.get(link.stem) ?? [];
-        references.push({ note, link });
-        this.incoming.set(link.stem, references);
-      }
-    }
-  }
-
-  private replace(note: VaultNote): void {
-    const previous = this.notes.get(note.stem);
-    if (previous) this.removeReferences(previous);
-    this.notes.set(note.stem, note);
-    for (const link of note.links) {
-      if (!link.valid) continue;
-      const refs = this.incoming.get(link.stem) ?? [];
-      refs.push({ note, link });
-      this.incoming.set(link.stem, refs);
-    }
-  }
-
-  private removeReferences(note: VaultNote): void {
-    for (const stem of new Set(note.links.map((link) => link.stem))) {
-      const refs = (this.incoming.get(stem) ?? []).filter((ref) => ref.note.stem !== note.stem);
-      if (refs.length) this.incoming.set(stem, refs);
-      else this.incoming.delete(stem);
     }
   }
 
@@ -361,13 +324,11 @@ export class Vault implements vscode.Disposable {
       if (text === undefined) {
         this.missingFiles.add(uri.toString());
         this.targets.delete(stem);
-        const old = this.notes.get(stem);
-        if (old) this.removeReferences(old);
-        this.notes.delete(stem);
+        this.notes.remove(stem);
       } else {
         this.missingFiles.delete(uri.toString());
         this.targets.set(stem, { uri, name, stem });
-        this.replace({ uri, name, stem, text, links: linksIn(text) });
+        this.notes.replace({ uri, name, stem, text, links: linksIn(text) });
       }
       this.changed.fire();
     } catch (error) {
@@ -392,7 +353,7 @@ export class Vault implements vscode.Disposable {
       const text = document.getText();
       const stem = name.slice(0, -3);
       this.targets.set(stem, { uri, name, stem });
-      this.replace({ uri, name, stem, text, links: linksIn(text) });
+      this.notes.replace({ uri, name, stem, text, links: linksIn(text) });
       this.changed.fire();
     } catch (error) {
       reportError(error);

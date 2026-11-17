@@ -1,4 +1,4 @@
-import { stemPattern } from './core';
+import { stemPattern } from '../core/documents';
 
 interface MarkdownToken {
   type: string;

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { isExcludedNoteFile, linksIn, normalizeTags, noteTags } from './core';
-import { Vault, VaultNote, directChild, reportError, textPosition } from './vault';
+import { isExcludedNoteFile, linksIn, normalizeTags, noteTags } from '../core/documents';
+import { Vault, VaultNote, directChild, reportError, textPosition } from '../platform/vault';
 
 export type VaultSection = 'Vaults' | 'Fleeting' | 'Notes' | 'References';
 type Section = VaultSection | 'Inbound' | 'Outbound';

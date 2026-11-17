@@ -2,7 +2,8 @@
 
 Stemlink is a local-first VS Code extension for plain Markdown vaults.
 
-- [`src/`](./src/) contains extension code and tests. Keep core vault, note, and metadata logic independent of VS Code where practical.
+- [`src/`](./src/) contains extension code. Keep core and application logic independent of VS Code.
+- [`tests/`](./tests/) contains unit, host, and benchmark tests.
 - [`templates/`](./templates/) contains files copied into new vaults.
 - [`docs/architecture.md`](./docs/architecture.md) describes runtime components and data flow.
 - [`docs/adr/INDEX.md`](./docs/adr/INDEX.md) indexes accepted and superseded architecture decisions.
