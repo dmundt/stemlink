@@ -3,6 +3,7 @@ dist/test/**
 docs/**
 AGENTS.md
 .github/**
+.husky/**
 .gitignore
 .vscode/**
 .vscode-test/**

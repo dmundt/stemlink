@@ -402,6 +402,7 @@
   },
   "scripts": {
     "compile": "tsc -p .",
+    "typecheck": "tsc -p . --noEmit",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -415,7 +416,15 @@
     "benchmark": "npm run compile && node dist/test/benchmark.js",
     "build": "npm run compile",
     "package": "vsce package --allow-missing-repository --no-rewrite-relative-links",
-    "vscode:prepublish": "npm run compile"
+    "vscode:prepublish": "npm run compile",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{js,cjs,mjs,ts}": [
+      "eslint --max-warnings=0",
+      "prettier --write"
+    ],
+    "*.{json,jsonc,md,yaml,yml}": "prettier --write"
   },
   "dependencies": {
     "yaml": "^2.8.1"
@@ -427,6 +436,8 @@
     "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^4.1.1",
     "eslint": "^10.0.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "prettier": "^3.5.0",
     "typescript-eslint": "^8.0.0",
     "typescript": "^5.9.3"
