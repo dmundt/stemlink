@@ -1,6 +1,6 @@
 # ADR editing rules
 
-Architecture decisions live in ADR files. Start with the [ADR index](./INDEX.md) and read relevant decisions before documenting or changing behavior they cover.
+Architecture decisions live in ADR files. Start with the [ADR index](./index.md) and read relevant decisions before documenting or changing behavior they cover.
 
 ## File conventions
 

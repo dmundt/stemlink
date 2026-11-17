@@ -1,10 +1,10 @@
 ---
-status: Accepted; superseded in part by ADR 034
+status: Superseded by ADR 070 for delivery policy
 ---
 
 # ADR 017: Build and publication
 
-[ADR 034](adr-034-quality-and-publication-alignment.md) updates the quality checks and release-job ordering.
+[ADR 070](adr-070-repository-delivery.md) supersedes delivery policy, validation placement, and release ordering. The following decision is historical.
 
 ## Context
 

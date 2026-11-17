@@ -1,6 +1,6 @@
 # Stemlink development rules
 
-Stemlink is a VS Code extension for local, plain-Markdown vaults. Start with [the ADR index](docs/adr/INDEX.md).
+Stemlink is a VS Code extension for local, plain-Markdown vaults. Start with [the ADR index](docs/adr/index.md).
 
 ## Project layout
 
@@ -20,7 +20,7 @@ Run the smallest relevant check, then escalate if needed.
 - 10,000-note host benchmark: `npm run benchmark:integration`
 - Build: `npm run build`
 
-Use Node.js 22.13 or newer. Host tests use `STEMLINK_CODE_PATH` if set, a local VS Code installation if available, or a downloaded stable build. Set `VSCODE_TEST_VERSION` to download a specific version.
+Use Node.js 22.13+ within major 22, or Node.js 24+, with npm 10+. Host tests use `STEMLINK_CODE_PATH` if set, a local VS Code installation if available, or a downloaded stable build. Set `VSCODE_TEST_VERSION` to download a specific version.
 
 Run `npm ci` to install Git hooks. Pre-commit formats staged files and lints staged JavaScript/TypeScript; pre-push runs `npm run typecheck` and `npm test`. Run `npm run test:host` for extension behavior changes.
 
@@ -36,7 +36,7 @@ Run `npm ci` to install Git hooks. Pre-commit formats staged files and lints sta
 - Keep the Marketplace README introduction to 5-15 factual, scannable lines; avoid unverifiable claims.
 - Keep the README and related documentation current. Record only user-facing changes in the changelog, not internal refactors, tests, or tooling.
 - Before 1.0.0, treat releases as public betas. Document breaking format or metadata changes and assess migration and compatibility for existing users.
-- Consult [the ADR index](docs/adr/INDEX.md) for relevant decisions. Add an ADR for each feature and keep the index current. Every ADR must start with YAML front matter containing its `status`. Do not contradict an accepted ADR; supersede it with a new ADR.
+- Consult [the ADR index](docs/adr/index.md) for relevant decisions. Add an ADR for each feature and keep the index current. Every ADR must start with YAML front matter containing its `status`. Do not contradict an accepted ADR; supersede it with a new ADR.
 - Comment only when clarification is needed.
 
 ## GitHub issues
@@ -56,6 +56,7 @@ Run `npm ci` to install Git hooks. Pre-commit formats staged files and lints sta
 - Never commit or push directly to protected branches. Publish approved updates through pull requests to every configured remote. Verify protected refs match on all remotes; report divergence or remotes that could not be updated.
 - For release metadata, create a feature branch from published `main`. Choose SemVer from included changes and assess compatibility. Run `npm version <version> --no-git-tag-version --ignore-scripts`; verify manifest and lockfile versions agree. Move user-facing changelog entries to the release version, retain `Unreleased`, and update any README VSIX example.
 - The tag workflow accepts only matching `v<version>` tags pointing to a commit on `main`; it builds, packages, creates a GitHub Release, and publishes through Marketplace Trusted Publishing.
+- Use numeric package versions and the boolean `vsce.preRelease` for release-channel selection. SemVer prerelease suffixes are unsupported. Both lockfile versions must match the manifest.
 - Before declaring a release ready, run coverage, build, relevant host tests, and `git diff --check`; report unavailable validation. Do not manually package, tag, publish, or deploy without explicit authorization. Previously approved CI packaging remains allowed.
 - Do not add `Co-authored-by:` trailers to feature, merge, or release commits.
 

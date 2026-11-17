@@ -1,8 +1,10 @@
 ---
-status: Accepted
+status: Superseded by ADR 070
 ---
 
 # ADR 034: Quality and publication alignment
+
+[ADR 070](adr-070-repository-delivery.md) supersedes this decision. The following policy is historical.
 
 ## Context
 
