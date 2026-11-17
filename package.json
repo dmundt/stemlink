@@ -7,7 +7,20 @@
   "license": "MIT",
   "icon": "media/icon.png",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dmundt/stemlink.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dmundt/stemlink/issues"
+  },
+  "homepage": "https://github.com/dmundt/stemlink#readme",
+  "vsce": {
+    "preRelease": false
+  },
   "engines": {
+    "node": "^22.13.0 || >=24.0.0",
+    "npm": ">=10",
     "vscode": "^1.90.0"
   },
   "categories": [
@@ -406,17 +419,18 @@
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "npm run compile && node --test dist/test/*.test.js",
+    "test": "npm run test:release && npm run compile && node --test dist/test/*.test.js",
+    "test:release": "node --test scripts/release.test.mjs",
     "test:host": "npm run compile && node --test --test-concurrency=1 dist/test/runIntegration.js dist/test/runMultiRoot.js dist/test/runDiscovery.js",
     "test:integration": "npm run compile && node dist/test/runIntegration.js",
     "test:restricted": "npm run compile && node dist/test/runIntegration.js --restricted",
     "test:multi-root": "npm run compile && node dist/test/runMultiRoot.js",
     "test:discovery": "npm run compile && node dist/test/runDiscovery.js",
-    "test:coverage": "npm run compile && node --experimental-test-coverage --test --test-concurrency=1 --test-coverage-include=dist/*.js dist/test/core.test.js dist/test/runIntegration.js dist/test/runMultiRoot.js dist/test/runDiscovery.js",
+    "test:coverage": "npm run test:release && npm run compile && node --experimental-test-coverage --test --test-concurrency=1 --test-coverage-lines=95 --test-coverage-branches=87 --test-coverage-functions=93 --test-coverage-include=dist/*.js dist/test/core.test.js dist/test/runIntegration.js dist/test/runMultiRoot.js dist/test/runDiscovery.js",
     "benchmark:integration": "npm run compile && node dist/test/runIntegration.js --benchmark",
     "benchmark": "npm run compile && node dist/test/benchmark.js",
     "build": "npm run compile",
-    "package": "vsce package --allow-missing-repository --no-rewrite-relative-links",
+    "package": "vsce package",
     "vscode:prepublish": "npm run compile",
     "prepare": "husky"
   },
