@@ -1,0 +1,28 @@
+name: Nightly Validation
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm audit
+      - run: npm run format:check
+      - run: xvfb-run -a npm run test:coverage
+        env:
+          VSCODE_TEST_VERSION: stable
+      - run: xvfb-run -a npm run benchmark:integration
+        env:
+          VSCODE_TEST_VERSION: stable
