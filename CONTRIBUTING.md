@@ -30,6 +30,6 @@ Keep pull requests focused. Describe behavior changes and list validation perfor
 
 - Add focused tests for behavior changes.
 - Update user-facing documentation and `CHANGELOG.md` only for user-facing changes.
-- Follow [the ADR index](./docs/adr/index.md) for architectural decisions.
+- Follow [the ADR index](./docs/adr/INDEX.md) for architectural decisions.
 - Use Conventional Commits: `<type>: <description>`.
 - Do not add `Co-authored-by:` trailers.

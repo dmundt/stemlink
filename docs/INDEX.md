@@ -13,7 +13,7 @@
 | Commands, providers, and settings          | [Commands and internal interfaces](./api.md)                      |
 | Tests, host runners, benchmarks, and CI    | [Verification](./verification.md)                                 |
 | Activity Bar and command icons             | [Icons](./icons.md)                                               |
-| Architectural decisions                    | [ADR index](./adr/index.md)                                       |
+| Architectural decisions                    | [ADR index](./adr/INDEX.md)                                       |
 | Vault usage and settings                   | [README](../README.md)                                            |
 | Vault manual installed during creation     | [Manual template](../templates/README.md)                         |
 | Contributor and documentation rules        | [Project rules](../AGENTS.md), [documentation rules](./AGENTS.md) |

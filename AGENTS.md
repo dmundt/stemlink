@@ -1,6 +1,6 @@
 # Stemlink development rules
 
-Stemlink is a VS Code extension for local, plain-Markdown vaults. Start with [the ADR index](docs/adr/index.md).
+Stemlink is a VS Code extension for local, plain-Markdown vaults. Start with [the ADR index](docs/adr/INDEX.md).
 
 ## Project layout
 
@@ -36,7 +36,7 @@ Run `npm ci` to install Git hooks. Pre-commit formats staged files and lints sta
 - Keep the Marketplace README introduction to 5-15 factual, scannable lines; avoid unverifiable claims.
 - Keep the README and related documentation current. Record only user-facing changes in the changelog, not internal refactors, tests, or tooling.
 - Before 1.0.0, treat releases as public betas. Document breaking format or metadata changes and assess migration and compatibility for existing users.
-- Consult [the ADR index](docs/adr/index.md) for relevant decisions. Add an ADR for each feature and keep the index current. Every ADR must start with YAML front matter containing its `status`. Do not contradict an accepted ADR; supersede it with a new ADR.
+- Consult [the ADR index](docs/adr/INDEX.md) for relevant decisions. Add an ADR for each feature and keep the index current. Every ADR must start with YAML front matter containing its `status`. Do not contradict an accepted ADR; supersede it with a new ADR.
 - Comment only when clarification is needed.
 
 ## GitHub issues
