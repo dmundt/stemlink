@@ -618,6 +618,31 @@ async function testMockVaultFiles(extensionUri: vscode.Uri): Promise<void> {
     assert.equal(files.get('/vault/capture/INDEX.md'), generated.inbox);
     deniedWriteFile = undefined;
 
+    {
+      const errorApi = vscode.window as { showErrorMessage: typeof vscode.window.showErrorMessage };
+      const originalError = errorApi.showErrorMessage;
+      const errors: string[] = [];
+      errorApi.showErrorMessage = new Proxy(originalError, {
+        apply: (_target, _receiver, args: unknown[]) => {
+          errors.push(String(args[0]));
+          return Promise.resolve(undefined);
+        },
+      });
+      try {
+        deniedReadDirectory = inbox.path;
+        router.sync([paths]);
+        await waitFor(
+          () => errors.some((error) => error.includes('Injected directory failure')),
+          'scheduled router failure was not reported',
+        );
+        assert.equal(files.get('/vault/capture/INDEX.md'), generated.inbox);
+      } finally {
+        deniedReadDirectory = undefined;
+        router.sync([]);
+        errorApi.showErrorMessage = originalError;
+      }
+    }
+
     for (const denied of [false, true]) {
       const vault = new Vault({ uri: root, name: 'Synthetic vault', index: 0 });
       vault.selectPaths(paths);
