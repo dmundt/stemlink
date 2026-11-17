@@ -1,14 +1,31 @@
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { spawn } from "node:child_process";
 import * as os from "node:os";
 import * as path from "node:path";
-import { runTests } from "@vscode/test-electron";
+import { downloadAndUnzipVSCode, runTests } from "@vscode/test-electron";
 import { makeNote } from "../core";
 
 export async function runIntegration(multiRoot = false, discovery = false): Promise<void> {
+  const restricted = process.argv.includes("--restricted");
   const temp = await mkdtemp(path.join(os.tmpdir(), "stemlink-test-"));
   try {
     const workspace = path.join(temp, "workspace");
+    const userData = path.join(temp, "user-data");
+    await mkdir(path.join(userData, "User"), { recursive: true });
+    await writeFile(
+      path.join(userData, "User", "settings.json"),
+      JSON.stringify({
+        "stemlink.promptForCaptureHeadline": false,
+        "stemlink.confirmPromotion": false,
+        ...(restricted
+          ? {
+              "security.workspace.trust.enabled": true,
+              "security.workspace.trust.startupPrompt": "never",
+            }
+          : {}),
+      }),
+    );
     const root = path.join(workspace, discovery ? "existing-vault" : "notes");
     const notes = path.join(root, discovery ? "stable" : "permanent");
     await mkdir(notes, { recursive: true });
@@ -64,16 +81,16 @@ export async function runIntegration(multiRoot = false, discovery = false): Prom
       (!process.env.VSCODE_TEST_VERSION && localExecutable && existsSync(localExecutable)
         ? localExecutable
         : undefined);
-    await runTests({
+    const options = {
       vscodeExecutablePath: executable,
       version: process.env.VSCODE_TEST_VERSION,
       extensionDevelopmentPath: path.resolve(__dirname, "../.."),
       extensionTestsPath: path.resolve(__dirname, "vscodeHost.js"),
       launchArgs: [
         workspaceTarget,
-        `--user-data-dir=${path.join(temp, "user-data")}`,
+        `--user-data-dir=${userData}`,
         `--extensions-dir=${path.join(temp, "extensions")}`,
-        "--disable-workspace-trust",
+        ...(restricted ? [] : ["--disable-workspace-trust"]),
         ...(process.platform === "linux" && process.env.CI ? ["--no-sandbox"] : []),
         ...(disableMarkdownProvider
           ? ["--disable-extension=vscode.markdown-language-features"]
@@ -84,8 +101,40 @@ export async function runIntegration(multiRoot = false, discovery = false): Prom
         STEMLINK_DISABLE_MARKDOWN_PROVIDER: disableMarkdownProvider ? "1" : "0",
         STEMLINK_MULTI_ROOT: multiRoot ? "1" : "0",
         STEMLINK_DISCOVERY: discovery ? "1" : "0",
+        STEMLINK_RESTRICTED: restricted ? "1" : "0",
       },
-    });
+    };
+    if (restricted) {
+      const code = executable ?? (await downloadAndUnzipVSCode(process.env.VSCODE_TEST_VERSION));
+      await new Promise<void>((resolve, reject) => {
+        const child = spawn(
+          code,
+          [
+            ...options.launchArgs,
+            `--extensionDevelopmentPath=${options.extensionDevelopmentPath}`,
+            `--extensionTestsPath=${options.extensionTestsPath}`,
+            "--skip-welcome",
+            "--skip-release-notes",
+          ],
+          { env: { ...process.env, ...options.extensionTestsEnv }, stdio: "inherit" },
+        );
+        const timeout = setTimeout(() => {
+          child.kill();
+          reject(new Error("Restricted Mode host timed out."));
+        }, 120_000);
+        child.once("error", (error) => {
+          clearTimeout(timeout);
+          reject(error);
+        });
+        child.once("exit", (status) => {
+          clearTimeout(timeout);
+          if (status === 0) resolve();
+          else reject(new Error(`Restricted Mode host exited with ${status}.`));
+        });
+      });
+    } else {
+      await runTests(options);
+    }
   } finally {
     await rm(temp, { recursive: true, force: true });
   }

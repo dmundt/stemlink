@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import {
+  fleetingTitle,
   isVaultInstructionFile,
   RouterEntry,
   renderRouterIndexes,
@@ -131,7 +132,7 @@ export class VaultRouterIndexes implements vscode.Disposable {
       throw new Error(`Vault folder does not exist: ${paths.root.path}`);
     const inboxExists = await this.isDirectory(paths.inbox);
     const notesExist = await this.isDirectory(paths.notes);
-    const inboxEntries = inboxExists ? await this.entries(paths.inbox) : [];
+    const inboxEntries = inboxExists ? await this.entries(paths.inbox, true) : [];
     const notesEntries = notesExist ? await this.entries(paths.notes) : [];
     const contents = renderRouterIndexes(
       this.folderName(paths.root),
@@ -205,7 +206,7 @@ export class VaultRouterIndexes implements vscode.Disposable {
     }, 100);
   }
 
-  private async entries(directory: vscode.Uri): Promise<RouterEntry[]> {
+  private async entries(directory: vscode.Uri, fleeting = false): Promise<RouterEntry[]> {
     const entries = await vscode.workspace.fs.readDirectory(directory);
     const files = entries.filter(
       ([name, type]) =>
@@ -231,7 +232,7 @@ export class VaultRouterIndexes implements vscode.Disposable {
       }
       let description: string;
       try {
-        description = routerDescription(text);
+        description = fleeting ? fleetingTitle(text) : routerDescription(text);
       } catch (error) {
         reportError(
           new Error(`${uri.path}: ${error instanceof Error ? error.message : String(error)}`),

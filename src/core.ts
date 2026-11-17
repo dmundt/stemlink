@@ -1,4 +1,4 @@
-import { Document, isMap, parseDocument } from "yaml";
+import { Document, isMap, isScalar, parseDocument } from "yaml";
 
 export interface Link {
   stem: string;
@@ -14,12 +14,22 @@ export const agentInstructionsName = "AGENTS.md";
 export const routerIndexStart = "<!-- stemlink:generated:start -->";
 export const routerIndexEnd = "<!-- stemlink:generated:end -->";
 
+export function isReservedFolderName(value: string): boolean {
+  return /^(?:con|prn|aux|nul|com[1-9\u00b9\u00b2\u00b3]|lpt[1-9\u00b9\u00b2\u00b3])(?:\.|$)/i.test(
+    value,
+  );
+}
+
 export function isRouterIndex(name: string): boolean {
   return name.toLowerCase() === routerIndexName.toLowerCase();
 }
 
 export function isVaultInstructionFile(name: string): boolean {
   return isRouterIndex(name) || name.toLowerCase() === agentInstructionsName.toLowerCase();
+}
+
+export function isExcludedNoteFile(name: string): boolean {
+  return name.startsWith("_") || isVaultInstructionFile(name);
 }
 
 export interface RouterIndexContent {
@@ -31,6 +41,22 @@ export interface RouterIndexContent {
 export interface RouterEntry {
   name: string;
   description: string;
+}
+
+export function fleetingTitle(text: string): string {
+  const matter = frontMatter(text);
+  if (!matter && /^(?:\uFEFF)?---[ \t]*\r?\n/.test(text))
+    throw new Error("Unclosed YAML front matter.");
+  const body = matter ? text.slice(matter.end) : text;
+  const line = body
+    .split(/\r?\n/)
+    .map((value) => value.trim())
+    .find(Boolean);
+  if (!line) return "Empty capture.";
+  const title = line.replace(/^#{1,6}\s+/, "").replace(/\s+/g, " ");
+  const sentence = title.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? title;
+  const characters = Array.from(sentence);
+  return characters.length > 120 ? `${characters.slice(0, 120).join("").trimEnd()}...` : sentence;
 }
 
 export function routerDescription(text: string): string {
@@ -94,8 +120,8 @@ export function renderRouterIndexes(
   const notesCount = notesEntries.length;
   const escape = (text: string) =>
     text.replace(/[&<>"'\\`*_[\]{}|]/g, (character) => `&#${character.charCodeAt(0)};`);
-  const listing = (entries: readonly RouterEntry[]) => [
-    "| File | Description |",
+  const listing = (entries: readonly RouterEntry[], column = "Description") => [
+    `| File | ${column} |`,
     "| --- | --- |",
     ...[...entries]
       .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
@@ -132,9 +158,9 @@ export function renderRouterIndexes(
       "",
       `Markdown captures: ${inboxCount}`,
       "",
-      "Use the file descriptions below to choose captures to read. Descriptions come from YAML description, then title; read each file for its full content.",
+      "Use the titles below to choose captures to read. Titles use the first non-empty body line or sentence, limited to 120 characters followed by ... when truncated. Read each file for its full content.",
       "",
-      ...listing(inboxEntries),
+      ...listing(inboxEntries, "Title"),
     ]),
     notes: section([
       `# Notes router: ${markdownCodeSpan(`${notesName}/`)}`,
@@ -175,9 +201,13 @@ export function replaceRouterIndexSection(current: string, generated: string): s
   return current.slice(0, start) + normalized + current.slice(suffixStart);
 }
 
-export function frontMatter(text: string): { yaml: string; end: number } | undefined {
+export function frontMatter(
+  text: string,
+): { yaml: string; yamlStart: number; end: number } | undefined {
   const match = /^(?:\uFEFF)?---[ \t]*\r?\n([\s\S]*?)^---[ \t]*(?:\r?\n|$)/m.exec(text);
-  return match?.index === 0 ? { yaml: match[1], end: match[0].length } : undefined;
+  return match?.index === 0
+    ? { yaml: match[1], yamlStart: match[0].indexOf("\n") + 1, end: match[0].length }
+    : undefined;
 }
 
 export function metadataProblem(text: string): string | undefined {
@@ -205,6 +235,96 @@ export function makeNote(title: string, tags: string[], body = ""): string {
   return `---\n${noteMetadata(new Document(), title, tags)}---\n\n${body}`;
 }
 
+export function normalizeTags(tags: readonly string[]): string[] {
+  return [...new Set(tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b),
+  );
+}
+
+export function noteTags(text: string): {
+  tags: string[];
+  problem?: string;
+  start?: number;
+  end?: number;
+} {
+  const matter = frontMatter(text);
+  if (!matter)
+    return /^(?:\uFEFF)?---[ \t]*\r?\n/.test(text)
+      ? {
+          tags: [],
+          problem: "Unclosed YAML front matter.",
+          start: text.startsWith("\uFEFF") ? 1 : 0,
+          end: text.startsWith("\uFEFF") ? 4 : 3,
+        }
+      : { tags: [] };
+  const problem = (message: string, range?: readonly number[]) => ({
+    tags: [],
+    problem: message,
+    ...(range ? { start: matter.yamlStart + range[0], end: matter.yamlStart + range[1] } : {}),
+  });
+  const document = parseDocument(matter.yaml, { uniqueKeys: true });
+  if (document.errors.length)
+    return problem(`Invalid YAML: ${document.errors[0].message}`, document.errors[0].pos);
+  if (!isMap(document.contents))
+    return problem("Front matter must be a YAML mapping.", document.contents?.range ?? undefined);
+  let fields: Record<string, unknown>;
+  try {
+    fields = document.toJS();
+  } catch (error) {
+    return { tags: [], problem: `Cannot read YAML: ${String(error)}` };
+  }
+  const tags = fields.tags;
+  if (tags === undefined) return { tags: [] };
+  if (!Array.isArray(tags) || !tags.every((tag) => typeof tag === "string")) {
+    const key = document.contents.items.find(
+      (pair) => isScalar(pair.key) && pair.key.value === "tags",
+    )?.key;
+    return problem(
+      "Tags must be a list of text values.",
+      isScalar(key) ? (key.range ?? undefined) : undefined,
+    );
+  }
+  return { tags: normalizeTags(tags) };
+}
+
+export function captureMetadata(text: string): { title?: string; tags?: string[] } {
+  const document = captureFrontMatter(text);
+  if (!document) return {};
+  const fields: Record<string, unknown> = document.toJS();
+  const title = fields.title;
+  const tags = fields.tags;
+  if (title !== undefined && typeof title !== "string")
+    throw new Error("Capture title must be text.");
+  if (tags !== undefined && (!Array.isArray(tags) || !tags.every((tag) => typeof tag === "string")))
+    throw new Error("Capture tags must be a list of text values.");
+  return { title, tags };
+}
+
+function captureFrontMatter(text: string): Document | undefined {
+  const matter = frontMatter(text);
+  if (!matter) {
+    if (/^(?:\uFEFF)?---[ \t]*\r?\n/.test(text))
+      throw new Error("Capture has unclosed YAML front matter.");
+    return undefined;
+  }
+  const document = parseDocument(matter.yaml, { uniqueKeys: true });
+  if (document.errors.length) throw new Error("Capture has invalid YAML front matter.");
+  if (!isMap(document.contents))
+    throw new Error("Capture has invalid YAML: front matter must be a YAML mapping.");
+  return document;
+}
+
+export function makeCapture(template: string, headline: string): string {
+  const matter = frontMatter(template);
+  if (!matter && /^(?:\uFEFF)?---[ \t]*\r?\n/.test(template))
+    throw new Error("Capture template has unclosed YAML front matter.");
+  const offset = matter?.end ?? (template.startsWith("\uFEFF") ? 1 : 0);
+  const prefix = template.slice(0, offset);
+  const newline = template.includes("\r\n") ? "\r\n" : "\n";
+  const separator = matter ? (prefix.endsWith("\n") ? newline : newline.repeat(2)) : "";
+  return `${prefix}${separator}# ${headline.trim()}${newline}${newline}${template.slice(offset)}`;
+}
+
 function noteMetadata(document: Document, title: string, tags: string[]): string {
   const sequence = document.createNode(tags);
   sequence.flow = true;
@@ -214,21 +334,17 @@ function noteMetadata(document: Document, title: string, tags: string[]): string
 }
 
 export function promoteNote(text: string, title: string, tags: string[]): string {
+  captureMetadata(text);
   const matter = frontMatter(text);
   if (!matter) {
-    if (/^(?:\uFEFF)?---[ \t]*\r?\n/.test(text))
-      throw new Error("Capture has unclosed YAML front matter.");
-    return makeNote(title, tags, text);
+    const bom = text.startsWith("\uFEFF") ? "\uFEFF" : "";
+    return bom + makeNote(title, tags, text.slice(bom.length));
   }
-  const document = parseDocument(matter.yaml, { uniqueKeys: true });
-  if (document.errors.length || (document.contents && !document.contents.toJSON())) {
-    throw new Error("Capture has invalid YAML front matter.");
-  }
-  const value: unknown = document.toJS();
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new Error("Capture front matter must be a YAML mapping.");
-  }
-  return `---\n${noteMetadata(document, title, tags)}---\n${text.slice(matter.end)}`;
+  const document = captureFrontMatter(text)!;
+  const newline = text.includes("\r\n") ? "\r\n" : "\n";
+  const yaml = noteMetadata(document, title, tags).replace(/\r?\n/g, newline);
+  const bom = text.startsWith("\uFEFF") ? "\uFEFF" : "";
+  return `${bom}---${newline}${yaml}---${newline}${text.slice(matter.end)}`;
 }
 
 export function slug(title: string): string {
@@ -327,7 +443,7 @@ export interface Finding<T extends NoteData = NoteData> {
 }
 
 export function auditNotes<T extends NoteData>(notes: T[]): Finding<T>[] {
-  notes = notes.filter((note) => !isVaultInstructionFile(note.name));
+  notes = notes.filter((note) => !isExcludedNoteFile(note.name));
   const stems = new Set(notes.map((note) => note.stem));
   const incoming = new Set<string>();
   const findings: Finding<T>[] = [];

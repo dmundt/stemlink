@@ -11,7 +11,9 @@
     "vscode": "^1.90.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "Education",
+    "Programming Languages"
   ],
   "keywords": [
     "markdown",
@@ -31,7 +33,14 @@
     "onView:stemlink.references"
   ],
   "main": "./dist/extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Browse, filter, and validate notes in Restricted Mode. Creating or changing files, generated indexes, agent instructions, and Markdown preview links require Workspace Trust."
+    }
+  },
   "contributes": {
+    "markdown.markdownItPlugins": true,
     "configuration": [
       {
         "title": "Vault Folders",
@@ -63,14 +72,42 @@
         }
       },
       {
-        "title": "Features",
+        "title": "Display",
         "properties": {
           "stemlink.showCounts": {
             "type": "boolean",
             "default": true,
             "scope": "resource",
             "description": "Show counts in vault, note, capture, and reference views. Errors remain visible."
+          }
+        }
+      },
+      {
+        "title": "Capture",
+        "properties": {
+          "stemlink.promptForCaptureHeadline": {
+            "type": "boolean",
+            "default": true,
+            "scope": "resource",
+            "description": "Ask for a headline when adding a fleeting note. Add the headline to the capture and use a shortened slug in its filename. When disabled, copy the template unchanged with a timestamp-capture filename."
           },
+          "stemlink.promptForPromotionMetadata": {
+            "type": "boolean",
+            "default": false,
+            "scope": "resource",
+            "description": "Always ask for title and tags when promoting a capture, prefilling existing values. When disabled, reuse non-empty metadata and ask only for missing or empty fields."
+          },
+          "stemlink.confirmPromotion": {
+            "type": "boolean",
+            "default": true,
+            "scope": "resource",
+            "description": "Ask for confirmation before each capture is promoted, including context-menu and drag-and-drop promotion. Metadata prompts are controlled separately."
+          }
+        }
+      },
+      {
+        "title": "AI Context",
+        "properties": {
           "stemlink.enableRouterIndexes": {
             "type": "boolean",
             "default": true,
@@ -81,7 +118,7 @@
             "type": "boolean",
             "default": true,
             "scope": "resource",
-            "description": "Ask before adding missing AGENTS.md files during Create Vault or Open Vault. Existing files are never overwritten."
+            "description": "Ask before adding missing AGENTS.md files during Create vault or Open vault. Existing files are never overwritten."
           }
         }
       }
@@ -89,37 +126,88 @@
     "commands": [
       {
         "command": "stemlink.openVault",
-        "title": "Open Vault",
+        "title": "Open vault",
+        "enablement": "isWorkspaceTrusted",
         "category": "Stemlink",
         "icon": "$(folder-opened)"
       },
       {
         "command": "stemlink.createVault",
-        "title": "Create Vault",
+        "title": "Create vault",
+        "enablement": "isWorkspaceTrusted && workspaceFolderCount != 0",
         "category": "Stemlink",
         "icon": "$(new-folder)"
       },
       {
         "command": "stemlink.addFleetingNote",
-        "title": "Add Fleeting Note",
+        "title": "New fleeting note",
+        "enablement": "isWorkspaceTrusted && stemlink.hasVault",
         "category": "Stemlink",
         "icon": "$(add)"
       },
       {
         "command": "stemlink.addNote",
-        "title": "Add Note",
+        "title": "New permanent note",
+        "enablement": "isWorkspaceTrusted && stemlink.hasVault",
         "category": "Stemlink",
         "icon": "$(add)"
       },
       {
+        "command": "stemlink.filterByTags",
+        "title": "Filter by tags…",
+        "enablement": "stemlink.hasVault",
+        "category": "Stemlink"
+      },
+      {
+        "command": "stemlink.clearTagFilter",
+        "title": "Clear tag filter",
+        "category": "Stemlink"
+      },
+      {
         "command": "stemlink.promote",
-        "title": "Promote Capture to Note",
-        "category": "Stemlink",
-        "icon": "$(arrow-right)"
+        "title": "Promote to permanent note…",
+        "enablement": "isWorkspaceTrusted && stemlink.hasVault",
+        "category": "Stemlink"
+      },
+      {
+        "command": "stemlink.editCaptureMetadata",
+        "title": "Edit metadata…",
+        "enablement": "isWorkspaceTrusted && stemlink.hasVault && !listMultiSelection",
+        "category": "Stemlink"
+      },
+      {
+        "command": "stemlink.discardCapture",
+        "title": "Delete…",
+        "enablement": "isWorkspaceTrusted && stemlink.hasVault && !listMultiSelection",
+        "category": "Stemlink"
+      },
+      {
+        "command": "stemlink.editNoteMetadata",
+        "title": "Edit metadata…",
+        "enablement": "isWorkspaceTrusted && stemlink.hasVault",
+        "category": "Stemlink"
       },
       {
         "command": "stemlink.checkReferences",
-        "title": "Check References",
+        "title": "Validate vault",
+        "enablement": "stemlink.hasVault",
+        "category": "Stemlink"
+      },
+      {
+        "command": "stemlink.newFleetingNote",
+        "title": "New fleeting note",
+        "enablement": "isWorkspaceTrusted && stemlink.hasVault",
+        "category": "Stemlink"
+      },
+      {
+        "command": "stemlink.newPermanentNote",
+        "title": "New permanent note",
+        "enablement": "isWorkspaceTrusted && stemlink.hasVault",
+        "category": "Stemlink"
+      },
+      {
+        "command": "stemlink.validateVault",
+        "title": "Validate vault",
         "category": "Stemlink"
       },
       {
@@ -149,7 +237,7 @@
         {
           "id": "stemlink.vaults",
           "name": "Vaults",
-          "initialSize": 100
+          "initialSize": 1
         },
         {
           "id": "stemlink.fleeting",
@@ -165,8 +253,45 @@
         }
       ]
     },
+    "viewsWelcome": [
+      {
+        "view": "stemlink.vaults",
+        "when": "!stemlink.hasVault && !stemlink.discoveryFailed && workspaceFolderCount == 0",
+        "contents": "Open a workspace folder to create a vault.\n[Open folder](command:vscode.openFolder)"
+      },
+      {
+        "view": "stemlink.vaults",
+        "when": "!stemlink.hasVault && !stemlink.discoveryFailed && isWorkspaceTrusted",
+        "contents": "[Open vault](command:stemlink.openVault)"
+      },
+      {
+        "view": "stemlink.vaults",
+        "when": "!stemlink.hasVault && !stemlink.discoveryFailed && isWorkspaceTrusted && workspaceFolderCount != 0",
+        "contents": "[Create vault](command:stemlink.createVault)"
+      },
+      {
+        "view": "stemlink.vaults",
+        "when": "!stemlink.hasVault && !stemlink.discoveryFailed && !isWorkspaceTrusted",
+        "contents": "Existing vaults can be browsed in Restricted Mode. Trust this workspace before opening or creating a vault."
+      },
+      {
+        "view": "stemlink.vaults",
+        "when": "!stemlink.hasVault && stemlink.discoveryFailed",
+        "contents": "Vault discovery failed. Check Stemlink configuration, then refresh.\n[Settings](command:stemlink.openSettings)\n[Refresh](command:stemlink.refresh)"
+      }
+    ],
     "menus": {
       "view/title": [
+        {
+          "command": "stemlink.filterByTags",
+          "when": "view == stemlink.notes",
+          "group": "filter@1"
+        },
+        {
+          "command": "stemlink.clearTagFilter",
+          "when": "view == stemlink.notes && stemlink.hasTagFilter",
+          "group": "filter@2"
+        },
         {
           "command": "stemlink.createVault",
           "when": "view == stemlink.vaults",
@@ -195,14 +320,82 @@
         {
           "command": "stemlink.openSettings",
           "when": "view == stemlink.vaults",
-          "group": "navigation@4"
+          "group": "settings@1"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "stemlink.newFleetingNote",
+          "when": "false"
+        },
+        {
+          "command": "stemlink.filterByTags",
+          "when": "false"
+        },
+        {
+          "command": "stemlink.clearTagFilter",
+          "when": "false"
+        },
+        {
+          "command": "stemlink.newPermanentNote",
+          "when": "false"
+        },
+        {
+          "command": "stemlink.validateVault",
+          "when": "false"
+        },
+        {
+          "command": "stemlink.promote",
+          "when": "false"
+        },
+        {
+          "command": "stemlink.editCaptureMetadata",
+          "when": "false"
+        },
+        {
+          "command": "stemlink.discardCapture",
+          "when": "false"
+        },
+        {
+          "command": "stemlink.editNoteMetadata",
+          "when": "false"
         }
       ],
       "view/item/context": [
         {
+          "command": "stemlink.newFleetingNote",
+          "when": "view == stemlink.vaults && viewItem == stemlink.vault",
+          "group": "1_creation@1"
+        },
+        {
+          "command": "stemlink.newPermanentNote",
+          "when": "view == stemlink.vaults && viewItem == stemlink.vault",
+          "group": "1_creation@2"
+        },
+        {
+          "command": "stemlink.validateVault",
+          "when": "view == stemlink.vaults && viewItem == stemlink.vault",
+          "group": "3_validation@1"
+        },
+        {
           "command": "stemlink.promote",
           "when": "view == stemlink.fleeting && viewItem == stemlink.capture",
-          "group": "inline"
+          "group": "2_actions@1"
+        },
+        {
+          "command": "stemlink.editCaptureMetadata",
+          "when": "view == stemlink.fleeting && viewItem == stemlink.capture",
+          "group": "2_actions@2"
+        },
+        {
+          "command": "stemlink.discardCapture",
+          "when": "view == stemlink.fleeting && viewItem == stemlink.capture",
+          "group": "9_delete@1"
+        },
+        {
+          "command": "stemlink.editNoteMetadata",
+          "when": "view == stemlink.notes && viewItem == stemlink.note",
+          "group": "2_actions@1"
         }
       ]
     }
@@ -214,6 +407,7 @@
     "format:check": "prettier --check .",
     "test": "npm run compile && node --test dist/test/*.test.js",
     "test:integration": "npm run compile && node dist/test/runIntegration.js",
+    "test:restricted": "npm run compile && node dist/test/runIntegration.js --restricted",
     "test:multi-root": "npm run compile && node dist/test/runMultiRoot.js",
     "test:discovery": "npm run compile && node dist/test/runDiscovery.js",
     "test:coverage": "npm run compile && node --experimental-test-coverage --test --test-concurrency=1 --test-coverage-include=dist/*.js dist/test/core.test.js dist/test/runIntegration.js dist/test/runMultiRoot.js dist/test/runDiscovery.js",

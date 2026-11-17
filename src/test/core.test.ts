@@ -3,12 +3,17 @@ import { test } from "node:test";
 import { parseDocument } from "yaml";
 import {
   auditNotes,
+  captureMetadata,
   frontMatter,
+  fleetingTitle,
   isRouterIndex,
   isVaultInstructionFile,
   linksIn,
+  makeCapture,
   makeNote,
   metadataProblem,
+  noteTags,
+  isReservedFolderName,
   promoteNote,
   markdownCodeSpan,
   renderRouterIndexes,
@@ -20,6 +25,104 @@ import {
   slug,
   timestamp,
 } from "../core";
+
+test("portable creation rejects Windows device basenames including extensions", () => {
+  for (const name of [
+    "CON",
+    "con.txt",
+    "PrN.md",
+    "AUX",
+    "NUL",
+    "COM1",
+    "COM9.md",
+    "LPT1",
+    "lpt9.txt",
+    "COM\u00b9.md",
+    "LPT\u00b2",
+  ])
+    assert.ok(isReservedFolderName(name), name);
+  for (const name of ["console", "auxiliary", "COM0", "COM10", "LPT0", "LPT10", "my.CON", "notes"])
+    assert.equal(isReservedFolderName(name), false, name);
+});
+
+test("note tags normalize case and whitespace without changing metadata", () => {
+  const text =
+    "\uFEFF---\r\ntitle: [invalid, title]\r\ntags: [' Beta ', ALPHA, alpha, '', '  ', '#topic', topic/child]\r\n---\r\nBody\r\n";
+  assert.deepEqual(noteTags(text), { tags: ["#topic", "alpha", "beta", "topic/child"] });
+  for (const text of ["Body", "---\ntitle: Title\n---\n", "---\ntags: []\n---\n"])
+    assert.deepEqual(noteTags(text), { tags: [] });
+});
+
+test("invalid tag metadata is reported, not silently treated as untagged", () => {
+  for (const text of [
+    "---\ntags: [",
+    "---\ntags: [\n---\n",
+    "---\n[]\n---\n",
+    "---\nnull\n---\n",
+    "---\ntags: scalar\n---\n",
+    "---\ntags: null\n---\n",
+    "---\ntags: [one, 2]\n---\n",
+    "---\ntags: [one]\ntags: [two]\n---\n",
+  ]) {
+    const result = noteTags(text);
+    assert.ok(result.problem, text);
+    assert.deepEqual(result.tags, []);
+  }
+});
+
+test("tag metadata problems retain source offsets across BOM and line endings", () => {
+  for (const newline of ["\n", "\r\n"]) {
+    for (const bom of ["", "\uFEFF"]) {
+      const text = `${bom}---${newline}title: Test${newline}tags: scalar${newline}---${newline}Body`;
+      const result = noteTags(text);
+      assert.equal(result.start, text.indexOf("tags:"));
+      assert.equal(result.end, text.indexOf("tags:") + 4);
+      const unclosed = noteTags(`${bom}---${newline}tags: [`);
+      assert.equal(unclosed.start, bom.length);
+      assert.equal(unclosed.end, bom.length + 3);
+      const duplicate = `${bom}---${newline}tags: []${newline}tags: []${newline}---${newline}`;
+      const parsed = noteTags(duplicate);
+      assert.equal(parsed.start, duplicate.lastIndexOf("tags:"));
+      assert.ok(parsed.end !== undefined && parsed.end > parsed.start);
+    }
+  }
+});
+
+test("capture headlines preserve template content and front matter", () => {
+  assert.equal(makeCapture("Prompt\n", "  A thought  "), "# A thought\n\nPrompt\n");
+  assert.equal(
+    makeCapture("---\r\ntags: [idea]\r\n---\r\nBody\r\n", "A thought"),
+    "---\r\ntags: [idea]\r\n---\r\n\r\n# A thought\r\n\r\nBody\r\n",
+  );
+  assert.equal(makeCapture("\uFEFFPrompt\n", "Idea"), "\uFEFF# Idea\n\nPrompt\n");
+  assert.equal(makeCapture("---\ntags: []\n---", "Idea"), "---\ntags: []\n---\n\n# Idea\n\n");
+  assert.throws(() => makeCapture("---\ntags: []\n", "Idea"), /unclosed YAML/);
+});
+
+test("capture metadata reads optional fields and rejects invalid existing values", () => {
+  assert.deepEqual(captureMetadata("Body\n"), {});
+  assert.deepEqual(captureMetadata("---\ntitle: Idea\ntags: [one, two]\n---\nBody"), {
+    title: "Idea",
+    tags: ["one", "two"],
+  });
+  assert.deepEqual(captureMetadata("---\ntitle: ''\ntags: []\n---\n"), { title: "", tags: [] });
+  assert.deepEqual(captureMetadata("---\nother: kept\n---\n"), {
+    title: undefined,
+    tags: undefined,
+  });
+  for (const fields of ["title: 42", "title: null", "tags: one", "tags: [one, 2]", "tags: null"]) {
+    assert.throws(() => captureMetadata(`---\n${fields}\n---\nBody`), /must be/);
+    assert.throws(() => promoteNote(`---\n${fields}\n---\nBody`, "Title", []), /must be/);
+  }
+  assert.throws(() => captureMetadata("---\ntitle: [\n---\n"), /invalid YAML/);
+  assert.throws(() => captureMetadata("---\ntitle: unfinished\n"), /unclosed/);
+  const body = "\r\nKeep [[202601011200-note-1]].\r\n";
+  const result = promoteNote(`\uFEFF---\r\ncustom: kept\r\n---\r\n${body}`, "Changed", ["one"]);
+  assert.ok(result.startsWith("\uFEFF---\r\n"));
+  assert.ok(result.endsWith(body));
+  assert.match(result, /custom: kept/);
+  assert.deepEqual(captureMetadata(result), { title: "Changed", tags: ["one"] });
+});
 
 test("parses references in prose, not front matter or Markdown code", () => {
   const text = [
@@ -116,6 +219,36 @@ test("audit reports broken, malformed, missing metadata and incoming references"
   assert.ok(!findings.some((f) => f.note === b && f.message === "No incoming references."));
 });
 
+test("underscore files are excluded and underscore references fail validation", () => {
+  const text = makeNote("Visible", [], "[[_202601011200-hidden]]");
+  const visible = {
+    name: "202601011201-visible.md",
+    stem: "202601011201-visible",
+    text,
+    links: linksIn(text),
+  };
+  const hiddenText = `[[${visible.stem}]]`;
+  const hidden = {
+    name: "_202601011200-hidden.md",
+    stem: "_202601011200-hidden",
+    text: hiddenText,
+    links: linksIn(hiddenText),
+  };
+  assert.equal(visible.links[0].valid, false);
+  const findings = auditNotes([visible, hidden]);
+  assert.ok(!findings.some((finding) => finding.note === hidden));
+  assert.ok(
+    findings.some(
+      (finding) => finding.note === visible && finding.message === "Malformed reference.",
+    ),
+  );
+  assert.ok(
+    findings.some(
+      (finding) => finding.note === visible && finding.message === "No incoming references.",
+    ),
+  );
+});
+
 test("filenames use local timestamps and safe slugs", () => {
   assert.equal(timestamp(new Date(2026, 0, 2, 3, 4)), "202601020304");
   assert.equal(slug("Café: One & Two"), "cafe-one-two");
@@ -184,6 +317,16 @@ test("audit handles duplicate, self, broken, and malformed links", () => {
   const invalidFindings = auditNotes([invalid]);
   assert.ok(invalidFindings.some((f) => f.message === "Invalid note filename."));
   assert.ok(invalidFindings.some((f) => f.message === "No outgoing references."));
+});
+
+test("fleeting router titles summarize body text and truncate long titles", () => {
+  assert.equal(fleetingTitle("\nFirst sentence. Second sentence.\nNext line"), "First sentence.");
+  assert.equal(fleetingTitle("\r\n# Capture heading\r\nBody text"), "Capture heading");
+  assert.equal(fleetingTitle("---\ntitle: Metadata\n---\nBody title\nMore"), "Body title");
+  assert.equal(fleetingTitle(" \n\t"), "Empty capture.");
+  assert.equal(fleetingTitle("x".repeat(120)), "x".repeat(120));
+  assert.equal(fleetingTitle("x".repeat(121)), `${"x".repeat(120)}...`);
+  assert.throws(() => fleetingTitle("---\ntitle: Unclosed"), /Unclosed/);
 });
 
 test("router descriptions use YAML description, then title, and reject invalid metadata", () => {

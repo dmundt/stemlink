@@ -26,10 +26,13 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [035: Vault count badge](adr-035-vault-count-badge.md) — native Activity Bar badge for discovered vaults.
 - [036: Settings action](adr-036-settings-action.md) — open extension settings from the Vaults view.
 - [037: File-description routers](adr-037-file-description-routers.md) — local filename mappings and generated router refreshes.
+- [044: Fleeting router titles](adr-044-fleeting-router-titles.md) — body-derived inbox titles with bounded length.
 - [038: Vault row icon](adr-038-vault-row-icon.md) — native archive icon for each vault.
 - [040: Configured view headings](adr-040-configured-view-headings.md) — selected-vault folder names for capture and note views.
 - [041: Grouped vault folder settings](adr-041-grouped-vault-folder-settings.md) — root, inbox, notes, and templates settings category.
-- [042: Compact Vaults view](adr-042-compact-vaults-view.md) — small initial height with native overflow scrolling.
+- [045: AI Context settings](adr-045-ai-context-settings.md) — separate display preferences from local AI context controls.
+- [042: Compact Vaults view](adr-042-compact-vaults-view.md) — superseded initial allocation; native overflow scrolling.
+- [053: Native Vaults sizing](adr-053-native-vaults-sizing.md) — smaller initial relative allocation, manual resizing, and supported API limits.
 
 ## Creating and processing notes
 
@@ -38,6 +41,12 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [028: Inline YAML tags](adr-028-inline-yaml-tags.md) — single-line tag lists for generated metadata and vault authoring.
 - [015: Note templates](adr-015-note-templates.md) — bundled examples and audit exclusion.
 - [016: Fleeting note command](adr-016-fleeting-note-command.md) — creating captures from the vault template.
+- [047: Capture headlines](adr-047-capture-headlines.md) — default-on headline prompt, short filename slug, and preserved template body.
+- [048: Capture context actions](adr-048-capture-context-actions.md) — text-only item actions for metadata, promotion, and confirmed discard.
+- [049: Permanent-note context actions](adr-049-permanent-note-context-actions.md) — metadata editing and confirmed deletion with broken-link warning.
+- [050: Drag promotion and confirmation](adr-050-drag-promotion-confirmation.md) — sequential source-vault promotion and default-on confirmation.
+- [051: Vault context actions](adr-051-vault-context-actions.md) — explicit-vault note creation and reference validation from vault rows.
+- [052: Notes tag filter](adr-052-notes-tag-filter.md) — native multi-select filtering, matching counts, and per-vault session state.
 
 ## Links and references
 
@@ -48,6 +57,8 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 - [011: Manual reference audit](adr-011-manual-audit.md) — checking notes and links.
 - [012: Rename protection](adr-012-rename-protection.md) — warnings and rename limitations.
 - [039: Expanded reference groups](adr-039-expanded-reference-groups.md) — default expansion of Inbound and Outbound.
+- [043: Underscore file exclusion](adr-043-underscore-file-exclusion.md) — hide supporting files from note views and indexes; reject wiki-link targets.
+- [046: Markdown preview wiki links](adr-046-markdown-preview-links.md) — render existing targets as preview links without changing source.
 
 ## Performance and indexing
 
@@ -58,6 +69,26 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 
 - [017: Build and publication](adr-017-build-and-publication.md) — quality matrix, VSIX, release, and Marketplace OIDC.
 - [034: Quality and publication alignment](adr-034-quality-and-publication-alignment.md) — lint, formatting, strict audit, and independent release jobs.
+
+## UI consistency and feedback
+
+- [069: Note action parity](adr-069-note-action-parity.md) — capture-only deletion, both vault creation actions, native menu separators, and serialized cross-view drag transport.
+- [062: Deleted open notes](adr-062-deleted-open-notes.md) — exclude deleted cached documents from indexes without discarding editor buffers.
+- [063: Capture template recovery](adr-063-capture-template-recovery.md) — explicit one-time bundled fallback without installing files.
+- [064: Vault scope feedback](adr-064-vault-scope-feedback.md) — selected-vault descriptions and hidden-note creation feedback.
+- [065: Configuration recovery](adr-065-configuration-recovery.md) — typed repair actions, failure welcome, and preference isolation.
+- [066: Portable inline creation](adr-066-portable-inline-vault-creation.md) — early folder collision checks and creation-only reserved-name rejection.
+- [067: Reference occurrence navigation](adr-067-reference-occurrence-navigation.md) — source line excerpts and actionable missing links.
+- [068: Tag feedback locations](adr-068-tag-feedback-locations.md) — precise source ranges and empty picker guidance.
+
+- [054: Restricted workspace onboarding](adr-054-restricted-workspace-onboarding.md) — limited Restricted Mode support, command prerequisites, and native welcome content.
+- [055: Tree recovery states](adr-055-tree-recovery-states.md) — reliable refresh, distinct empty/error feedback, and explicit reference scope.
+- [056: Metadata editor state](adr-056-metadata-editor-state.md) — preserve dirty documents and identify prompt targets.
+- [057: Validation feedback](adr-057-validation-feedback.md) — preserve failed-run results and identify validation scope with native Problems navigation.
+- [058: Capture batch feedback](adr-058-capture-batch-feedback.md) — selection parity, native progress, and explicit partial promotion outcomes.
+- [059: Tag problem feedback](adr-059-tag-problem-feedback.md) — bounded notifications and independent file-level Problems for invalid metadata.
+- [060: Consistent action surfaces](adr-060-consistent-action-surfaces.md) — canonical labels, Settings overflow, and complete Capture defaults.
+- [061: Agent offer session Skip](adr-061-agent-offer-session-skip.md) — per-vault session suppression of explicitly skipped optional instructions.
 
 ## Maintenance rules
 

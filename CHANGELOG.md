@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+- Route wiki-link preview clicks through native Markdown navigation using source-relative links.
+- Fix cross-view drag promotion with serialized drag tokens, native duplicate MIME entries, and cancellation-token snapshots.
+- Add **New fleeting note** alongside **New permanent note** on vault rows, using the clicked vault without changing selection.
+- Rename capture **Discard…** to **Delete…** and remove permanent-note deletion from Stemlink, including its command. Put promotion before metadata editing and capture deletion last; separate destructive actions and vault validation into native menu groups.
+- Remove deleted open notes from navigation and reference indexes without discarding editor buffers; index them again when recreated on disk.
+- Offer a one-time bundled template when an existing vault has no fleeting template.
+- Identify selected vaults in view descriptions and capture prompts; explain notes hidden by active tag filters.
+- Offer direct configuration repair, distinguish discovery failures from first-run emptiness, and avoid rediscovery for unrelated preferences.
+- Validate new-vault folder collisions inline and reject reserved Windows device names on every platform; existing vault readers remain compatible.
+- Identify inbound reference occurrences by source line and excerpt; open missing outbound links at their source.
+- Locate tag Problems at invalid metadata and explain YAML tags in empty tag pickers.
+
+- Support read-only vault browsing, tag filtering, and validation in Restricted Mode; keep writes and preview trust-gated. Add native Vaults onboarding and disable creation actions when prerequisites are missing.
+- Make Refresh rediscover vaults and retry failed counts. Explain empty, filtered, failed, and out-of-scope reference views without changing vault selection.
+- Preserve unsaved document state during metadata edits and identify the target file or vault in note prompts.
+- Preserve previous Problems when validation fails; identify the checked vault and permanent-note scope and offer Show Problems.
+- Promote native multi-selections consistently from context menus or drag/drop, with batch progress, partial-completion feedback, and one final editor opening. Keep metadata and discard actions single-item.
+- Replace multiline tag-error notifications with short summaries and separate file-level Problems that update without clearing manual validation results.
+- Standardize action names and ellipsis while retaining command IDs. Move Settings into the Vaults view menu and document all Capture defaults. Existing note files need no migration.
+- Remember explicit Skip for optional agent instructions per vault during the current extension session, without adding a setting or persistent state.
+
+- Request a smaller initial Vaults allocation in fresh layouts, retaining native manual resizing, overflow scrolling, and existing saved sizes.
+- Filter Notes by tags through a native multi-select picker with note counts, search-preserved selections, per-vault session state, and a conditional clear action. Show matching counts and active tags; matching ignores case and surrounding whitespace without changing metadata.
+- Add vault-row context actions **New permanent note** and **Validate vault**, targeting the right-clicked vault without changing selection. Note creation requires Workspace Trust; validation reuses the reference audit and replaces previous Stemlink Problems results.
+- Promote multiple captures by dragging from Fleeting to Notes. Each capture stays in its source vault; cancellation or failure stops the remaining batch. Add `stemlink.confirmPromotion`, enabled by default, to confirm every context-menu or drag promotion separately from metadata prompts.
+- Add a permanent-note context action for editing metadata.
+- Replace the inline/Command Palette promotion action with text-only inbox item context actions: Edit Metadata, Promote to Note, and confirmed Discard. Promotion reuses non-empty YAML title and tags; `stemlink.promptForPromotionMetadata` defaults to `false`. Existing captures require no migration.
+- Ask for a headline when adding a fleeting note, preserving the full headline in the body and using a shortened filename slug. The new Capture setting is enabled by default; disable it to retain template-only captures.
+- Render existing wiki-link targets as clickable links in VS Code's Markdown preview without changing note source; require Workspace Trust and preserve code, escaped references, and existing Markdown links.
+- Group count visibility under **Display** and router indexes and agent-instruction prompts under **AI Context** in Settings.
+- Show body-derived titles in inbox router tables, truncated after 120 characters with `...`, instead of missing-description placeholders.
+- Hide underscore-prefixed files from capture and permanent-note views and counts; exclude them from reference targets, completion, and backlinks. Check References continues to flag wiki links to these files as malformed.
+- Keep deleted notes out of note and reference indexes when delayed editor or filesystem events arrive.
+
 ## 0.1.1 - 2026-11-16
 
 - Republish 0.1.0 without functional changes.

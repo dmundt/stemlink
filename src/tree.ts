@@ -1,9 +1,20 @@
 import * as vscode from "vscode";
-import { isVaultInstructionFile, linksIn } from "./core";
-import { Vault, directChild, reportError } from "./vault";
+import { isExcludedNoteFile, linksIn, normalizeTags, noteTags } from "./core";
+import { Vault, VaultNote, directChild, reportError, textPosition } from "./vault";
 
 export type VaultSection = "Vaults" | "Fleeting" | "Notes" | "References";
 type Section = VaultSection | "Inbound" | "Outbound";
+interface TagSummary {
+  notes: { note: VaultNote; tags: readonly string[] }[];
+  counts: Map<string, number>;
+}
+interface TagState {
+  selected: readonly string[];
+  path: string;
+  summary?: TagSummary;
+  problems?: ReadonlySet<string>;
+  diagnosticUris?: readonly vscode.Uri[];
+}
 export class Item extends vscode.TreeItem {
   constructor(
     label: string,
@@ -37,12 +48,14 @@ export class Item extends vscode.TreeItem {
     if (kind === "Inbound") this.tooltip = "References to the active note.";
     if (kind === "Outbound") this.tooltip = "References from the active note.";
     if (kind === "capture") this.contextValue = "stemlink.capture";
+    if (kind === "note") this.contextValue = "stemlink.note";
     if (kind === "vault" && vault) {
+      this.contextValue = "stemlink.vault";
       this.iconPath = new vscode.ThemeIcon("archive");
       this.id = `stemlink.vault:${vault.paths.root.toString()}`;
       this.command = {
         command: "stemlink.selectVault",
-        title: "Select Vault",
+        title: "Select vault",
         arguments: [vault.paths.root],
       };
     } else if (uri) {
@@ -64,13 +77,18 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
   >();
   private readonly pendingNames = new Set<Vault>();
   private readonly failedNames = new Set<Vault>();
+  private readonly failures = new Map<Vault, Partial<Record<VaultSection, string>>>();
   private readonly namePaths = new Map<Vault, string>();
+  private readonly tagStates = new Map<Vault, TagState>();
+  private readonly parsedTags = new WeakMap<VaultNote, ReturnType<typeof noteTags>>();
+  private readonly pendingTagCounts = new Set<Vault>();
   private disposed = false;
   private refreshTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
     private readonly activeVault: () => Vault | undefined,
     private readonly vaults: () => readonly Vault[],
+    private readonly tagDiagnostics?: vscode.DiagnosticCollection,
   ) {
     const watcher = vscode.workspace.createFileSystemWatcher("**/*.md");
     this.subscriptions = [
@@ -95,7 +113,11 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
         this.vaultItems.delete(vault);
         this.captureCounts.delete(vault);
         this.failedNames.delete(vault);
+        this.failures.delete(vault);
         this.namePaths.delete(vault);
+        const state = this.tagStates.get(vault);
+        if (state) this.clearTagDiagnostics(state);
+        this.tagStates.delete(vault);
       }
     }
 
@@ -103,7 +125,15 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
       if (!this.vaultSubscriptions.has(vault))
         this.vaultSubscriptions.set(
           vault,
-          vault.changed.event(() => this.refresh()),
+          vault.changed.event(() => {
+            this.failures.delete(vault);
+            const state = this.tagStates.get(vault);
+            if (state) {
+              state.summary = undefined;
+              if (state.path !== vault.paths.notes.toString()) this.clearTagDiagnostics(state);
+            }
+            this.refresh();
+          }),
         );
     }
     this.refresh();
@@ -145,6 +175,25 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
   }
 
   private countNotes(vault: Vault): number | string {
+    if (this.tagFilter(vault).length) {
+      if (vault.indexState === "ready") return this.filteredNotes(vault).length;
+      if (vault.indexState === "failed") return "error";
+      if (!this.pendingTagCounts.has(vault)) {
+        this.pendingTagCounts.add(vault);
+        void this.tagChoices(vault).then(
+          () => {
+            this.pendingTagCounts.delete(vault);
+            this.refresh();
+          },
+          (error: unknown) => {
+            this.pendingTagCounts.delete(vault);
+            reportError(error);
+            this.refresh();
+          },
+        );
+      }
+      return "...";
+    }
     const path = vault.paths.notes.toString();
     if (this.namePaths.get(vault) !== path) {
       this.namePaths.set(vault, path);
@@ -174,10 +223,172 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
     return this.failedNames.has(vault) ? "error" : "...";
   }
 
+  tagFilter(vault: Vault): readonly string[] {
+    return this.tagStates.get(vault)?.selected ?? [];
+  }
+
+  vaultLabel(vault: Vault): string {
+    const name = vault.paths.root.path.split("/").pop() || vault.folder.name;
+    const duplicates = this.vaults().filter(
+      (candidate) => (candidate.paths.root.path.split("/").pop() || candidate.folder.name) === name,
+    );
+    if (duplicates.length < 2) return name;
+    const workspace =
+      duplicates.some(
+        (candidate) => candidate !== vault && candidate.folder.name === vault.folder.name,
+      ) || vault.folder.name === name
+        ? vault.folder.uri.fsPath
+        : vault.folder.name;
+    return `${name} (${workspace})`;
+  }
+
+  isVisibleNote(vault: Vault, uri: vscode.Uri): boolean {
+    return (
+      !this.tagFilter(vault).length ||
+      this.filteredNotes(vault).some((note) => note.uri.toString() === uri.toString())
+    );
+  }
+
+  setTagFilter(vault: Vault, tags: readonly string[]): void {
+    const state = this.tagState(vault);
+    state.selected = normalizeTags(tags);
+    this.refresh();
+  }
+
+  private tagState(vault: Vault): TagState {
+    let state = this.tagStates.get(vault);
+    if (!state) {
+      state = { selected: [], path: vault.paths.notes.toString() };
+      this.tagStates.set(vault, state);
+    } else if (state.path !== vault.paths.notes.toString()) {
+      this.clearTagDiagnostics(state);
+      state.path = vault.paths.notes.toString();
+      state.summary = undefined;
+      state.problems = undefined;
+    }
+    return state;
+  }
+
+  private clearTagDiagnostics(state: TagState): void {
+    for (const uri of state.diagnosticUris ?? []) this.tagDiagnostics?.delete(uri);
+    state.diagnosticUris = [];
+  }
+
+  private tagSummary(vault: Vault): TagSummary {
+    const state = this.tagState(vault);
+    if (state.summary) return state.summary;
+    const notes: TagSummary["notes"] = [];
+    const counts = new Map<string, number>();
+    const problems = new Set<string>();
+    const diagnostics: [vscode.Uri, vscode.Diagnostic[]][] = [];
+    for (const note of vault.all) {
+      let metadata = this.parsedTags.get(note);
+      if (!metadata) {
+        metadata = noteTags(note.text);
+        this.parsedTags.set(note, metadata);
+      }
+      notes.push({ note, tags: metadata.tags });
+      for (const tag of metadata.tags) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+      if (metadata.problem) {
+        problems.add(note.uri.toString());
+        const diagnostic = new vscode.Diagnostic(
+          new vscode.Range(
+            textPosition(note.text, metadata.start ?? 0),
+            textPosition(note.text, metadata.end ?? metadata.start ?? 0),
+          ),
+          metadata.problem,
+          vscode.DiagnosticSeverity.Warning,
+        );
+        diagnostic.source = "Stemlink tags";
+        diagnostics.push([note.uri, [diagnostic]]);
+      }
+    }
+    for (const uri of state.diagnosticUris ?? []) {
+      if (!problems.has(uri.toString())) this.tagDiagnostics?.delete(uri);
+    }
+    this.tagDiagnostics?.set(diagnostics);
+    state.diagnosticUris = diagnostics.map(([uri]) => uri);
+    if ([...problems].some((uri) => !state.problems?.has(uri))) {
+      void vscode.window
+        .showWarningMessage(
+          `Stemlink: ${problems.size} ${problems.size === 1 ? "note has" : "notes have"} invalid tag metadata in ${vault.paths.root.fsPath}.`,
+          "Show Problems",
+        )
+        .then((answer) =>
+          answer === "Show Problems"
+            ? vscode.commands.executeCommand("workbench.actions.view.problems")
+            : undefined,
+        )
+        .then(undefined, reportError);
+    }
+    state.problems = problems;
+    state.summary = { notes, counts };
+    return state.summary;
+  }
+
+  async tagChoices(vault: Vault): Promise<{ tag: string; count: number }[]> {
+    await vault.ensure();
+    if (!this.vaults().includes(vault))
+      throw new Error("The selected vault is no longer available.");
+    const counts = this.tagSummary(vault).counts;
+    return normalizeTags([...counts.keys(), ...this.tagFilter(vault)]).map((tag) => ({
+      tag,
+      count: counts.get(tag) ?? 0,
+    }));
+  }
+
+  private filteredNotes(vault: Vault): VaultNote[] {
+    const selected = new Set(this.tagFilter(vault));
+    return this.tagSummary(vault)
+      .notes.filter(({ tags }) => tags.some((tag) => selected.has(tag)))
+      .map(({ note }) => note);
+  }
+
   refresh(): void {
     if (this.disposed) return;
     if (this.refreshTimer) clearTimeout(this.refreshTimer);
-    this.refreshTimer = setTimeout(() => this.emitter.fire(undefined), 100);
+    this.refreshTimer = setTimeout(() => {
+      for (const [vault, state] of this.tagStates) {
+        if (!state.summary && vault.indexState === "ready") this.tagSummary(vault);
+      }
+      this.emitter.fire(undefined);
+    }, 100);
+  }
+  reset(vault: Vault): void {
+    this.captureCounts.delete(vault);
+    this.failedNames.delete(vault);
+    this.failures.delete(vault);
+    this.refresh();
+  }
+
+  message(section: VaultSection): string | undefined {
+    const vault = this.activeVault();
+    if (section === "Vaults") return undefined;
+    if (!vault) return "Open or create a vault in Vaults.";
+    if (this.failures.get(vault)?.[section])
+      return "Unable to load this view. Use Refresh in Vaults to retry.";
+    if (section === "Fleeting") {
+      const state = this.captureCounts.get(vault);
+      if (state?.failed) return "Unable to load captures. Use Refresh in Vaults to retry.";
+      if (state?.count === 0) return "No captures. Use New fleeting note to capture a thought.";
+    }
+    if (section === "Notes") {
+      if (this.failedNames.has(vault) || vault.indexState === "failed")
+        return "Unable to load notes. Use Refresh in Vaults to retry.";
+      if (this.tagFilter(vault).length) {
+        if (vault.indexState === "ready" && !this.filteredNotes(vault).length)
+          return "No notes match selected tags. Use Clear tag filter in the view menu.";
+      } else if (vault.namesReady && !vault.allTargets.length) {
+        return "No permanent notes. Use New permanent note to create one.";
+      }
+    }
+    if (section === "References" && !this.activeNote(vault)) {
+      const owner = this.vaults().find((candidate) => this.activeNote(candidate));
+      if (owner)
+        return `Active note belongs to ${owner.paths.root.fsPath}. Select that vault in Vaults to see references.`;
+      return `Open a permanent note in ${vault.paths.root.fsPath} to see references.`;
+    }
+    return undefined;
   }
   getTreeItem(element: Item): vscode.TreeItem {
     return element;
@@ -189,7 +400,7 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
         .filter(
           ([name, type]) =>
             name.endsWith(".md") &&
-            !isVaultInstructionFile(name) &&
+            !isExcludedNoteFile(name) &&
             Boolean(type & vscode.FileType.File),
         )
         .sort(([a], [b]) => a.localeCompare(b));
@@ -205,7 +416,7 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
     return document &&
       directChild(document.uri, vault.paths.notes) &&
       document.uri.path.endsWith(".md") &&
-      !isVaultInstructionFile(name)
+      !isExcludedNoteFile(name)
       ? document
       : undefined;
   }
@@ -265,7 +476,10 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
             ),
             "Notes",
           ),
-          new Item(label("References", references), "References"),
+          new Item(
+            vault && this.activeNote(vault) ? label("References", references) : "References",
+            "References",
+          ),
         ];
       }
       if (element.kind === "Vaults")
@@ -289,13 +503,25 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
         );
       }
       if (element.kind === "Notes") {
+        const filter = this.tagFilter(vault);
+        if (filter.length) {
+          await vault.ensure();
+          if (this.activeVault() !== vault || this.tagFilter(vault) !== filter)
+            return this.getChildren(element);
+          return this.filteredNotes(vault)
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((note) => new Item(note.name, "note", note.uri));
+        }
         await vault.ensureNames();
+        if (this.activeVault() !== vault || this.tagFilter(vault).length)
+          return this.getChildren(element);
         return vault.allTargets
           .sort((a, b) => a.name.localeCompare(b.name))
           .map((note) => new Item(note.name, "note", note.uri));
       }
       const document = this.activeNote(vault);
       if (element.kind === "References") {
+        if (!document) return [];
         const counts = this.referenceCounts(vault, document);
         return [
           new Item(
@@ -312,7 +538,12 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
           .filter((link) => link.valid)
           .map((link) => {
             const target = vault.target(link.stem);
-            const item = new Item(link.stem, "reference", target?.uri);
+            const item = new Item(
+              link.stem,
+              "reference",
+              target?.uri ?? document.uri,
+              target ? undefined : link.start,
+            );
             if (!target) {
               item.description = "Missing";
               item.iconPath = new vscode.ThemeIcon("warning");
@@ -324,13 +555,42 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
       if (element.kind === "Inbound") {
         await vault.ensure();
         const name = document.uri.path.slice(document.uri.path.lastIndexOf("/") + 1, -3);
-        return vault
-          .references(name)
-          .map((ref) => new Item(ref.note.name, "reference", ref.note.uri, ref.link.start));
+        return vault.references(name).map((ref) => {
+          const item = new Item(ref.note.name, "reference", ref.note.uri, ref.link.start);
+          const before = ref.note.text.slice(0, ref.link.start);
+          const line = before.split("\n").length;
+          const end = ref.note.text.indexOf("\n", ref.link.start);
+          const excerpt = ref.note.text
+            .slice(before.lastIndexOf("\n") + 1, end === -1 ? undefined : end)
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, 80);
+          item.description = `${line}: ${excerpt}`;
+          item.tooltip = `${ref.note.uri.fsPath}:${line}\n${excerpt}`;
+          return item;
+        });
       }
       return [];
     } catch (error) {
-      reportError(error);
+      const vault = this.activeVault();
+      const section =
+        element?.kind === "Inbound" || element?.kind === "Outbound" ? "References" : element?.kind;
+      if (
+        vault &&
+        (section === "Vaults" ||
+          section === "Fleeting" ||
+          section === "Notes" ||
+          section === "References")
+      ) {
+        const failures = this.failures.get(vault) ?? {};
+        const message = error instanceof Error ? error.message : String(error);
+        if (failures[section] !== message) {
+          failures[section] = message;
+          this.failures.set(vault, failures);
+          reportError(error);
+          this.refresh();
+        }
+      } else reportError(error);
       return [];
     }
   }
@@ -340,6 +600,9 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
     if (this.refreshTimer) clearTimeout(this.refreshTimer);
     this.vaultSubscriptions.forEach((item) => item.dispose());
     this.vaultItems.clear();
+    for (const state of this.tagStates.values()) this.clearTagDiagnostics(state);
+    this.tagStates.clear();
+    this.tagDiagnostics?.dispose();
     this.subscriptions.forEach((item) => item.dispose());
     this.emitter.dispose();
   }

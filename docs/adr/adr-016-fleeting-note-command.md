@@ -1,5 +1,5 @@
 ---
-status: Superseded in part by ADR 026
+status: Superseded in part by ADR 026, ADR 047, and ADR 063
 ---
 
 # ADR 016: Fleeting note command
@@ -15,3 +15,7 @@ Provide Add Fleeting Note in the command palette and on the Inbox tree item. Cop
 ## Consequences
 
 The command requires the vault's fleeting template and reports an error if it is missing. Editing the saved template changes future captures without changing existing ones. The template location and legacy fallback are defined by [ADR 026](adr-026-vault-template-folder.md).
+
+[ADR 063](adr-063-capture-template-recovery.md) replaces the missing-template failure with an explicit one-time bundled-template offer.
+
+[ADR 047](adr-047-capture-headlines.md) adds a default-on headline prompt and headline-based filenames. Disable that setting to retain the template-only capture behavior.

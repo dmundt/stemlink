@@ -1,12 +1,22 @@
 import { readFile } from "node:fs/promises";
 import * as vscode from "vscode";
-import { isVaultInstructionFile, Link, NoteData, linksIn } from "./core";
+import { isExcludedNoteFile, Link, NoteData, linksIn } from "./core";
 
 export interface VaultPaths {
   root: vscode.Uri;
   inbox: vscode.Uri;
   notes: vscode.Uri;
   templates: vscode.Uri;
+}
+
+export class VaultConfigurationError extends Error {
+  constructor(
+    message: string,
+    readonly repair: vscode.Uri | "settings",
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+  }
 }
 
 export function validFolderName(value: string): boolean {
@@ -30,7 +40,10 @@ export function pathsFor(folder: vscode.WorkspaceFolder): VaultPaths {
     ![rootName, inboxName, notesName, templatesName].every(validFolderName) ||
     new Set([inboxName, notesName, templatesName].map((name) => name.toLowerCase())).size !== 3
   ) {
-    throw new Error("Stemlink folder settings must be distinct valid folder names.");
+    throw new VaultConfigurationError(
+      "Stemlink folder settings must be distinct valid folder names.",
+      "settings",
+    );
   }
   const root = vscode.Uri.joinPath(folder.uri, rootName);
   return {
@@ -48,6 +61,14 @@ export function sameUri(a: vscode.Uri, b: vscode.Uri): boolean {
 export function directChild(uri: vscode.Uri, directory: vscode.Uri): boolean {
   const parent = uri.with({ path: uri.path.slice(0, uri.path.lastIndexOf("/")) });
   return sameUri(parent, directory);
+}
+
+export function textPosition(text: string, offset: number): vscode.Position {
+  const prefix = text.slice(0, Math.max(0, Math.min(text.length, offset)));
+  return new vscode.Position(
+    prefix.split("\n").length - 1,
+    prefix.slice(prefix.lastIndexOf("\n") + 1).replace(/\r$/, "").length,
+  );
 }
 
 export interface VaultNote extends NoteData {
@@ -76,6 +97,7 @@ export class Vault implements vscode.Disposable {
   private revision = 0;
   private namesRevision = 0;
   private readonly fileRevisions = new Map<string, number>();
+  private readonly missingFiles = new Set<string>();
   private initialized = false;
   private namesInitialized = false;
   private indexFailed = false;
@@ -91,9 +113,12 @@ export class Vault implements vscode.Disposable {
       watcher.onDidCreate((uri) => void this.onFile(uri, false)),
       watcher.onDidChange((uri) => void this.onFile(uri, false)),
       watcher.onDidDelete((uri) => void this.onFile(uri, true)),
+      vscode.workspace.onDidDeleteFiles((event) => {
+        event.files.forEach((uri) => void this.onFile(uri, true));
+      }),
       vscode.workspace.onDidChangeTextDocument((event) => {
         if (event.document.uri.scheme === this.folder.uri.scheme) {
-          void this.onDocument(event.document);
+          this.onDocument(event.document);
         }
       }),
       vscode.workspace.onDidCloseTextDocument((document) => void this.onFile(document.uri, false)),
@@ -121,6 +146,7 @@ export class Vault implements vscode.Disposable {
     this.notes.clear();
     this.targets.clear();
     this.incoming.clear();
+    this.missingFiles.clear();
     this.changed.fire();
   }
   get all(): VaultNote[] {
@@ -176,7 +202,7 @@ export class Vault implements vscode.Disposable {
     if (revision !== this.namesRevision) return this.loadNames();
     const targets = new Map<string, NoteTarget>();
     for (const [name, type] of entries) {
-      if (name.endsWith(".md") && !isVaultInstructionFile(name) && type & vscode.FileType.File) {
+      if (name.endsWith(".md") && !isExcludedNoteFile(name) && type & vscode.FileType.File) {
         const stem = name.slice(0, -3);
         targets.set(stem, { stem, name, uri: vscode.Uri.joinPath(notes, name) });
       }
@@ -244,6 +270,7 @@ export class Vault implements vscode.Disposable {
       return this.load();
     }
     this.notes = next;
+    for (const note of next.values()) this.missingFiles.delete(note.uri.toString());
     this.rebuildIncoming();
     this.initialized = true;
     this.changed.fire();
@@ -256,7 +283,12 @@ export class Vault implements vscode.Disposable {
     const document = openDocuments
       ? openDocuments.get(uri.toString())
       : vscode.workspace.textDocuments.find((doc) => sameUri(doc.uri, uri));
-    if (document) return document.getText();
+    if (document) {
+      const stat = await vscode.workspace.fs.stat(uri);
+      if (!(stat.type & vscode.FileType.File))
+        throw new Error(`Note path is not a file: ${uri.path}`);
+      return document.getText();
+    }
     if (uri.scheme !== "file")
       return Buffer.from(await vscode.workspace.fs.readFile(uri)).toString("utf8");
     try {
@@ -301,14 +333,57 @@ export class Vault implements vscode.Disposable {
     }
   }
 
-  private async onDocument(document: vscode.TextDocument): Promise<void> {
+  private async onFile(uri: vscode.Uri, deleted: boolean): Promise<void> {
     try {
       if (this.disposed) return;
-      const uri = document.uri;
       if (
         !directChild(uri, this.paths.notes) ||
         !uri.path.endsWith(".md") ||
-        isVaultInstructionFile(uri.path.slice(uri.path.lastIndexOf("/") + 1))
+        isExcludedNoteFile(uri.path.slice(uri.path.lastIndexOf("/") + 1))
+      )
+        return;
+      this.revision++;
+      this.namesRevision++;
+      const currentRevision = this.revision;
+      this.fileRevisions.set(uri.toString(), currentRevision);
+      const name = uri.path.slice(uri.path.lastIndexOf("/") + 1);
+      const stem = name.slice(0, -3);
+      let text: string | undefined;
+      if (!deleted) {
+        try {
+          text = await this.read(uri);
+        } catch (error) {
+          if (!(error instanceof vscode.FileSystemError && error.code === "FileNotFound"))
+            throw error;
+        }
+      }
+      if (this.disposed || this.fileRevisions.get(uri.toString()) !== currentRevision) return;
+      if (text === undefined) {
+        this.missingFiles.add(uri.toString());
+        this.targets.delete(stem);
+        const old = this.notes.get(stem);
+        if (old) this.removeReferences(old);
+        this.notes.delete(stem);
+      } else {
+        this.missingFiles.delete(uri.toString());
+        this.targets.set(stem, { uri, name, stem });
+        this.replace({ uri, name, stem, text, links: linksIn(text) });
+      }
+      this.changed.fire();
+    } catch (error) {
+      reportError(error);
+    }
+  }
+
+  private onDocument(document: vscode.TextDocument): void {
+    try {
+      const uri = document.uri;
+      if (
+        this.disposed ||
+        this.missingFiles.has(uri.toString()) ||
+        !directChild(uri, this.paths.notes) ||
+        !uri.path.endsWith(".md") ||
+        isExcludedNoteFile(uri.path.slice(uri.path.lastIndexOf("/") + 1))
       )
         return;
       this.revision++;
@@ -324,39 +399,6 @@ export class Vault implements vscode.Disposable {
     }
   }
 
-  private async onFile(uri: vscode.Uri, deleted: boolean): Promise<void> {
-    try {
-      if (this.disposed) return;
-      if (
-        !directChild(uri, this.paths.notes) ||
-        !uri.path.endsWith(".md") ||
-        isVaultInstructionFile(uri.path.slice(uri.path.lastIndexOf("/") + 1))
-      )
-        return;
-      this.revision++;
-      this.namesRevision++;
-      const currentRevision = this.revision;
-      this.fileRevisions.set(uri.toString(), currentRevision);
-      const name = uri.path.slice(uri.path.lastIndexOf("/") + 1);
-      const stem = name.slice(0, -3);
-      if (deleted) {
-        this.targets.delete(stem);
-        const old = this.notes.get(stem);
-        if (old) this.removeReferences(old);
-        this.notes.delete(stem);
-      } else {
-        this.targets.set(stem, { uri, name, stem });
-        const text = await this.read(uri);
-        if (this.disposed || this.fileRevisions.get(uri.toString()) !== currentRevision) return;
-        this.replace({ uri, name, stem, text, links: linksIn(text) });
-      }
-      this.changed.fire();
-    } catch (error) {
-      if (error instanceof vscode.FileSystemError && error.code === "FileNotFound") return;
-      reportError(error);
-    }
-  }
-
   dispose(): void {
     this.disposed = true;
     this.disposables.forEach((item) => item.dispose());
@@ -366,5 +408,18 @@ export class Vault implements vscode.Disposable {
 
 export function reportError(error: unknown): void {
   const message = error instanceof Error ? error.message : String(error);
+  if (error instanceof VaultConfigurationError) {
+    const action = error.repair === "settings" ? "Settings" : "Open configuration";
+    void vscode.window
+      .showErrorMessage(`Stemlink: ${message}`, action)
+      .then(async (choice) => {
+        if (choice !== action) return;
+        if (error.repair === "settings")
+          await vscode.commands.executeCommand("stemlink.openSettings");
+        else await vscode.window.showTextDocument(error.repair);
+      })
+      .then(undefined, reportError);
+    return;
+  }
   void vscode.window.showErrorMessage(`Stemlink: ${message}`);
 }

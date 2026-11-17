@@ -1,5 +1,6 @@
 {
-  "stemlink.root": "zk",
+  "stemlink.root": "notes",
   "stemlink.inbox": "inbox",
-  "stemlink.notes": "notes"
+  "stemlink.notes": "permanent",
+  "stemlink.templates": "templates"
 }
