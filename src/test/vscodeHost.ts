@@ -4282,14 +4282,14 @@ async function testNativeVaultSelection(
     view.reveal = originalReveal;
     staleListener.dispose();
   }
-  const rows = await provider.getChildren();
-  const second = rows?.find((item) => item.vault?.paths.root.toString() === secondRoot.toString());
-  assert.ok(second, 'second vault row missing');
   await vscode.commands.executeCommand('stemlink.selectVault', firstRoot);
   await waitFor(
     () => view.selection[0]?.vault?.paths.root.toString() === firstRoot.toString(),
     'first vault was not selected before testing native selection',
   );
+  const rows = await provider.getChildren();
+  const second = rows?.find((item) => item.vault?.paths.root.toString() === secondRoot.toString());
+  assert.ok(second, 'second vault row missing');
   let selectionChanged = false;
   const selectionListener = view.onDidChangeSelection((event) => {
     if (event.selection[0]?.vault?.paths.root.toString() === secondRoot.toString())
