@@ -618,6 +618,45 @@ async function testMockVaultFiles(extensionUri: vscode.Uri): Promise<void> {
     assert.equal(files.get('/vault/capture/INDEX.md'), generated.inbox);
     deniedWriteFile = undefined;
 
+    for (const denied of [false, true]) {
+      const vault = new Vault({ uri: root, name: 'Synthetic vault', index: 0 });
+      vault.selectPaths(paths);
+      const tree = new VaultTree(
+        () => vault,
+        () => [vault],
+      );
+      const errorApi = vscode.window as { showErrorMessage: typeof vscode.window.showErrorMessage };
+      const originalError = errorApi.showErrorMessage;
+      const errors: string[] = [];
+      errorApi.showErrorMessage = new Proxy(originalError, {
+        apply: (_target, _receiver, args: unknown[]) => {
+          errors.push(String(args[0]));
+          return Promise.resolve(undefined);
+        },
+      });
+      try {
+        tree.setTagFilter(vault, ['example']);
+        if (denied) deniedReadDirectory = notes.path;
+        await tree.getChildren();
+        await waitFor(
+          () =>
+            denied
+              ? errors.some((error) => error.includes('Injected directory failure'))
+              : vault.indexState === 'ready',
+          'filtered note count did not finish',
+        );
+        assert.match(
+          tree.message('Notes') ?? '',
+          denied ? /Unable to load notes/ : /No notes match selected tags/,
+        );
+      } finally {
+        deniedReadDirectory = undefined;
+        errorApi.showErrorMessage = originalError;
+        tree.dispose();
+        vault.dispose();
+      }
+    }
+
     await instructions.offer(paths);
     assert.equal(prompts, 1, 'missing instructions did not prompt');
     await instructions.offer(paths);
@@ -4246,6 +4285,11 @@ async function testNativeVaultSelection(
   const rows = await provider.getChildren();
   const second = rows?.find((item) => item.vault?.paths.root.toString() === secondRoot.toString());
   assert.ok(second, 'second vault row missing');
+  await vscode.commands.executeCommand('stemlink.selectVault', firstRoot);
+  await waitFor(
+    () => view.selection[0]?.vault?.paths.root.toString() === firstRoot.toString(),
+    'first vault was not selected before testing native selection',
+  );
   let selectionChanged = false;
   const selectionListener = view.onDidChangeSelection((event) => {
     if (event.selection[0]?.vault?.paths.root.toString() === secondRoot.toString())
@@ -4327,6 +4371,10 @@ async function testNativeVaultSelection(
     'showing Vaults did not restore its selected row',
   );
   await vscode.commands.executeCommand('stemlink.selectVault', firstRoot);
+  await waitFor(
+    () => view.selection[0]?.vault?.paths.root.toString() === firstRoot.toString(),
+    'first vault selection did not settle after hiding the view',
+  );
 }
 
 async function testRestrictedWorkspace(): Promise<void> {
