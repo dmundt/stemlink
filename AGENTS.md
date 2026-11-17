@@ -43,6 +43,7 @@ Coverage and host tests require Node.js 22 or newer. Host tests use `STEMLINK_CO
 ## GitHub Flow and releases
 
 - Use simple GitHub Flow for a single developer or small team: protected `main`, short-lived feature branches, and pull requests into `main`. Do not add a long-lived `develop` branch or require approving reviews; required checks must pass before merging.
+- Run build and relevant tests locally for non-main branch merges. Automatic quality CI runs for pull requests targeting `main`; release publication invokes it separately.
 - Keep `main` deployable. Base each independent, short-lived feature branch on the latest published `main`; use a descriptive name. Keep unrelated changes separate and record dependencies on prerequisite branches.
 - Make changes on feature branches with behavior tests and directly related documentation. Preserve unrelated work. Never reset, discard, amend, rebase, force-push, or delete existing branches without explicit authorization.
 - Publish authorized feature branches to every applicable remote. Open pull requests into `main`; address requested reviews and merge only after required checks pass. Use merge commits.

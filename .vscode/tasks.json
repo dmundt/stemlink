@@ -5,8 +5,18 @@
       "label": "Build extension",
       "type": "npm",
       "script": "build",
-      "problemMatcher": ["$tsc"],
+      "problemMatcher": [
+        "$tsc"
+      ],
       "group": "build"
+    },
+    {
+      "label": "Package extension",
+      "type": "npm",
+      "script": "package",
+      "problemMatcher": [
+        "$tsc"
+      ]
     }
   ]
 }
