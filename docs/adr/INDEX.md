@@ -70,7 +70,8 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 
 - [017: Build and publication](adr-017-build-and-publication.md) — historical delivery policy, superseded by ADR 070.
 - [034: Quality and publication alignment](adr-034-quality-and-publication-alignment.md) — historical quality and release ordering, superseded by ADR 070.
-- [070: Repository delivery](adr-070-repository-delivery.md) — lean GitHub Flow, manual compatibility checks, coverage gates, and explicit numeric release channels.
+- [070: Repository delivery](adr-070-repository-delivery.md) — lean GitHub Flow, manual compatibility checks, and explicit numeric release channels; coverage floors superseded by ADR 071.
+- [071: Shared coverage gates](adr-071-shared-coverage-gates.md) — common line, branch, and function floors with runner-specific scopes.
 
 ## UI consistency and feedback
 

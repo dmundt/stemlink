@@ -1,8 +1,10 @@
 ---
-status: Accepted
+status: Accepted; superseded in part by ADR 071
 ---
 
 # ADR 070: Repository delivery
+
+The coverage floors in this decision are superseded by [ADR 071](adr-071-shared-coverage-gates.md). The remaining decisions continue to apply.
 
 ## Context
 

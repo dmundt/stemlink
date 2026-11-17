@@ -426,7 +426,7 @@
     "test:restricted": "npm run compile && node dist/tests/runIntegration.js --restricted",
     "test:multi-root": "npm run compile && node dist/tests/runMultiRoot.js",
     "test:discovery": "npm run compile && node dist/tests/runDiscovery.js",
-    "test:coverage": "npm run test:release && npm run compile && node --experimental-test-coverage --test --test-concurrency=1 --test-coverage-lines=95 --test-coverage-branches=87 --test-coverage-functions=93 --test-coverage-include=dist/extension.js --test-coverage-include=dist/src/extension.js --test-coverage-include=dist/src/core/*.js --test-coverage-include=dist/src/application/*.js --test-coverage-include=dist/src/platform/*.js --test-coverage-include=dist/src/workbench/*.js dist/tests/core.test.js dist/tests/noteIndex.test.js dist/tests/runIntegration.js dist/tests/runMultiRoot.js dist/tests/runDiscovery.js",
+    "test:coverage": "npm run test:release && npm run compile && node --experimental-test-coverage --test --test-concurrency=1 --test-coverage-lines=95 --test-coverage-branches=91 --test-coverage-functions=93 --test-coverage-include=dist/extension.js --test-coverage-include=dist/src/extension.js --test-coverage-include=dist/src/core/*.js --test-coverage-include=dist/src/application/*.js --test-coverage-include=dist/src/platform/*.js --test-coverage-include=dist/src/workbench/*.js dist/tests/core.test.js dist/tests/noteIndex.test.js dist/tests/runIntegration.js dist/tests/runMultiRoot.js dist/tests/runDiscovery.js dist/tests/runRestricted.js",
     "benchmark:integration": "npm run compile && node dist/tests/runIntegration.js --benchmark",
     "benchmark": "npm run compile && node dist/tests/benchmark.js",
     "build": "npm run compile",

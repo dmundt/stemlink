@@ -6,8 +6,11 @@ import * as path from 'node:path';
 import { downloadAndUnzipVSCode, runTests } from '@vscode/test-electron';
 import { makeNote } from '../src/core/documents';
 
-export async function runIntegration(multiRoot = false, discovery = false): Promise<void> {
-  const restricted = process.argv.includes('--restricted');
+export async function runIntegration(
+  multiRoot = false,
+  discovery = false,
+  restricted = process.argv.includes('--restricted'),
+): Promise<void> {
   const temp = await mkdtemp(path.join(os.tmpdir(), 'stemlink-test-'));
   try {
     const workspace = path.join(temp, 'workspace');

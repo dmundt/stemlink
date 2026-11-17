@@ -14,14 +14,14 @@ Run the smallest relevant check first. These commands use the scripts in [packag
 | `npm run test:integration`      | Run the main VS Code host workflow and virtual filesystem tests.                  |
 | `npm run test:discovery`        | Run discovery, selection, Open Vault, settings, and dynamic vault-file workflows. |
 | `npm run test:multi-root`       | Run multi-root creation, selection, and workspace workflows.                      |
-| `npm run test:coverage`         | Run core and all three host runners with Node coverage.                           |
+| `npm run test:coverage`         | Run core, integration, multi-root, discovery, and Restricted Mode coverage.       |
 | `npm run benchmark`             | Measure parsing and auditing of 10,000 synthetic notes.                           |
 | `npm run benchmark:integration` | Exercise a 10,000-note VS Code host fixture.                                      |
 | `npm run build`                 | Compile the extension.                                                            |
 
 Use Node.js 22.13+ within major 22, or Node.js 24+, with npm 10+. Host runners use `STEMLINK_CODE_PATH` when set, an installed VS Code when available, or a downloaded stable build. `VSCODE_TEST_VERSION` selects a downloaded host version. Runners create isolated temporary workspaces and profiles and clean them up afterward.
 
-Coverage gates enforce at least 95% lines, 87% branches, and 93% functions across emitted extension modules. `npm run test:release` separately checks numeric release versions, explicit channel selection, tag matching, and both lockfile versions.
+Coverage gates enforce at least 95% lines, 91% branches, and 93% functions across emitted extension modules. Core scenarios run in both Node and the extension host. `npm run test:release` separately checks numeric release versions, explicit channel selection, tag matching, and both lockfile versions.
 
 ## Development workflow
 
