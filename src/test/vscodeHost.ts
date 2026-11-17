@@ -82,7 +82,29 @@ async function testMarkdownPreview(source: vscode.Uri, target: vscode.Uri): Prom
     await new Promise((resolve) => setTimeout(resolve, 50));
     html = await render();
   }
-  assert.ok(html?.includes(`href="${target.toString()}"`), "preview link target is incorrect");
+  const relativeTarget = `./${encodeURIComponent(target.path.slice(target.path.lastIndexOf("/") + 1))}`;
+  assert.ok(
+    html?.includes(`href="${relativeTarget}"`),
+    `Preview link target should be ${relativeTarget}:\n${html}`,
+  );
+  assert.ok(
+    html.includes(`data-href="${relativeTarget}"`),
+    "preview click must delegate a relative link to native Markdown navigation",
+  );
+  assert.ok(!html.includes(`href="${target.toString()}"`), "raw file URI bypasses preview clicks");
+  const nestedSource = vscode.Uri.joinPath(target, "..", "..", "capture preview", "source.md");
+  const nested = await vscode.commands.executeCommand<string>("markdown.api.render", {
+    uri: nestedSource,
+    version: -1,
+    getText: () => `[[${stem}]]`,
+  });
+  const targetFolder = target.path.split("/").at(-2)!;
+  assert.ok(
+    nested?.includes(
+      `data-href="./../${encodeURIComponent(targetFolder)}/${encodeURIComponent(stem)}.md"`,
+    ),
+    "preview link from another folder must resolve relative to the preview source",
+  );
   assert.equal(
     html.match(new RegExp(`>${stem}</a>`, "g"))?.length,
     3,
@@ -754,10 +776,21 @@ async function testDragPromotion(inbox: vscode.Uri, notes: vscode.Uri): Promise<
     );
     return new Item(label, "capture", uri);
   };
-  const transfer = async (items: Item[]) => {
+  const transfer = async (items: Item[], token = cancellation.token) => {
     const data = new vscode.DataTransfer();
-    await drag.handleDrag!(items, data, cancellation.token);
-    return data;
+    await drag.handleDrag!(items, data, token);
+    // Native cross-view drops retain blank browser entries before extension-provided entries.
+    const NativeTransfer: new (
+      entries: [string, vscode.DataTransferItem][],
+    ) => vscode.DataTransfer = vscode.DataTransfer;
+    const entries: [string, vscode.DataTransferItem][] = drag.dragMimeTypes.map((mime) => [
+      mime,
+      new vscode.DataTransferItem(""),
+    ]);
+    for (const [mime, item] of data) {
+      entries.push([mime, new vscode.DataTransferItem(await item.asString())]);
+    }
+    return new NativeTransfer(entries);
   };
   const exists = async (uri: vscode.Uri) => {
     try {
@@ -815,15 +848,33 @@ async function testDragPromotion(inbox: vscode.Uri, notes: vscode.Uri): Promise<
     assert.ok(!(await exists(first.uri!)));
     assert.ok(await exists(second.uri!));
     answers.push("Promote");
+    const nativeDropToken: vscode.CancellationToken = JSON.parse(
+      JSON.stringify({ isCancellationRequested: false }),
+    );
     await drop.handleDrop(
       new Item("target", "note", targets[0]),
       await transfer([second]),
-      cancellation.token,
+      nativeDropToken,
     );
     collectTarget();
-    assert.ok(!(await exists(second.uri!)));
+    assert.ok(!(await exists(second.uri!)), "serialized cross-tree drop did not promote capture");
 
     const third = await make("third");
+    const cancelledSnapshot: vscode.CancellationToken = JSON.parse(
+      JSON.stringify({ isCancellationRequested: true }),
+    );
+    await drop.handleDrop(undefined, await transfer([third]), cancelledSnapshot);
+    assert.ok(await exists(third.uri!), "cancelled native drop promoted a capture");
+    const brokenToken: vscode.CancellationToken = {
+      isCancellationRequested: false,
+      onCancellationRequested: () => {
+        throw new Error("Cancellation subscription failed");
+      },
+    };
+    const errorsBeforeSetup = errors.length;
+    await drop.handleDrop(undefined, await transfer([third]), brokenToken);
+    assert.match(errors[errorsBeforeSetup], /Cancellation subscription failed/);
+    assert.ok(await exists(third.uri!), "failed cancellation setup promoted a capture");
     const data = await transfer([third]);
     cancellation.cancel();
     await drop.handleDrop(undefined, data, cancellation.token);
@@ -836,22 +887,56 @@ async function testDragPromotion(inbox: vscode.Uri, notes: vscode.Uri): Promise<
       await drop.handleDrop(undefined, external, active.token);
       assert.ok(await exists(third.uri!), "external payload was accepted");
       await config.update("confirmPromotion", false, vscode.ConfigurationTarget.WorkspaceFolder);
-      const noConfirm = new vscode.DataTransfer();
-      await drag.handleDrag!([third], noConfirm, active.token);
+      const stale = await transfer([third], active.token);
+      const staleId = await Array.from(stale).at(-1)![1].asString();
+      let releasePayload: (value: string) => void = () => {};
+      const delayedPayload = new Promise<string>((resolve) => {
+        releasePayload = resolve;
+      });
+      const delayed = new vscode.DataTransfer();
+      delayed.set("application/vnd.stemlink.captures", {
+        value: staleId,
+        asString: () => delayedPayload,
+        asFile: () => undefined,
+      });
+      const pendingDrop = drop.handleDrop(undefined, delayed, active.token);
+      const noConfirm = await transfer([third], active.token);
+      releasePayload(staleId);
+      await pendingDrop;
+      assert.ok(await exists(third.uri!), "superseded asynchronous drop was accepted");
+      await drop.handleDrop(undefined, stale, active.token);
+      assert.ok(await exists(third.uri!), "superseded drag payload was accepted");
+      await drop.handleDrop(undefined, external, active.token);
+      assert.ok(await exists(third.uri!), "external payload replaced active drag");
+      const empty = new vscode.DataTransfer();
+      empty.set("application/vnd.stemlink.captures", new vscode.DataTransferItem(""));
+      await drop.handleDrop(undefined, empty, active.token);
+      assert.ok(await exists(third.uri!), "blank browser payload was accepted without a drag ID");
+      await drop.handleDrop(undefined, new vscode.DataTransfer(), active.token);
+      assert.ok(await exists(third.uri!), "missing MIME payload was accepted");
+      await drop.handleDrop(
+        new Item("invalid target", "capture", third.uri),
+        noConfirm,
+        active.token,
+      );
+      assert.ok(await exists(third.uri!), "capture row accepted a drop");
       await drop.handleDrop(undefined, noConfirm, active.token);
       collectTarget();
       assert.ok(!(await exists(third.uri!)));
+      const replayErrors = errors.length;
+      const replayOpenings = openings;
+      await drop.handleDrop(undefined, noConfirm, active.token);
+      assert.equal(errors.length, replayErrors, "consumed drag was replayed");
+      assert.equal(openings, replayOpenings, "consumed drag created another note");
       const missing = new Item("missing", "capture", vscode.Uri.joinPath(inbox, "missing-drag.md"));
       const fourth = await make("fourth");
-      const failed = new vscode.DataTransfer();
-      await drag.handleDrag!([missing, fourth], failed, active.token);
+      const failed = await transfer([missing, fourth], active.token);
       await drop.handleDrop(undefined, failed, active.token);
       assert.ok(errors.length);
       assert.ok(await exists(fourth.uri!), "batch continued after failure");
       const trust = Object.getOwnPropertyDescriptor(vscode.workspace, "isTrusted");
       assert.ok(trust);
-      const trustedDrag = new vscode.DataTransfer();
-      await drag.handleDrag!([fourth], trustedDrag, active.token);
+      const trustedDrag = await transfer([fourth], active.token);
       try {
         Object.defineProperty(vscode.workspace, "isTrusted", {
           configurable: true,
@@ -867,8 +952,7 @@ async function testDragPromotion(inbox: vscode.Uri, notes: vscode.Uri): Promise<
         Object.defineProperty(vscode.workspace, "isTrusted", trust);
       }
       const another = await make("another");
-      const successful = new vscode.DataTransfer();
-      await drag.handleDrag!([fourth, another], successful, active.token);
+      const successful = await transfer([fourth, another], active.token);
       await drop.handleDrop(undefined, successful, active.token);
       collectTarget();
       assert.ok(!(await exists(fourth.uri!)));
@@ -878,6 +962,15 @@ async function testDragPromotion(inbox: vscode.Uri, notes: vscode.Uri): Promise<
       );
       assert.ok(fourthTarget);
       targets.push(vscode.Uri.joinPath(notes, fourthTarget[0]));
+      assert.equal(
+        errors
+          .slice(replayErrors)
+          .filter(
+            (message) => message !== "Stemlink: Trust the workspace before writing vault indexes.",
+          ).length,
+        2,
+        `unexpected drag transport errors: ${errors.slice(replayErrors).join("; ")}`,
+      );
     } finally {
       active.dispose();
     }
@@ -902,20 +995,16 @@ async function testPermanentNoteActions(
   const uri = vscode.Uri.joinPath(notes, "202601021234-context-note.md");
   const api = vscode.window as {
     showInputBox: typeof vscode.window.showInputBox;
-    showWarningMessage: typeof vscode.window.showWarningMessage;
     showErrorMessage: typeof vscode.window.showErrorMessage;
   };
   const original = {
     input: api.showInputBox,
-    warning: api.showWarningMessage,
     error: api.showErrorMessage,
   };
   const answers: (string | undefined)[] = [];
   const inputs: vscode.InputBoxOptions[] = [];
   const errors: string[] = [];
-  let choice: string | undefined;
   let duringPrompt: (() => Promise<void>) | undefined;
-  let duringConfirmation: (() => Promise<void>) | undefined;
   const body = "\nKeep [[202601011200-note-1]].\n";
   const initial = `---\ntitle: Old title\ntags: [idea]\ncustom: kept\n---\n${body}`;
   const read = async () =>
@@ -936,16 +1025,6 @@ async function testPermanentNoteActions(
     await duringPrompt?.();
     return answers.shift();
   };
-  api.showWarningMessage = new Proxy(original.warning, {
-    apply: async (_target, _thisArg, args: unknown[]) => {
-      assert.ok(String(args[0]).includes("202601021234-context-note.md"));
-      assert.equal((args[1] as vscode.MessageOptions).modal, true);
-      assert.match((args[1] as vscode.MessageOptions).detail ?? "", /break inbound wiki links/);
-      assert.equal(args[2], "Delete");
-      await duringConfirmation?.();
-      return choice;
-    },
-  });
   api.showErrorMessage = new Proxy(original.error, {
     apply: (_target, _thisArg, args: unknown[]) => {
       errors.push(String(args[0]));
@@ -995,12 +1074,10 @@ async function testPermanentNoteActions(
       "invalid metadata fixture did not load",
     );
     await expectError("stemlink.editNoteMetadata", "invalid YAML");
-    for (const command of ["stemlink.editNoteMetadata", "stemlink.deleteNote"]) {
-      await expectError(command, "context menu", null);
-      await expectError(command, "context menu", {
-        uri: vscode.Uri.joinPath(notes, "_template.md"),
-      });
-    }
+    await expectError("stemlink.editNoteMetadata", "context menu", null);
+    await expectError("stemlink.editNoteMetadata", "context menu", {
+      uri: vscode.Uri.joinPath(notes, "_template.md"),
+    });
     const trust = Object.getOwnPropertyDescriptor(vscode.workspace, "isTrusted");
     assert.ok(trust);
     try {
@@ -1008,50 +1085,25 @@ async function testPermanentNoteActions(
         configurable: true,
         get: () => false,
       });
-      for (const command of ["stemlink.editNoteMetadata", "stemlink.deleteNote"])
-        await expectError(command, "Trust the workspace");
+      await expectError("stemlink.editNoteMetadata", "Trust the workspace");
     } finally {
       Object.defineProperty(vscode.workspace, "isTrusted", trust);
     }
-    for (const cancel of [undefined, "Cancel"]) {
-      choice = cancel;
-      const before = await read();
-      await vscode.commands.executeCommand("stemlink.deleteNote", { uri });
-      assert.equal(await read(), before);
-    }
-    const edit = new vscode.WorkspaceEdit();
-    edit.insert(uri, new vscode.Position(0, 0), "Unsaved\n");
-    assert.ok(await vscode.workspace.applyEdit(edit));
-    choice = "Delete";
-    await expectError("stemlink.deleteNote", "Save or revert");
-    assert.ok(doc.isDirty);
-    assert.ok(await doc.save());
-    duringConfirmation = async () => {
-      duringConfirmation = undefined;
-      await vscode.workspace.fs.writeFile(uri, Buffer.from("Changed during confirmation\n"));
-    };
-    await expectError("stemlink.deleteNote", "changed");
-    assert.equal(await read(), "Changed during confirmation\n");
+    const availableCommands = await vscode.commands.getCommands(true);
+    assert.ok(
+      !availableCommands.includes("stemlink.deleteNote"),
+      "permanent-note deletion command remains registered",
+    );
+    await vscode.workspace.fs.writeFile(uri, Buffer.from(updated));
     await waitFor(
-      () =>
-        doc.getText().replace(/\r\n/g, "\n") === "Changed during confirmation\n" && !doc.isDirty,
-      "concurrent deletion fixture did not finish reloading",
+      () => doc.getText().replace(/\r\n/g, "\n") === updated && !doc.isDirty,
+      "native deletion fixture did not finish reloading",
     );
     await vault.ensureNames();
     assert.ok(vault.target("202601021234-context-note"));
-    const workspaceApi = vscode.workspace as { applyEdit: typeof vscode.workspace.applyEdit };
-    const originalApplyEdit = workspaceApi.applyEdit;
-    try {
-      workspaceApi.applyEdit = async () => false;
-      await expectError("stemlink.deleteNote", "could not be deleted");
-      assert.ok((await vscode.workspace.fs.stat(uri)).type & vscode.FileType.File);
-      assert.ok(vault.target("202601021234-context-note"));
-    } finally {
-      workspaceApi.applyEdit = originalApplyEdit;
-    }
-    const errorsBeforeDelete = errors.length;
-    await vscode.commands.executeCommand("stemlink.deleteNote", { uri });
-    assert.deepEqual(errors.slice(errorsBeforeDelete), [], "confirmed deletion reported an error");
+    const deletion = new vscode.WorkspaceEdit();
+    deletion.deleteFile(uri);
+    assert.equal(await vscode.workspace.applyEdit(deletion), true);
     await assert.rejects(async () => vscode.workspace.fs.stat(uri));
     await waitFor(
       () => !vault.target("202601021234-context-note"),
@@ -1061,7 +1113,6 @@ async function testPermanentNoteActions(
   } finally {
     vault.dispose();
     api.showInputBox = original.input;
-    api.showWarningMessage = original.warning;
     api.showErrorMessage = original.error;
   }
 }
@@ -1133,7 +1184,7 @@ async function testCaptureActions(
     apply: async (_target, _thisArg, args: unknown[]) => {
       assert.ok(String(args[0]).includes("context-actions.md"));
       assert.equal((args[1] as vscode.MessageOptions).modal, true);
-      assert.equal(args[2], "Discard");
+      assert.equal(args[2], "Delete");
       await duringConfirmation?.();
       return choice;
     },
@@ -1252,7 +1303,7 @@ async function testCaptureActions(
     const edit = new vscode.WorkspaceEdit();
     edit.insert(uri, new vscode.Position(0, 0), "Unsaved\n");
     assert.ok(await vscode.workspace.applyEdit(edit));
-    choice = "Discard";
+    choice = "Delete";
     await expectError("stemlink.discardCapture", "Save or revert");
     assert.ok(doc.isDirty);
     await doc.save();
@@ -1419,11 +1470,13 @@ async function testVaultActions(
     showInputBox: typeof vscode.window.showInputBox;
     showErrorMessage: typeof vscode.window.showErrorMessage;
     showInformationMessage: typeof vscode.window.showInformationMessage;
+    showWarningMessage: typeof vscode.window.showWarningMessage;
   };
   const original = {
     input: api.showInputBox,
     error: api.showErrorMessage,
     info: api.showInformationMessage,
+    warning: api.showWarningMessage,
   };
   const trust = Object.getOwnPropertyDescriptor(vscode.workspace, "isTrusted");
   assert.ok(trust);
@@ -1433,6 +1486,10 @@ async function testVaultActions(
   let duringPrompt: (() => void) | undefined;
   const probe = vscode.Uri.joinPath(paths.notes, "vault-action-probe.md");
   const otherProbe = vscode.Uri.joinPath(selected.vault.paths.notes, "vault-action-other.md");
+  const captureConfig = vscode.workspace.getConfiguration("stemlink", paths.root);
+  const previousHeadline = captureConfig.inspect<boolean>(
+    "promptForCaptureHeadline",
+  )?.workspaceFolderValue;
   const summaries: string[] = [];
   const commandApi = vscode.commands as { executeCommand: typeof vscode.commands.executeCommand };
   const originalExecute = commandApi.executeCommand;
@@ -1475,6 +1532,12 @@ async function testVaultActions(
       return Promise.resolve("Show Problems");
     },
   });
+  api.showWarningMessage = new Proxy(original.warning, {
+    apply: (_target, _receiver, args: unknown[]) => {
+      assert.equal(args[1], "Use bundled template once", "unexpected vault action warning");
+      return Promise.resolve("Use bundled template once");
+    },
+  });
   const untrust = () =>
     Object.defineProperty(vscode.workspace, "isTrusted", {
       configurable: true,
@@ -1500,7 +1563,11 @@ async function testVaultActions(
         Buffer.from(renderRouterIndexes("vault", "inbox", "permanent", [], []).notes),
       );
     const before = await vscode.workspace.fs.readDirectory(paths.notes);
-    for (const command of ["stemlink.newPermanentNote", "stemlink.validateVault"]) {
+    for (const command of [
+      "stemlink.newFleetingNote",
+      "stemlink.newPermanentNote",
+      "stemlink.validateVault",
+    ]) {
       await error(command, "context menu", null);
       await error(command, "context menu", new Item("wrong kind", "note", probe));
       const stale = new Vault(vault.folder);
@@ -1516,16 +1583,62 @@ async function testVaultActions(
       }
     }
     untrust();
-    await error("stemlink.newPermanentNote", "Trust the workspace");
-    await error("stemlink.addNote", "Trust the workspace");
+    await error("stemlink.newFleetingNote", "Trust the workspace before creating a capture.");
+    await error("stemlink.newPermanentNote", "Trust the workspace before creating a note.");
+    await error("stemlink.addNote", "Trust the workspace before creating a note.");
     Object.defineProperty(vscode.workspace, "isTrusted", trust);
+    await captureConfig.update(
+      "promptForCaptureHeadline",
+      true,
+      vscode.ConfigurationTarget.WorkspaceFolder,
+    );
+    await waitFor(
+      () =>
+        vscode.workspace
+          .getConfiguration("stemlink", paths.root)
+          .get<boolean>("promptForCaptureHeadline") === true,
+      "capture headline preference was not applied",
+    );
+    const inboxBefore = await vscode.workspace.fs.readDirectory(paths.inbox);
+    answers.push(undefined);
+    await vscode.commands.executeCommand("stemlink.newFleetingNote", target);
+    assert.equal(answers.length, 0, "capture cancellation did not consume headline prompt");
+    answers.push("Trust changed");
+    duringPrompt = untrust;
+    await error("stemlink.newFleetingNote", "Trust the workspace before creating a capture.");
+    duringPrompt = undefined;
+    Object.defineProperty(vscode.workspace, "isTrusted", trust);
+    answers.push("Destination changed");
+    duringPrompt = () =>
+      vault.selectPaths({ ...paths, inbox: vscode.Uri.joinPath(paths.root, "changed") });
+    await error("stemlink.newFleetingNote", "inbox folder changed");
+    duringPrompt = undefined;
+    vault.selectPaths(paths);
+    assert.deepEqual(await vscode.workspace.fs.readDirectory(paths.inbox), inboxBefore);
+    for (let i = 0; i < 2; i++) {
+      answers.push("Vault context capture");
+      await vscode.commands.executeCommand("stemlink.newFleetingNote", target);
+      const document = vscode.window.activeTextEditor?.document;
+      assert.ok(document && directChild(document.uri, paths.inbox), "capture used selected vault");
+      assert.ok(
+        !created.some((other) => sameUri(other, document.uri)),
+        "capture creation overwrote a file",
+      );
+      created.push(document.uri);
+      assert.match(document.getText(), /# Vault context capture/);
+      assert.equal(document.isDirty, false);
+      await waitFor(
+        () => view.selection[0] === selected,
+        "capture creation changed selected vault",
+      );
+    }
     for (const cancelled of [[undefined], ["Cancelled", undefined]]) {
       answers.push(...cancelled);
       await vscode.commands.executeCommand("stemlink.newPermanentNote", target);
     }
     answers.push("Trust changed", "idea");
     duringPrompt = untrust;
-    await error("stemlink.newPermanentNote", "Trust the workspace");
+    await error("stemlink.newPermanentNote", "Trust the workspace before creating a note.");
     duringPrompt = undefined;
     Object.defineProperty(vscode.workspace, "isTrusted", trust);
     answers.push("Destination changed", "idea");
@@ -1553,7 +1666,13 @@ async function testVaultActions(
     }
     await waitForFileText(
       index,
-      (text) => text.includes(created[0].path.split("/").pop()!),
+      (text) =>
+        text.includes(
+          created
+            .find((uri) => directChild(uri, paths.notes))!
+            .path.split("/")
+            .pop()!,
+        ),
       "vault action did not refresh note router",
     );
     await vscode.workspace.fs.writeFile(probe, Buffer.from("Probe\n"));
@@ -1610,7 +1729,7 @@ async function testVaultActions(
     } finally {
       vault.refresh = originalRefresh;
     }
-    assert.equal(view.selection[0], selected, "vault actions changed selection");
+    await waitFor(() => view.selection[0] === selected, "vault actions changed selection");
     assert.equal(answers.length, 0);
   } finally {
     duringPrompt = undefined;
@@ -1620,6 +1739,12 @@ async function testVaultActions(
     api.showInputBox = original.input;
     api.showErrorMessage = original.error;
     api.showInformationMessage = original.info;
+    api.showWarningMessage = original.warning;
+    await captureConfig.update(
+      "promptForCaptureHeadline",
+      previousHeadline,
+      vscode.ConfigurationTarget.WorkspaceFolder,
+    );
     for (const uri of [...created, probe, otherProbe]) {
       const document = vscode.workspace.textDocuments.find((entry) => sameUri(entry.uri, uri));
       if (document) {
@@ -4120,8 +4245,8 @@ export async function run(): Promise<void> {
     "empty-window welcome exposes unavailable vault creation",
   );
   const captureCommands = [
-    "stemlink.editCaptureMetadata",
     "stemlink.promote",
+    "stemlink.editCaptureMetadata",
     "stemlink.discardCapture",
   ];
   const menus = extension.packageJSON.contributes.menus as Record<
@@ -4131,8 +4256,22 @@ export async function run(): Promise<void> {
   const captureMenus = menus["view/item/context"].filter((entry) =>
     captureCommands.includes(entry.command),
   );
-  const noteCommands = ["stemlink.editNoteMetadata", "stemlink.deleteNote"];
-  const vaultCommands = ["stemlink.newPermanentNote", "stemlink.validateVault"];
+  const noteCommands = ["stemlink.editNoteMetadata"];
+  assert.ok(
+    !commands.some((entry) => entry.command === "stemlink.deleteNote"),
+    "permanent-note deletion remains contributed",
+  );
+  assert.ok(
+    !Object.values(menus)
+      .flat()
+      .some((entry) => entry.command === "stemlink.deleteNote"),
+    "permanent-note deletion remains in a menu",
+  );
+  const vaultCommands = [
+    "stemlink.newFleetingNote",
+    "stemlink.newPermanentNote",
+    "stemlink.validateVault",
+  ];
   for (const [command, title, when] of [
     ["stemlink.filterByTags", "Filter by tags…", "view == stemlink.notes"],
     [
@@ -4166,7 +4305,7 @@ export async function run(): Promise<void> {
   }
   assert.deepEqual(
     commands.filter((entry) => vaultCommands.includes(entry.command)).map((entry) => entry.title),
-    ["New permanent note", "Validate vault"],
+    ["New fleeting note", "New permanent note", "Validate vault"],
   );
   for (const command of vaultCommands) {
     assert.equal(commands.find((entry) => entry.command === command)?.icon, undefined);
@@ -4185,8 +4324,8 @@ export async function run(): Promise<void> {
       ),
     );
   }
-  const noteMenus = menus["view/item/context"].filter((entry) =>
-    noteCommands.includes(entry.command),
+  const noteMenus = menus["view/item/context"].filter(
+    (entry) => entry.when === "view == stemlink.notes && viewItem == stemlink.note",
   );
   assert.deepEqual(
     noteMenus.map((entry) => entry.command),
@@ -4207,7 +4346,6 @@ export async function run(): Promise<void> {
     );
     assert.ok(!menus["view/title"].some((entry) => entry.command === command));
   }
-  assert.notEqual(noteMenus[0].group?.split("@")[0], noteMenus[1].group?.split("@")[0]);
   assert.deepEqual(
     captureMenus.map((entry) => entry.command),
     captureCommands,
@@ -4228,6 +4366,39 @@ export async function run(): Promise<void> {
     assert.ok(!menus["view/title"].some((entry) => entry.command === command));
   }
   assert.notEqual(captureMenus[0].group?.split("@")[0], captureMenus[2].group?.split("@")[0]);
+  const sortedMenu = (ids: string[]) =>
+    menus["view/item/context"]
+      .filter((entry) => ids.includes(entry.command))
+      .sort((left, right) => {
+        const [leftGroup, leftOrder] = (left.group ?? "").split("@");
+        const [rightGroup, rightOrder] = (right.group ?? "").split("@");
+        return leftGroup.localeCompare(rightGroup) || Number(leftOrder) - Number(rightOrder);
+      });
+  for (const [ids, expected] of [
+    [
+      vaultCommands,
+      [["stemlink.newFleetingNote", "stemlink.newPermanentNote"], ["stemlink.validateVault"]],
+    ],
+    [
+      captureCommands,
+      [["stemlink.promote", "stemlink.editCaptureMetadata"], ["stemlink.discardCapture"]],
+    ],
+    [noteCommands, [["stemlink.editNoteMetadata"]]],
+  ] as const) {
+    const groups: string[][] = [];
+    let previousGroup: string | undefined;
+    for (const entry of sortedMenu([...ids])) {
+      const group = entry.group?.split("@")[0];
+      if (group !== previousGroup) groups.push([]);
+      groups[groups.length - 1].push(entry.command);
+      previousGroup = group;
+    }
+    assert.deepEqual(groups, expected, "rendered context order or separators changed");
+  }
+  assert.equal(
+    commands.find((entry) => entry.command === "stemlink.discardCapture")?.title,
+    "Delete…",
+  );
   assert.equal(
     commands.find((command) => command.command === "stemlink.createVault")?.title,
     "Create vault",

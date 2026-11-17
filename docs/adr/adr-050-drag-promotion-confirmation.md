@@ -1,5 +1,5 @@
 ---
-status: Accepted
+status: Superseded in part by ADR 069
 ---
 
 # ADR 050: Drag promotion and confirmation

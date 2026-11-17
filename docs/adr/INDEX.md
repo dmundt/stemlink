@@ -72,6 +72,7 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 
 ## UI consistency and feedback
 
+- [069: Note action parity](adr-069-note-action-parity.md) — capture-only deletion, both vault creation actions, native menu separators, and serialized cross-view drag transport.
 - [062: Deleted open notes](adr-062-deleted-open-notes.md) — exclude deleted cached documents from indexes without discarding editor buffers.
 - [063: Capture template recovery](adr-063-capture-template-recovery.md) — explicit one-time bundled fallback without installing files.
 - [064: Vault scope feedback](adr-064-vault-scope-feedback.md) — selected-vault descriptions and hidden-note creation feedback.

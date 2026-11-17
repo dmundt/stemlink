@@ -1,5 +1,5 @@
 ---
-status: Superseded in part by ADR 060
+status: Superseded in part by ADRs 060 and 069
 ---
 
 # ADR 049: Permanent-note context actions
