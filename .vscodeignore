@@ -21,7 +21,6 @@ eslint.config.mjs
 zk/**
 notes/**
 example/**
-notes/**
 dist/**/*.map
 *.vsix
 node_modules/@types/**

@@ -6,6 +6,7 @@
 - npm 10+; use npm bundled with a supported Node.js release and `npm ci`.
 - `engines.node` and `engines.npm` declare compatibility. npm normally warns rather than rejects incompatible engines; these fields are not an enforcement hook.
 - Desktop VS Code 1.90 or newer.
+- `@types/vscode` stays within 1.90.x to type-check against the minimum supported host API.
 
 ```sh
 npm ci
@@ -29,6 +30,7 @@ npm run test:host
 - Host tests use VS Code and may download a stable build. Set `VSCODE_TEST_VERSION` to select a version or `STEMLINK_CODE_PATH` to use a local installation.
 - Coverage and the 10,000-note benchmark are available through `npm run test:coverage` and `npm run benchmark:integration`.
 - Coverage floors: 95% lines, 87% branches, and 93% functions across emitted extension modules, including host execution.
+- Generated vault routers under `notes/**/INDEX.md` are excluded from Prettier; the extension owns their marked sections.
 - **Compatibility Validation** is manual-only. It runs host and Restricted Mode tests on Windows, macOS, and Linux against VS Code 1.90.0 and stable.
 - `npm run package` creates a local VSIX; it does not publish.
 
