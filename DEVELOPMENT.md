@@ -31,7 +31,7 @@ npm run test:host
 - Coverage and the 10,000-note benchmark are available through `npm run test:coverage` and `npm run benchmark:integration`.
 - Coverage floors: 95% lines, 91% branches, and 93% functions across emitted extension modules, including host execution.
 - Generated vault routers under `notes/**/INDEX.md` are excluded from Prettier; the extension owns their marked sections.
-- **Compatibility Validation** is manual-only. It runs host and Restricted Mode tests on Windows, macOS, and Linux against VS Code 1.90.0 and stable.
+- **Compatibility Validation** is manual-only. It runs host and Restricted Mode tests on Windows, macOS, and Linux against VS Code 1.90.0 and stable, plus coverage on each platform with Node 22 and stable VS Code.
 - `npm run package` creates a local VSIX; it does not publish.
 
 ## Release
