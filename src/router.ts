@@ -1,4 +1,4 @@
-import * as vscode from "vscode";
+import * as vscode from 'vscode';
 import {
   fleetingTitle,
   isVaultInstructionFile,
@@ -7,8 +7,8 @@ import {
   replaceRouterIndexSection,
   routerIndexName,
   routerDescription,
-} from "./core";
-import { directChild, reportError, sameUri, VaultPaths } from "./vault";
+} from './core';
+import { directChild, reportError, sameUri, VaultPaths } from './vault';
 
 interface WatcherState {
   paths: VaultPaths;
@@ -61,7 +61,7 @@ export class VaultRouterIndexes implements vscode.Disposable {
     for (const [key, paths] of current) {
       if (this.watchers.has(key)) continue;
       const watcher = vscode.workspace.createFileSystemWatcher(
-        new vscode.RelativePattern(paths.root, "**/*.md"),
+        new vscode.RelativePattern(paths.root, '**/*.md'),
       );
       const state: WatcherState = { paths, watcher, subscriptions: [] };
       state.subscriptions.push(
@@ -108,7 +108,7 @@ export class VaultRouterIndexes implements vscode.Disposable {
       !this.disposed && (!state || this.watchers.get(paths.root.toString()) === state);
     if (!active()) return [];
     if (!vscode.workspace.isTrusted)
-      throw new Error("Trust the workspace before writing vault indexes.");
+      throw new Error('Trust the workspace before writing vault indexes.');
     if (!createMissing) {
       let managed = false;
       for (const directory of [paths.root, paths.inbox, paths.notes]) {
@@ -119,10 +119,10 @@ export class VaultRouterIndexes implements vscode.Disposable {
         try {
           const text =
             document?.getText() ??
-            Buffer.from(await vscode.workspace.fs.readFile(uri)).toString("utf8");
+            Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
           if (replaceRouterIndexSection(text, text) !== undefined) managed = true;
         } catch (error) {
-          if (!(error instanceof vscode.FileSystemError && error.code === "FileNotFound"))
+          if (!(error instanceof vscode.FileSystemError && error.code === 'FileNotFound'))
             throw error;
         }
       }
@@ -143,7 +143,7 @@ export class VaultRouterIndexes implements vscode.Disposable {
       this.folderName(paths.templates),
     );
     if (!active()) return [];
-    const results: [string, "created" | "updated" | "unchanged" | "preserved"][] = [
+    const results: [string, 'created' | 'updated' | 'unchanged' | 'preserved'][] = [
       [routerIndexName, await this.write(paths.root, contents.root, createMissing)],
     ];
     if (!active()) return [];
@@ -164,16 +164,16 @@ export class VaultRouterIndexes implements vscode.Disposable {
     ];
     if (createMissing && missing.length) {
       void vscode.window.showWarningMessage(
-        `Stemlink: could not create indexes in missing configured folders: ${missing.join(", ")}.`,
+        `Stemlink: could not create indexes in missing configured folders: ${missing.join(', ')}.`,
       );
     }
-    return results.filter(([, result]) => result === "preserved").map(([name]) => name);
+    return results.filter(([, result]) => result === 'preserved').map(([name]) => name);
   }
 
   private fileChanged(state: WatcherState, uri: vscode.Uri): void {
-    const name = uri.path.slice(uri.path.lastIndexOf("/") + 1);
+    const name = uri.path.slice(uri.path.lastIndexOf('/') + 1);
     if (
-      !name.endsWith(".md") ||
+      !name.endsWith('.md') ||
       isVaultInstructionFile(name) ||
       (!directChild(uri, state.paths.inbox) && !directChild(uri, state.paths.notes))
     )
@@ -210,7 +210,7 @@ export class VaultRouterIndexes implements vscode.Disposable {
     const entries = await vscode.workspace.fs.readDirectory(directory);
     const files = entries.filter(
       ([name, type]) =>
-        name.endsWith(".md") &&
+        name.endsWith('.md') &&
         !isVaultInstructionFile(name) &&
         Boolean(type & vscode.FileType.File),
     );
@@ -224,9 +224,9 @@ export class VaultRouterIndexes implements vscode.Disposable {
       if (document) text = document.getText();
       else {
         try {
-          text = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString("utf8");
+          text = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
         } catch (error) {
-          if (error instanceof vscode.FileSystemError && error.code === "FileNotFound") continue;
+          if (error instanceof vscode.FileSystemError && error.code === 'FileNotFound') continue;
           throw error;
         }
       }
@@ -237,7 +237,7 @@ export class VaultRouterIndexes implements vscode.Disposable {
         reportError(
           new Error(`${uri.path}: ${error instanceof Error ? error.message : String(error)}`),
         );
-        description = "Invalid YAML front matter.";
+        description = 'Invalid YAML front matter.';
       }
       result.push({ name, description });
     }
@@ -251,7 +251,7 @@ export class VaultRouterIndexes implements vscode.Disposable {
       }
       return true;
     } catch (error) {
-      if (error instanceof vscode.FileSystemError && error.code === "FileNotFound") return false;
+      if (error instanceof vscode.FileSystemError && error.code === 'FileNotFound') return false;
       throw error;
     }
   }
@@ -260,32 +260,32 @@ export class VaultRouterIndexes implements vscode.Disposable {
     directory: vscode.Uri,
     content: string,
     createMissing: boolean,
-  ): Promise<"created" | "updated" | "unchanged" | "preserved"> {
+  ): Promise<'created' | 'updated' | 'unchanged' | 'preserved'> {
     if (!vscode.workspace.isTrusted)
-      throw new Error("Trust the workspace before writing vault indexes.");
+      throw new Error('Trust the workspace before writing vault indexes.');
     const uri = vscode.Uri.joinPath(directory, routerIndexName);
     let current: string;
     try {
-      current = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString("utf8");
+      current = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
     } catch (error) {
-      if (!(error instanceof vscode.FileSystemError && error.code === "FileNotFound")) throw error;
-      if (!createMissing) return "unchanged";
+      if (!(error instanceof vscode.FileSystemError && error.code === 'FileNotFound')) throw error;
+      if (!createMissing) return 'unchanged';
       const edit = new vscode.WorkspaceEdit();
       edit.createFile(uri, {
         overwrite: false,
         ignoreIfExists: false,
-        contents: Buffer.from(content, "utf8"),
+        contents: Buffer.from(content, 'utf8'),
       });
-      if (await vscode.workspace.applyEdit(edit)) return "created";
-      current = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString("utf8");
+      if (await vscode.workspace.applyEdit(edit)) return 'created';
+      current = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
     }
     const document = vscode.workspace.textDocuments.find((candidate) =>
       sameUri(candidate.uri, uri),
     );
     if (document) current = document.getText();
     const updated = replaceRouterIndexSection(current, content);
-    if (updated === undefined) return "preserved";
-    if (updated === current) return "unchanged";
+    if (updated === undefined) return 'preserved';
+    if (updated === current) return 'unchanged';
     if (document) {
       const wasDirty = document.isDirty;
       const edit = new vscode.WorkspaceEdit();
@@ -298,14 +298,14 @@ export class VaultRouterIndexes implements vscode.Disposable {
         throw new Error(`Could not update ${uri.path}.`);
       if (!wasDirty && !(await document.save()))
         throw new Error(`Could not save updated index ${uri.path}.`);
-      return "updated";
+      return 'updated';
     }
-    await vscode.workspace.fs.writeFile(uri, Buffer.from(updated, "utf8"));
-    return "updated";
+    await vscode.workspace.fs.writeFile(uri, Buffer.from(updated, 'utf8'));
+    return 'updated';
   }
 
   private folderName(uri: vscode.Uri): string {
-    return uri.path.slice(uri.path.lastIndexOf("/") + 1);
+    return uri.path.slice(uri.path.lastIndexOf('/') + 1);
   }
 
   private samePaths(a: VaultPaths, b: VaultPaths): boolean {

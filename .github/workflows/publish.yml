@@ -1,80 +1,100 @@
 name: Publish Extension
 
 on:
-  release:
-    types: [published]
+  push:
+    tags: ['v*']
 
 permissions:
   contents: read
 
 jobs:
-  validate:
+  package:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      prerelease: ${{ steps.release.outputs.prerelease }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - name: Check release tag
+          cache: npm
+      - name: Validate release tag and source branch
+        id: release
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          TAG: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
         run: |
-          node -e '
-            const version = require("./package.json").version;
-            const tag = process.env.RELEASE_TAG;
-            if (tag !== version && tag !== `v${version}`) {
-              throw new Error(`Release tag ${tag} does not match package version ${version}`);
-            }
-          '
-
-  verify:
-    needs: validate
-    uses: ./.github/workflows/quality.yml
-
-  release-asset:
-    needs: verify
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - uses: actions/download-artifact@v4
-        with:
-          name: stemlink-package
-      - name: Attach verified package to release
+          node scripts/release.mjs >> "$GITHUB_OUTPUT"
+          git fetch origin main
+          git merge-base --is-ancestor "$SHA" origin/main
+      - run: npm ci
+      - run: npm run test:release
+      - run: npm run build
+      - name: Package VSIX
         env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          VERSION: ${{ steps.release.outputs.version }}
+          PRERELEASE: ${{ steps.release.outputs.prerelease }}
         run: |
-          version=$(node -p 'require("./package.json").version')
-          gh release upload "$RELEASE_TAG" "stemlink-${version}.vsix" --repo "$GITHUB_REPOSITORY"
+          VSIX="stemlink-${VERSION}.vsix"
+          if [ "$PRERELEASE" = "true" ]; then
+            npm run package -- --pre-release --out "$VSIX"
+          else
+            npm run package -- --out "$VSIX"
+          fi
+      - uses: actions/upload-artifact@v7
+        with:
+          name: extension-vsix-${{ steps.release.outputs.version }}
+          path: stemlink-${{ steps.release.outputs.version }}.vsix
+          if-no-files-found: error
 
   publish:
-    needs: verify
+    needs: package
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
-      contents: read
+      contents: write
       id-token: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
-          name: stemlink-package
-      - name: Publish verified package
+          name: extension-vsix-${{ needs.package.outputs.version }}
+      - name: Create or update GitHub release
         env:
-          PRERELEASE: ${{ github.event.release.prerelease }}
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.package.outputs.version }}
+          PRERELEASE: ${{ needs.package.outputs.prerelease }}
         run: |
-          version=$(node -p 'require("./package.json").version')
-          if [ "$PRERELEASE" = "true" ]; then
-            npx vsce publish --oidc --pre-release --packagePath "stemlink-${version}.vsix"
+          VSIX="stemlink-${VERSION}.vsix"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq ".assets[].name" | grep -Fxq "$VSIX"; then
+              gh release upload "$TAG" "$VSIX" --repo "$GITHUB_REPOSITORY"
+            fi
+          elif [ "$PRERELEASE" = "true" ]; then
+            gh release create "$TAG" --generate-notes --verify-tag --prerelease --repo "$GITHUB_REPOSITORY"
+            gh release upload "$TAG" "$VSIX" --repo "$GITHUB_REPOSITORY"
           else
-            npx vsce publish --oidc --packagePath "stemlink-${version}.vsix"
+            gh release create "$TAG" --generate-notes --verify-tag --repo "$GITHUB_REPOSITORY"
+            gh release upload "$TAG" "$VSIX" --repo "$GITHUB_REPOSITORY"
+          fi
+      - name: Publish to VS Code Marketplace
+        env:
+          VERSION: ${{ needs.package.outputs.version }}
+          PRERELEASE: ${{ needs.package.outputs.prerelease }}
+        run: |
+          VSIX="stemlink-${VERSION}.vsix"
+          if [ "$PRERELEASE" = "true" ]; then
+            npx vsce publish --oidc --pre-release --packagePath "$VSIX"
+          else
+            npx vsce publish --oidc --packagePath "$VSIX"
           fi

@@ -1,4 +1,4 @@
-import { stemPattern } from "./core";
+import { stemPattern } from './core';
 
 interface MarkdownToken {
   type: string;
@@ -40,26 +40,26 @@ export function extendMarkdownPreview(
   trusted: () => boolean,
   resolve: (stem: string, environment: unknown) => string | undefined,
 ): MarkdownParser {
-  markdown.inline.ruler.before("link", "stemlink_wikilink", (state, silent) => {
+  markdown.inline.ruler.before('link', 'stemlink_wikilink', (state, silent) => {
     if (
       silent ||
       !trusted() ||
       (state.linkLevel ?? 0) > 0 ||
-      !state.src.startsWith("[[", state.pos)
+      !state.src.startsWith('[[', state.pos)
     )
       return false;
     // Older host parsers do not expose linkLevel.
     if (state.level > 0) {
       for (let index = state.tokens.length - 1; index >= 0; index--) {
-        if (state.tokens[index].type === "link_close") break;
-        if (state.tokens[index].type === "link_open") return false;
+        if (state.tokens[index].type === 'link_close') break;
+        if (state.tokens[index].type === 'link_open') return false;
       }
     }
-    const end = state.src.indexOf("]]", state.pos + 2);
+    const end = state.src.indexOf(']]', state.pos + 2);
     if (end < 0 || end + 2 > state.posMax) return false;
     const stem = state.src.slice(state.pos + 2, end);
     if (!stemPattern.test(stem)) return false;
-    state.push("stemlink_wikilink", "", 0).content = stem;
+    state.push('stemlink_wikilink', '', 0).content = stem;
     state.pos = end + 2;
     return true;
   });

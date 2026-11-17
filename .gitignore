@@ -1,5 +1,7 @@
 node_modules/
 dist/
+coverage/
 *.vsix
 .playwright-mcp/
 .vscode-test/
+.DS_Store

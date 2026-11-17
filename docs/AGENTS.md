@@ -2,6 +2,8 @@
 
 Rules for user and contributor documentation. Start at the [documentation index](./INDEX.md) and consult the [ADR index](./adr/INDEX.md) for architectural context.
 
+- Name documentation indexes `INDEX.md` (uppercase).
+
 - Keep Markdown concise and factual. Avoid hype and claims the project cannot verify.
 - Check documented behavior against the implementation and accepted ADRs. Proposed ADRs are not implemented requirements.
 - Keep the README and related documentation current. Record user-facing changes in the changelog; omit internal refactors, tests, and tooling.

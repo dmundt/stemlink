@@ -4,3 +4,4 @@ coverage
 .vscode-test
 package-lock.json
 *.vsix
+notes/**/INDEX.md
