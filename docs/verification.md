@@ -19,11 +19,11 @@ Run the smallest relevant check first. These commands use the scripts in [packag
 | `npm run benchmark:integration` | Exercise a 10,000-note VS Code host fixture.                                      |
 | `npm run build`                 | Compile the extension.                                                            |
 
-Linting requires Node.js 22.13 or newer in the Node 22 line. Host tests and coverage require Node.js 22 or newer. Host runners use `STEMLINK_CODE_PATH` when set, an installed Windows VS Code when available, or a downloaded stable build. `VSCODE_TEST_VERSION` selects a downloaded host version. Runners create isolated temporary workspaces and profiles and clean them up afterward.
+Use Node.js 22.13 or newer. Host runners use `STEMLINK_CODE_PATH` when set, an installed VS Code when available, or a downloaded stable build. `VSCODE_TEST_VERSION` selects a downloaded host version. Runners create isolated temporary workspaces and profiles and clean them up afterward.
 
 ## Development workflow
 
-Start a short-lived branch from the latest published `main`. Install dependencies with `npm ci`; this installs Husky hooks for the repository. The pre-commit hook runs ESLint and Prettier on applicable staged files. The pre-push hook runs lint, type-checking, and unit tests. Run relevant host tests locally for changes that affect extension behavior.
+Start a short-lived branch from the latest published `main`. Install dependencies with `npm ci`; this installs Husky hooks for the repository. The pre-commit hook formats staged files and lints staged TypeScript. The pre-push hook runs typecheck and unit tests. Run `npm run test:host` for changes that affect extension behavior.
 
 ```sh
 git switch main
@@ -34,13 +34,13 @@ npm ci
 git push -u origin feat/example
 ```
 
-Open a pull request into `main`. The branch build runs install and build on non-main branch pushes. The pull request quality workflow runs the six required checks; merge with a merge commit only after they pass. Delete the feature branch only when deletion is authorized.
+Open a pull request into `main`. Branch CI runs install and build on non-main pushes. Pull request CI runs lint, typecheck, unit tests, and host tests; **PR validation** is the required check. Merge only after it passes.
 
-For branch protection, require pull requests and all six `verify` matrix checks on `main` and `release/*`; block force-pushes and deletion, use zero required approvals, and configure no bypass actors. Dismissing stale approvals is optional when no approvals are required. The branch build is not a substitute for the required pull request checks.
+Configure `main` to require pull requests and **PR validation**, zero approvals, stale-approval dismissal, and no bypass actors. Block force-pushes and deletion, and enable automatic deletion of merged branches. See [GitHub settings](./github-settings.md).
 
 ## Release workflow
 
-Prepare release metadata on a branch and merge it into `main`. Follow the versioning and release validation steps in [project rules](../AGENTS.md#github-flow-and-releases). After a release is explicitly authorized, publish a GitHub release with a matching version tag. The release workflow checks the tag, runs the quality matrix, attaches the verified VSIX, and publishes it to the Marketplace. Pushing a tag alone does not publish a release.
+Prepare release metadata on a branch and merge it into `main`. Follow the versioning and release validation steps in [project rules](../AGENTS.md#github-flow-and-releases). Push a matching `v<version>` tag on `main` to start the release workflow, which checks tag/version and ancestry, builds and packages the VSIX, creates a GitHub Release, and publishes through Trusted Publishing.
 
 For example, after preparing version `0.2.0` and verifying the published `main` commit:
 
@@ -54,6 +54,6 @@ Router tests verify YAML description/title selection, escaped local-file mapping
 
 The host test checks each contributed Stemlink setting's resource scope and default. This confirms manifest eligibility for user-level VS Code Settings Sync, not an actual cross-device sync; the test hosts do not sign in or enable Settings Sync.
 
-The [quality workflow](../.github/workflows/quality.yml) runs the full dependency audit, lint, formatting check, coverage, and build on Windows, Linux, and macOS against VS Code 1.90.0 and stable for pull requests into `main` or release branches, manual runs, and releases. It runs the host benchmark on Linux stable. Benchmark timings are observations, not enforced latency guarantees. Tests do not establish correctness for every filesystem, theme, platform configuration, or concurrent race.
+Nightly/manual validation runs dependency audit, formatting, coverage, and the host benchmark on Linux stable. Benchmark timings are observations, not enforced latency guarantees. Tests do not establish correctness for every filesystem, theme, platform configuration, or concurrent race.
 
-Before a release, follow the validation and authorization requirements in [project rules](../AGENTS.md#github-flow-and-releases). The [publish workflow](../.github/workflows/publish.yml) validates the release tag and reuses the quality workflow. Release-asset upload and Marketplace publication then run independently using the verified package; either can fail after the other succeeds.
+Before a release, follow the validation and authorization requirements in [project rules](../AGENTS.md#github-flow-and-releases). The [publish workflow](../.github/workflows/publish.yml) validates the release tag and uploads the packaged VSIX to both the GitHub Release and Marketplace.

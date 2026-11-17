@@ -1,8 +1,12 @@
 # Stemlink
 
-[![Local Extension Quality](https://github.com/dmundt/stemlink/actions/workflows/quality.yml/badge.svg)](https://github.com/dmundt/stemlink/actions/workflows/quality.yml)
+[![Pull Request CI](https://github.com/dmundt/stemlink/actions/workflows/pull-request.yml/badge.svg)](https://github.com/dmundt/stemlink/actions/workflows/pull-request.yml)
 
-Build a Stemlink vault in VS Code with plain Markdown files. Capture ideas, connect notes, and find backlinks without a database or account. Your notes remain usable without Stemlink.
+- Create local vaults from plain Markdown files.
+- Capture fleeting ideas and promote them into permanent notes.
+- Navigate wiki links, backlinks, and references in VS Code.
+- Keep notes readable without Stemlink; no database or account required.
+- Browse and validate vaults in Restricted Mode; trust workspace before changes.
 
 ## Get started
 
@@ -138,4 +142,4 @@ Keep permanent filenames stable: renaming can break links. Stemlink warns about 
 
 There is no note-count limit. The selected vault's reference index builds in the background; inbound counts show `...` until ready. A first lookup can wait for indexing. In one 10,000-note benchmark, a cold index took about a minute.
 
-For development, validation, and release instructions, see [Verification](docs/verification.md).
+For development, validation, and release instructions, see [Development](DEVELOPMENT.md), [Contributing](CONTRIBUTING.md), and [Verification](docs/verification.md). Shared practices are in [Engineering Standards](docs/engineering-standards.md); system structure is in [Architecture](ARCHITECTURE.md). See [Security](SECURITY.md) for private vulnerability reporting.
