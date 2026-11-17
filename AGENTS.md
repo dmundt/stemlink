@@ -47,6 +47,7 @@ Run `npm ci` to install Git hooks. Pre-commit formats staged files and lints sta
 
 - Use simple GitHub Flow for a single developer or small team: protected `main`, short-lived feature branches, and pull requests into `main`. Do not add a long-lived `develop` branch or require approving reviews; required checks must pass before merging.
 - Non-main branch pushes run install and build. Pull requests to `main` run lint, typecheck, unit tests, and host tests; the required check is **PR validation**. Expensive validation runs nightly or manually.
+- Run build and relevant tests locally for non-main branch merges.
 - Keep `main` deployable. Base each independent, short-lived feature branch on the latest published `main`; use a descriptive name. Keep unrelated changes separate and record dependencies on prerequisite branches.
 - Make changes on feature branches with behavior tests and directly related documentation. Preserve unrelated work. Never reset, discard, amend, rebase, force-push, or delete existing branches without explicit authorization.
 - Publish authorized feature branches to every applicable remote. Open pull requests into `main`; address requested reviews and merge only after required checks pass. Use merge commits.

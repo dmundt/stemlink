@@ -19,6 +19,7 @@ SECURITY.md
 .prettierrc.json
 eslint.config.mjs
 zk/**
+notes/**
 example/**
 notes/**
 dist/**/*.map

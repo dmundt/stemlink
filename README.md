@@ -142,4 +142,8 @@ Keep permanent filenames stable: renaming can break links. Stemlink warns about 
 
 There is no note-count limit. The selected vault's reference index builds in the background; inbound counts show `...` until ready. A first lookup can wait for indexing. In one 10,000-note benchmark, a cold index took about a minute.
 
+## Local packaging
+
+Run `npm run package` or the **Package extension** VS Code task to build a local VSIX. Packaging compiles the extension but does not publish it. Install the resulting file with `code --install-extension stemlink-0.1.1.vsix`.
+
 For development, validation, and release instructions, see [Development](DEVELOPMENT.md), [Contributing](CONTRIBUTING.md), and [Verification](docs/verification.md). Shared practices are in [Engineering Standards](docs/engineering-standards.md); system structure is in [Architecture](ARCHITECTURE.md). See [Security](SECURITY.md) for private vulnerability reporting.
