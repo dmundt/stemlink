@@ -136,7 +136,7 @@ export async function runIntegration(multiRoot = false, discovery = false): Prom
       await runTests(options);
     }
   } finally {
-    await rm(temp, { recursive: true, force: true });
+    await rm(temp, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 }
 
