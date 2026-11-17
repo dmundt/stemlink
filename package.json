@@ -448,15 +448,15 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",
-    "@types/node": "^22.0.0",
-    "@types/vscode": "~1.90.0",
+    "@types/node": "^26.6.6",
+    "@types/vscode": "~1.146.0",
     "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^4.1.1",
     "eslint": "^10.0.0",
     "husky": "^9.1.7",
-    "lint-staged": "^16.4.0",
+    "lint-staged": "^17.6.0",
     "prettier": "^3.10.1",
-    "typescript": "^5.9.3",
+    "typescript": "^7.0.2",
     "typescript-eslint": "^8.0.0"
   },
   "overrides": {
