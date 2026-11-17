@@ -29,6 +29,7 @@ npm run test:host
 - Pre-push: runs `npm run typecheck` and `npm test`.
 - Host tests use VS Code and may download a stable build. Set `VSCODE_TEST_VERSION` to select a version or `STEMLINK_CODE_PATH` to use a local installation.
 - Coverage and the 10,000-note benchmark are available through `npm run test:coverage` and `npm run benchmark:integration`.
+- Run `npm run check:shared -- <peer-repository>` to compare shared engineering files against a local Prompteur checkout. Nightly validation compares against its published `main`.
 - Coverage floors: 95% lines, 87% branches, and 93% functions across emitted extension modules, including host execution.
 - Generated vault routers under `notes/**/INDEX.md` are excluded from Prettier; the extension owns their marked sections.
 - **Compatibility Validation** is manual-only. It runs host and Restricted Mode tests on Windows, macOS, and Linux against VS Code 1.90.0 and stable.
