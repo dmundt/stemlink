@@ -1,7 +1,7 @@
 name: Bug report
 description: Report a reproducible defect.
-title: "[Bug]: "
-labels: ["bug"]
+title: '[Bug]: '
+labels: ['bug']
 body:
   - type: textarea
     id: summary
@@ -15,7 +15,7 @@ body:
     attributes:
       label: Steps to reproduce
       description: List the smallest reliable sequence.
-      placeholder: "1. ..."
+      placeholder: '1. ...'
     validations:
       required: true
   - type: input

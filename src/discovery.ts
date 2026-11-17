@@ -1,4 +1,4 @@
-import * as vscode from "vscode";
+import * as vscode from 'vscode';
 import {
   VaultConfigurationError,
   VaultPaths,
@@ -6,9 +6,9 @@ import {
   reportError,
   sameUri,
   validFolderName,
-} from "./vault";
+} from './vault';
 
-const markerName = ".stemlink.json";
+const markerName = '.stemlink.json';
 
 export async function readVaultMarker(root: vscode.Uri): Promise<VaultPaths | undefined> {
   const marker = vscode.Uri.joinPath(root, markerName);
@@ -16,7 +16,7 @@ export async function readVaultMarker(root: vscode.Uri): Promise<VaultPaths | un
   try {
     bytes = await vscode.workspace.fs.readFile(marker);
   } catch (error) {
-    if (error instanceof vscode.FileSystemError && error.code === "FileNotFound") return undefined;
+    if (error instanceof vscode.FileSystemError && error.code === 'FileNotFound') return undefined;
     throw new VaultConfigurationError(
       `Cannot read ${marker.path}: ${error instanceof Error ? error.message : String(error)}`,
       marker,
@@ -25,7 +25,7 @@ export async function readVaultMarker(root: vscode.Uri): Promise<VaultPaths | un
   }
   let data: unknown;
   try {
-    data = JSON.parse(Buffer.from(bytes).toString("utf8"));
+    data = JSON.parse(Buffer.from(bytes).toString('utf8'));
   } catch (error) {
     throw new VaultConfigurationError(
       `Invalid ${marker.path}: ${error instanceof Error ? error.message : String(error)}`,
@@ -35,14 +35,14 @@ export async function readVaultMarker(root: vscode.Uri): Promise<VaultPaths | un
   }
   if (
     !data ||
-    typeof data !== "object" ||
+    typeof data !== 'object' ||
     Array.isArray(data) ||
-    !("version" in data) ||
+    !('version' in data) ||
     data.version !== 1 ||
-    !("inbox" in data) ||
-    typeof data.inbox !== "string" ||
-    !("notes" in data) ||
-    typeof data.notes !== "string" ||
+    !('inbox' in data) ||
+    typeof data.inbox !== 'string' ||
+    !('notes' in data) ||
+    typeof data.notes !== 'string' ||
     !validFolderName(data.inbox) ||
     !validFolderName(data.notes) ||
     data.inbox.toLowerCase() === data.notes.toLowerCase()
@@ -52,11 +52,11 @@ export async function readVaultMarker(root: vscode.Uri): Promise<VaultPaths | un
       marker,
     );
   }
-  const templates = "templates" in data ? data.templates : "templates";
+  const templates = 'templates' in data ? data.templates : 'templates';
   if (
-    typeof templates !== "string" ||
+    typeof templates !== 'string' ||
     !validFolderName(templates) ||
-    ("templates" in data &&
+    ('templates' in data &&
       [data.inbox, data.notes].some((name) => name.toLowerCase() === templates.toLowerCase()))
   ) {
     throw new VaultConfigurationError(
@@ -121,7 +121,7 @@ export async function resolveVaultPaths(
   onError: (error: unknown) => void = reportError,
 ): Promise<VaultPaths[]> {
   const markers = await discoverVaults(folder, onError);
-  const config = vscode.workspace.getConfiguration("stemlink", folder.uri);
+  const config = vscode.workspace.getConfiguration('stemlink', folder.uri);
   const explicitlyConfigured = (key: string): boolean => {
     const info = config.inspect(key);
     return (
@@ -130,7 +130,7 @@ export async function resolveVaultPaths(
       info?.workspaceFolderValue !== undefined
     );
   };
-  const hasSettings = ["root", "inbox", "notes", "templates"].some(explicitlyConfigured);
+  const hasSettings = ['root', 'inbox', 'notes', 'templates'].some(explicitlyConfigured);
   let legacy: VaultPaths;
   try {
     legacy = pathsFor(folder);
@@ -145,7 +145,7 @@ export async function resolveVaultPaths(
       (await vscode.workspace.fs.stat(legacy.root)).type & vscode.FileType.Directory,
     );
   } catch (error) {
-    if (!(error instanceof vscode.FileSystemError && error.code === "FileNotFound")) {
+    if (!(error instanceof vscode.FileSystemError && error.code === 'FileNotFound')) {
       onError(error);
       return markers;
     }
@@ -156,7 +156,7 @@ export async function resolveVaultPaths(
       onError(
         new VaultConfigurationError(
           `Configured vault folder does not exist: ${legacy.root.path}`,
-          "settings",
+          'settings',
         ),
       );
     return markers;
@@ -170,14 +170,14 @@ export async function resolveVaultPaths(
       if (!(inbox.type & vscode.FileType.Directory) || !(notes.type & vscode.FileType.Directory))
         return markers;
     } catch (error) {
-      if (error instanceof vscode.FileSystemError && error.code === "FileNotFound") return markers;
+      if (error instanceof vscode.FileSystemError && error.code === 'FileNotFound') return markers;
       onError(error);
       return markers;
     }
   }
   const sameRoot = markers.findIndex((marker) => sameUri(marker.root, legacy.root));
   if (sameRoot < 0) return [...markers, legacy];
-  if (!explicitlyConfigured("templates")) legacy.templates = markers[sameRoot].templates;
+  if (!explicitlyConfigured('templates')) legacy.templates = markers[sameRoot].templates;
   if (samePaths(markers[sameRoot], legacy)) return markers;
 
   const choices = [markers[sameRoot], legacy];
@@ -197,7 +197,7 @@ export async function resolveVaultPaths(
       : undefined;
   if (selected === undefined) {
     const items = choices.map((choice, index) => ({
-      label: index === 0 ? ".stemlink.json" : "VS Code settings",
+      label: index === 0 ? '.stemlink.json' : 'VS Code settings',
       detail: `Inbox: ${choice.inbox.path} | Notes: ${choice.notes.path} | Templates: ${choice.templates.path}`,
       index,
     }));

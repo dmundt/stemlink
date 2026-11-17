@@ -12,6 +12,7 @@ SECURITY.md
 .github/**
 .husky/**
 .gitignore
+.gitattributes
 .vscode/**
 .vscode-test/**
 .prettierignore

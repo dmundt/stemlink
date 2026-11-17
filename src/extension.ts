@@ -1,7 +1,7 @@
-import * as vscode from "vscode";
-import { randomUUID } from "node:crypto";
-import * as path from "node:path";
-import { VaultAgentInstructions } from "./agentInstructions";
+import * as vscode from 'vscode';
+import { randomUUID } from 'node:crypto';
+import * as path from 'node:path';
+import { VaultAgentInstructions } from './agentInstructions';
 import {
   auditNotes,
   captureMetadata,
@@ -14,11 +14,11 @@ import {
   renderVaultReadme,
   slug,
   timestamp,
-} from "./core";
-import { readVaultMarker, resolveVaultPaths, samePaths } from "./discovery";
-import { VaultRouterIndexes } from "./router";
-import { extendMarkdownPreview, MarkdownParser } from "./preview";
-import { Item, VaultSection, VaultTree, VaultTreeSection } from "./tree";
+} from './core';
+import { readVaultMarker, resolveVaultPaths, samePaths } from './discovery';
+import { VaultRouterIndexes } from './router';
+import { extendMarkdownPreview, MarkdownParser } from './preview';
+import { Item, VaultSection, VaultTree, VaultTreeSection } from './tree';
 import {
   Vault,
   VaultPaths,
@@ -27,16 +27,16 @@ import {
   sameUri,
   textPosition,
   validFolderName,
-} from "./vault";
+} from './vault';
 
 export async function activate(
   context: vscode.ExtensionContext,
 ): Promise<{ extendMarkdownIt(markdown: MarkdownParser): MarkdownParser }> {
   const vaults = new Map<string, Vault>();
-  const diagnostics = vscode.languages.createDiagnosticCollection("Stemlink");
+  const diagnostics = vscode.languages.createDiagnosticCollection('Stemlink');
   const background = new Map<Vault, Promise<void>>();
-  const selectionKey = "stemlink.selectedVault";
-  const pendingOpenKey = "stemlink.pendingOpenVault";
+  const selectionKey = 'stemlink.selectedVault';
+  const pendingOpenKey = 'stemlink.pendingOpenVault';
   let selectedVault: Vault | undefined;
   let configuring = false;
   context.subscriptions.push(diagnostics);
@@ -52,8 +52,8 @@ export async function activate(
   const requireActiveVault = (): Vault => {
     if (selectedVault) return selectedVault;
     if (!vscode.workspace.workspaceFolders?.length)
-      throw new Error("Open a workspace folder first.");
-    throw new Error("Select a vault under Vaults first.");
+      throw new Error('Open a workspace folder first.');
+    throw new Error('Select a vault under Vaults first.');
   };
   const vaultFor = (uri?: vscode.Uri): Vault | undefined => {
     if (!uri) return selectedVault;
@@ -64,7 +64,7 @@ export async function activate(
           root.scheme === uri.scheme &&
           root.authority === uri.authority &&
           (sameUri(root, uri) ||
-            uri.toString().startsWith(`${root.toString().replace(/\/$/, "")}/`))
+            uri.toString().startsWith(`${root.toString().replace(/\/$/, '')}/`))
         );
       })
       .sort((a, b) => b.paths.root.path.length - a.paths.root.path.length);
@@ -83,7 +83,7 @@ export async function activate(
     if (previewTimer) clearTimeout(previewTimer);
     previewTimer = setTimeout(() => {
       previewTimer = undefined;
-      void vscode.commands.executeCommand("markdown.preview.refresh").then(undefined, reportError);
+      void vscode.commands.executeCommand('markdown.preview.refresh').then(undefined, reportError);
     }, 100);
   };
   context.subscriptions.push(
@@ -95,7 +95,7 @@ export async function activate(
   );
   const previewTarget = (stem: string, environment: unknown): string | undefined => {
     const source =
-      environment && typeof environment === "object" && "currentDocument" in environment
+      environment && typeof environment === 'object' && 'currentDocument' in environment
         ? environment.currentDocument
         : undefined;
     if (!(source instanceof vscode.Uri)) return undefined;
@@ -125,26 +125,26 @@ export async function activate(
     if (!target || target.scheme !== source.scheme || target.authority !== source.authority)
       return undefined;
     const relative =
-      source.scheme === "file"
-        ? path.relative(path.dirname(source.fsPath), target.fsPath).split(path.sep).join("/")
+      source.scheme === 'file'
+        ? path.relative(path.dirname(source.fsPath), target.fsPath).split(path.sep).join('/')
         : path.posix.relative(path.posix.dirname(source.path), target.path);
-    return `./${relative.split("/").map(encodeURIComponent).join("/")}`;
+    return `./${relative.split('/').map(encodeURIComponent).join('/')}`;
   };
   const tree = new VaultTree(
     activeVault,
     allVaults,
-    vscode.languages.createDiagnosticCollection("Stemlink tags"),
+    vscode.languages.createDiagnosticCollection('Stemlink tags'),
   );
   const routerIndexes = new VaultRouterIndexes();
   const agentInstructions = new VaultAgentInstructions(context.extensionUri);
   const routerIndexesEnabled = (paths: VaultPaths): boolean =>
     vscode.workspace
-      .getConfiguration("stemlink", paths.root)
-      .get<boolean>("enableRouterIndexes", true);
+      .getConfiguration('stemlink', paths.root)
+      .get<boolean>('enableRouterIndexes', true);
   const agentInstructionsEnabled = (paths: VaultPaths): boolean =>
     vscode.workspace
-      .getConfiguration("stemlink", paths.root)
-      .get<boolean>("offerAgentInstructions", true);
+      .getConfiguration('stemlink', paths.root)
+      .get<boolean>('offerAgentInstructions', true);
   const syncRouterIndexes = () =>
     routerIndexes.sync(
       allVaults()
@@ -154,7 +154,7 @@ export async function activate(
   let discoveryFailed = false;
   context.subscriptions.push(tree);
   context.subscriptions.push(routerIndexes);
-  const treeSections: VaultSection[] = ["Vaults", "Fleeting", "Notes", "References"];
+  const treeSections: VaultSection[] = ['Vaults', 'Fleeting', 'Notes', 'References'];
   const treeViews = new Map<VaultSection, vscode.TreeView<Item>>();
   interface TagPickItem extends vscode.QuickPickItem {
     tag: string;
@@ -165,16 +165,16 @@ export async function activate(
   const updateTagFilterView = () => {
     const tags = selectedVault ? tree.tagFilter(selectedVault) : [];
     const label = selectedVault ? tree.vaultLabel(selectedVault) : undefined;
-    for (const section of ["Fleeting", "Notes", "References"] as const) {
+    for (const section of ['Fleeting', 'Notes', 'References'] as const) {
       const view = treeViews.get(section);
       if (view)
         view.description =
-          section === "Notes" && tags.length ? `${label} · Tags: ${tags.join(", ")}` : label;
+          section === 'Notes' && tags.length ? `${label} · Tags: ${tags.join(', ')}` : label;
     }
     if (hasTagFilter !== Boolean(tags.length)) {
       hasTagFilter = Boolean(tags.length);
       void vscode.commands
-        .executeCommand("setContext", "stemlink.hasTagFilter", hasTagFilter)
+        .executeCommand('setContext', 'stemlink.hasTagFilter', hasTagFilter)
         .then(undefined, reportError);
     }
     const scope = tagPickerScope;
@@ -191,7 +191,7 @@ export async function activate(
       tagPickerScope?.picker.dispose();
     }),
   );
-  const captureMime = "application/vnd.stemlink.captures";
+  const captureMime = 'application/vnd.stemlink.captures';
   let draggedCaptures: { id: string; items: Item[] } | undefined;
   let dropping = false;
   const dragController: vscode.TreeDragAndDropController<Item> = {
@@ -200,7 +200,7 @@ export async function activate(
     handleDrag: (items, transfer, token) => {
       draggedCaptures = undefined;
       if (token.isCancellationRequested || !vscode.workspace.isTrusted) return;
-      const captures = items.filter((item) => item.kind === "capture" && item.uri);
+      const captures = items.filter((item) => item.kind === 'capture' && item.uri);
       if (!captures.length) return;
       draggedCaptures = { id: randomUUID(), items: captures };
       transfer.set(captureMime, new vscode.DataTransferItem(draggedCaptures.id));
@@ -211,7 +211,7 @@ export async function activate(
     dropMimeTypes: [captureMime],
     handleDrop: async (target, transfer, token) => {
       const drag = draggedCaptures;
-      if (!drag || (target && target.kind !== "note")) return;
+      if (!drag || (target && target.kind !== 'note')) return;
       try {
         let matches = false;
         // Native drops can contain a blank browser entry before the extension's entry.
@@ -226,14 +226,14 @@ export async function activate(
         }
         if (!matches) return;
         draggedCaptures = undefined;
-        if (typeof token.isCancellationRequested !== "boolean")
-          throw new Error("The drop cancellation state is unavailable.");
+        if (typeof token.isCancellationRequested !== 'boolean')
+          throw new Error('The drop cancellation state is unavailable.');
         if (token.isCancellationRequested) return;
-        if (target) await noteSource(target, "note");
+        if (target) await noteSource(target, 'note');
         // VS Code may marshal the drop token as a snapshot without its event.
         await promoteBatch(
           drag.items,
-          typeof token.onCancellationRequested === "function" ? token : undefined,
+          typeof token.onCancellationRequested === 'function' ? token : undefined,
         );
       } catch (error) {
         reportError(error);
@@ -244,9 +244,9 @@ export async function activate(
     const provider = new VaultTreeSection(tree, section);
     const view = vscode.window.createTreeView<Item>(`stemlink.${section.toLowerCase()}`, {
       treeDataProvider: provider,
-      ...(section === "Fleeting"
+      ...(section === 'Fleeting'
         ? { canSelectMany: true, dragAndDropController: dragController }
-        : section === "Notes"
+        : section === 'Notes'
           ? { dragAndDropController: dropController }
           : {}),
     });
@@ -258,12 +258,12 @@ export async function activate(
   let revealingVault: Vault | undefined;
   const syncVaultSelection = (): Promise<void> => {
     const operation = selectionSync.then(async () => {
-      const view = treeViews.get("Vaults");
+      const view = treeViews.get('Vaults');
       // Tree refreshes can invalidate an item while VS Code is resolving a reveal.
       for (let attempt = 0; attempt < 3; attempt++) {
         const vault = selectedVault;
         if (!view?.visible || !vault || view.selection[0]?.vault === vault) return;
-        const rows = await tree.getChildren(new Item("Vaults", "Vaults"));
+        const rows = await tree.getChildren(new Item('Vaults', 'Vaults'));
         if (selectedVault !== vault || !view.visible) continue;
         const item = rows.find((row) => row.vault === vault);
         if (!item) return;
@@ -283,7 +283,7 @@ export async function activate(
     selectionSync = operation.catch(() => {});
     return operation;
   };
-  const vaultView = treeViews.get("Vaults");
+  const vaultView = treeViews.get('Vaults');
   if (vaultView)
     context.subscriptions.push(
       vaultView.onDidChangeVisibility((event) => {
@@ -293,24 +293,24 @@ export async function activate(
   const updateTreeViewMessages = (): void => {
     updateTagFilterView();
     void vscode.commands
-      .executeCommand("setContext", "stemlink.hasVault", vaults.size > 0)
+      .executeCommand('setContext', 'stemlink.hasVault', vaults.size > 0)
       .then(undefined, reportError);
     void vscode.commands
-      .executeCommand("setContext", "stemlink.discoveryFailed", discoveryFailed)
+      .executeCommand('setContext', 'stemlink.discoveryFailed', discoveryFailed)
       .then(undefined, reportError);
     if (vaultView) {
       const count = vaults.size;
       vaultView.badge = count
-        ? { value: count, tooltip: `${count} ${count === 1 ? "vault" : "vaults"}` }
+        ? { value: count, tooltip: `${count} ${count === 1 ? 'vault' : 'vaults'}` }
         : undefined;
     }
     for (const [section, view] of treeViews) {
       view.message =
-        section === "Vaults"
+        section === 'Vaults'
           ? undefined
           : selectedVault
             ? tree.message(section)
-            : "Open or create a vault in Vaults.";
+            : 'Open or create a vault in Vaults.';
     }
   };
   const updateTreeViewTitles = async (): Promise<void> => {
@@ -319,7 +319,7 @@ export async function activate(
     for (const section of treeSections) {
       const item = items.find((candidate) => candidate.kind === section);
       const view = treeViews.get(section);
-      if (typeof item?.label === "string" && view) view.title = item.label;
+      if (typeof item?.label === 'string' && view) view.title = item.label;
     }
   };
   context.subscriptions.push(
@@ -333,7 +333,7 @@ export async function activate(
   updateTreeViewMessages();
 
   const warmIndex = (vault: Vault) => {
-    if (background.has(vault) || vault.indexState === "ready") return;
+    if (background.has(vault) || vault.indexState === 'ready') return;
     const work = vault
       .ensure()
       .catch(reportError)
@@ -413,7 +413,7 @@ export async function activate(
     }
     updateTreeViewMessages();
     tree.syncVaults();
-    if (selectedVault && selectedVault.indexState === "pending") warmIndex(selectedVault);
+    if (selectedVault && selectedVault.indexState === 'pending') warmIndex(selectedVault);
   };
   let pendingDiscovery = Promise.resolve();
   const queueDiscovery = (preferred?: vscode.Uri): Promise<void> => {
@@ -452,18 +452,18 @@ export async function activate(
       }),
     );
 
-  command("stemlink.openSettings", async () => {
-    await vscode.commands.executeCommand("workbench.action.openSettings", "@ext:dmundt.stemlink");
+  command('stemlink.openSettings', async () => {
+    await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:dmundt.stemlink');
   });
 
-  command("stemlink.filterByTags", async () => {
+  command('stemlink.filterByTags', async () => {
     const vault = requireActiveVault();
     tagPickerScope?.picker.hide();
     const picker = vscode.window.createQuickPick<TagPickItem>();
     const scope = { picker, vault, notesPath: vault.paths.notes.toString() };
     tagPickerScope = scope;
-    picker.title = "Filter by tags";
-    picker.placeholder = "Select tags; notes matching any selected tag are shown.";
+    picker.title = 'Filter by tags';
+    picker.placeholder = 'Select tags; notes matching any selected tag are shown.';
     picker.canSelectMany = true;
     picker.matchOnDescription = false;
     picker.matchOnDetail = false;
@@ -500,11 +500,11 @@ export async function activate(
       if (tagPickerScope !== scope) return;
       const selected = new Set(tree.tagFilter(vault));
       if (!choices.length)
-        picker.placeholder = "No tags in this vault. Add YAML tags, for example: tags: [idea].";
+        picker.placeholder = 'No tags in this vault. Add YAML tags, for example: tags: [idea].';
       picker.items = choices.map(({ tag, count }) => ({
         label: tag,
         tag,
-        description: `${count} ${count === 1 ? "note" : "notes"}`,
+        description: `${count} ${count === 1 ? 'note' : 'notes'}`,
       }));
       picker.selectedItems = picker.items.filter((item) => selected.has(item.tag));
       picker.busy = false;
@@ -514,19 +514,19 @@ export async function activate(
       throw error;
     }
   });
-  command("stemlink.clearTagFilter", async () => {
+  command('stemlink.clearTagFilter', async () => {
     tree.setTagFilter(requireActiveVault(), []);
     tagPickerScope?.picker.hide();
     updateTagFilterView();
   });
 
-  command("stemlink.selectVault", async (root: vscode.Uri) => {
+  command('stemlink.selectVault', async (root: vscode.Uri) => {
     const vault = vaults.get(root.toString());
-    if (!vault) throw new Error("The selected vault is no longer available.");
+    if (!vault) throw new Error('The selected vault is no longer available.');
     await selectVault(vault);
   });
 
-  command("stemlink.openAt", async (uri: vscode.Uri, offset?: number) => {
+  command('stemlink.openAt', async (uri: vscode.Uri, offset?: number) => {
     const document = await vscode.workspace.openTextDocument(uri);
     const editor = await vscode.window.showTextDocument(document);
     if (offset !== undefined) {
@@ -543,15 +543,15 @@ export async function activate(
     templates: string,
   ): Promise<void> {
     if (!vscode.workspace.isTrusted)
-      throw new Error("Trust the workspace before adding a vault marker.");
-    const marker = vscode.Uri.joinPath(root, ".stemlink.json");
+      throw new Error('Trust the workspace before adding a vault marker.');
+    const marker = vscode.Uri.joinPath(root, '.stemlink.json');
     const edit = new vscode.WorkspaceEdit();
     edit.createFile(marker, { overwrite: false, ignoreIfExists: false });
     const mapping = { version: 1, inbox, notes, templates };
     if (!validFolderName(templates))
-      throw new Error("The templates folder must be a valid folder name.");
+      throw new Error('The templates folder must be a valid folder name.');
     if ([inbox, notes].some((name) => name.toLowerCase() === templates.toLowerCase())) {
-      throw new Error("The templates folder must be distinct from inbox and notes.");
+      throw new Error('The templates folder must be distinct from inbox and notes.');
     }
     edit.insert(marker, new vscode.Position(0, 0), `${JSON.stringify(mapping, null, 2)}\n`);
     if (!(await vscode.workspace.applyEdit(edit)))
@@ -560,11 +560,11 @@ export async function activate(
     if (!(await document.save())) throw new Error(`Created ${marker.path} but could not save it.`);
   }
 
-  command("stemlink.openVault", async () => {
-    if (!vscode.workspace.isTrusted) throw new Error("Trust the workspace before opening a vault.");
+  command('stemlink.openVault', async () => {
+    if (!vscode.workspace.isTrusted) throw new Error('Trust the workspace before opening a vault.');
     const roots = await vscode.window.showOpenDialog({
-      title: "Open vault",
-      openLabel: "Open vault",
+      title: 'Open vault',
+      openLabel: 'Open vault',
       canSelectFiles: false,
       canSelectFolders: true,
       canSelectMany: false,
@@ -572,16 +572,16 @@ export async function activate(
     const root = roots?.[0];
     if (!root) return;
     if (!((await vscode.workspace.fs.stat(root)).type & vscode.FileType.Directory)) {
-      throw new Error("Choose a vault folder.");
+      throw new Error('Choose a vault folder.');
     }
     const marker = await readVaultMarker(root);
     if (!marker) {
       const answer = await vscode.window.showWarningMessage(
-        "This folder has no .stemlink.json. Add a marker using existing inbox and permanent-note folders?",
+        'This folder has no .stemlink.json. Add a marker using existing inbox and permanent-note folders?',
         { modal: true },
-        "Add Marker",
+        'Add Marker',
       );
-      if (answer !== "Add Marker") return;
+      if (answer !== 'Add Marker') return;
       const directories = (await vscode.workspace.fs.readDirectory(root))
         .filter(
           ([name, type]) => Boolean(type & vscode.FileType.Directory) && validFolderName(name),
@@ -590,10 +590,10 @@ export async function activate(
         .sort((a, b) => a.label.localeCompare(b.label));
       if (directories.length < 2)
         throw new Error(
-          "The vault needs two distinct existing folders for captures and permanent notes.",
+          'The vault needs two distinct existing folders for captures and permanent notes.',
         );
       const inbox = await vscode.window.showQuickPick(directories, {
-        title: "Choose fleeting/capture folder",
+        title: 'Choose fleeting/capture folder',
       });
       if (!inbox) return;
       const noteDirectories = directories.filter(
@@ -601,10 +601,10 @@ export async function activate(
       );
       if (!noteDirectories.length)
         throw new Error(
-          "The vault needs two distinct existing folders for captures and permanent notes.",
+          'The vault needs two distinct existing folders for captures and permanent notes.',
         );
       const notes = await vscode.window.showQuickPick(noteDirectories, {
-        title: "Choose permanent-note folder",
+        title: 'Choose permanent-note folder',
       });
       if (!notes) return;
       for (const name of [inbox.label, notes.label]) {
@@ -618,11 +618,11 @@ export async function activate(
         }
       }
       const templates = vscode.workspace
-        .getConfiguration("stemlink", root)
-        .get<string>("templates", "templates");
+        .getConfiguration('stemlink', root)
+        .get<string>('templates', 'templates');
       await writeMarker(root, inbox.label, notes.label, templates);
     }
-    if (!vscode.workspace.isTrusted) throw new Error("Trust the workspace before opening a vault.");
+    if (!vscode.workspace.isTrusted) throw new Error('Trust the workspace before opening a vault.');
     const folders = vscode.workspace.workspaceFolders ?? [];
     if (folders.some((folder) => sameUri(root, folder.uri) || directChild(root, folder.uri))) {
       await queueDiscovery(root);
@@ -636,7 +636,7 @@ export async function activate(
     if (!folders.length) {
       await context.globalState.update(pendingOpenKey, root.toString());
       try {
-        await vscode.commands.executeCommand("vscode.openFolder", root, false);
+        await vscode.commands.executeCommand('vscode.openFolder', root, false);
       } catch (error) {
         await context.globalState.update(pendingOpenKey, undefined);
         throw error;
@@ -647,7 +647,7 @@ export async function activate(
       await context.globalState.update(pendingOpenKey, root.toString());
       if (!vscode.workspace.updateWorkspaceFolders(folders.length, 0, { uri: root })) {
         await context.globalState.update(pendingOpenKey, undefined);
-        throw new Error("Could not add the vault folder to the workspace.");
+        throw new Error('Could not add the vault folder to the workspace.');
       }
       return;
     }
@@ -658,13 +658,13 @@ export async function activate(
         if (event.added.some((folder) => sameUri(folder.uri, root))) resolve();
       });
       timer = setTimeout(
-        () => reject(new Error("Adding the vault folder to the workspace timed out.")),
+        () => reject(new Error('Adding the vault folder to the workspace timed out.')),
         5000,
       );
     });
     try {
       if (!vscode.workspace.updateWorkspaceFolders(folders.length, 0, { uri: root })) {
-        throw new Error("Could not add the vault folder to the workspace.");
+        throw new Error('Could not add the vault folder to the workspace.');
       }
       await added;
     } finally {
@@ -679,19 +679,19 @@ export async function activate(
     }
   });
 
-  command("stemlink.createVault", async () => {
+  command('stemlink.createVault', async () => {
     if (!vscode.workspace.isTrusted)
-      throw new Error("Trust the workspace before creating a vault.");
+      throw new Error('Trust the workspace before creating a vault.');
     const folders = vscode.workspace.workspaceFolders ?? [];
-    if (!folders.length) throw new Error("Open a workspace folder first.");
+    if (!folders.length) throw new Error('Open a workspace folder first.');
     const selected =
       folders.length === 1
         ? folders[0]
         : await vscode.window.showWorkspaceFolderPick({
-            placeHolder: "Choose a workspace for the vault",
+            placeHolder: 'Choose a workspace for the vault',
           });
     if (!selected) return;
-    const config = vscode.workspace.getConfiguration("stemlink", selected.uri);
+    const config = vscode.workspace.getConfiguration('stemlink', selected.uri);
     const prompt = async (
       label: string,
       value: string,
@@ -699,9 +699,9 @@ export async function activate(
     ) => {
       const validateInput = (input: string) =>
         !validFolderName(input)
-          ? "Enter a single valid folder name."
+          ? 'Enter a single valid folder name.'
           : isReservedFolderName(input)
-            ? "Choose a folder name that is not a reserved Windows device name."
+            ? 'Choose a folder name that is not a reserved Windows device name.'
             : validateCollision?.(input);
       const answer = await vscode.window.showInputBox({
         title: `Create vault: ${label}`,
@@ -714,11 +714,11 @@ export async function activate(
       }
       return answer;
     };
-    const root = await prompt("root folder", config.get<string>("root", "notes"));
+    const root = await prompt('root folder', config.get<string>('root', 'notes'));
     if (root === undefined) return;
     const rootUri = vscode.Uri.joinPath(selected.uri, root);
     const existingMarker = await readVaultMarker(rootUri);
-    const templateSetting = config.inspect<string>("templates");
+    const templateSetting = config.inspect<string>('templates');
     const templatesExplicit = [
       templateSetting?.globalValue,
       templateSetting?.workspaceValue,
@@ -726,37 +726,37 @@ export async function activate(
     ].some((value) => value !== undefined);
     const templatesName =
       existingMarker && !templatesExplicit
-        ? existingMarker.templates.path.slice(existingMarker.templates.path.lastIndexOf("/") + 1)
-        : config.get<string>("templates", "templates");
+        ? existingMarker.templates.path.slice(existingMarker.templates.path.lastIndexOf('/') + 1)
+        : config.get<string>('templates', 'templates');
     if (!validFolderName(templatesName) || isReservedFolderName(templatesName)) {
       const choice = await vscode.window.showErrorMessage(
-        "Stemlink: The templates folder must be a valid folder name, not a reserved Windows device name.",
-        "Settings",
+        'Stemlink: The templates folder must be a valid folder name, not a reserved Windows device name.',
+        'Settings',
       );
-      if (choice === "Settings") await vscode.commands.executeCommand("stemlink.openSettings");
+      if (choice === 'Settings') await vscode.commands.executeCommand('stemlink.openSettings');
       return;
     }
     const templateCollision = (input: string) =>
       input.toLowerCase() === templatesName.toLowerCase()
-        ? "The templates folder must be distinct from inbox and notes."
+        ? 'The templates folder must be distinct from inbox and notes.'
         : undefined;
     const inbox = await prompt(
-      "inbox folder",
-      config.get<string>("inbox", "inbox"),
+      'inbox folder',
+      config.get<string>('inbox', 'inbox'),
       templateCollision,
     );
     if (inbox === undefined) return;
     const notes = await prompt(
-      "permanent-note folder",
-      config.get<string>("notes", "permanent"),
+      'permanent-note folder',
+      config.get<string>('notes', 'permanent'),
       (input) =>
         templateCollision(input) ??
         (input.toLowerCase() === inbox.toLowerCase()
-          ? "Inbox and notes must be different folders."
+          ? 'Inbox and notes must be different folders.'
           : undefined),
     );
     if (notes === undefined) return;
-    const configured = ["root", "inbox", "notes", "templates"].some((key) => {
+    const configured = ['root', 'inbox', 'notes', 'templates'].some((key) => {
       const info = config.inspect(key);
       return info?.workspaceValue !== undefined || info?.workspaceFolderValue !== undefined;
     });
@@ -765,15 +765,15 @@ export async function activate(
       await vscode.workspace.fs.stat(rootUri);
       exists = true;
     } catch (error) {
-      if (!(error instanceof vscode.FileSystemError && error.code === "FileNotFound")) throw error;
+      if (!(error instanceof vscode.FileSystemError && error.code === 'FileNotFound')) throw error;
     }
     if (exists || configured) {
       const answer = await vscode.window.showWarningMessage(
-        "The folder or Stemlink workspace settings already exist. Reuse the folder and replace the Stemlink paths?",
+        'The folder or Stemlink workspace settings already exist. Reuse the folder and replace the Stemlink paths?',
         { modal: true },
-        "Continue",
+        'Continue',
       );
-      if (answer !== "Continue") return;
+      if (answer !== 'Continue') return;
     }
     const desiredPaths: VaultPaths = {
       root: rootUri,
@@ -787,27 +787,27 @@ export async function activate(
       );
     }
     if (!vscode.workspace.isTrusted)
-      throw new Error("Trust the workspace before creating a vault.");
+      throw new Error('Trust the workspace before creating a vault.');
     await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(rootUri, inbox));
     await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(rootUri, notes));
     const templateDirectory = desiredPaths.templates;
     await vscode.workspace.fs.createDirectory(templateDirectory);
     const preserved: string[] = [];
-    if (existingMarker) preserved.push(".stemlink.json");
-    const manualSource = vscode.Uri.joinPath(context.extensionUri, "templates", "README.md");
+    if (existingMarker) preserved.push('.stemlink.json');
+    const manualSource = vscode.Uri.joinPath(context.extensionUri, 'templates', 'README.md');
     const manualText = Buffer.from(await vscode.workspace.fs.readFile(manualSource)).toString(
-      "utf8",
+      'utf8',
     );
-    const manual = vscode.Uri.joinPath(rootUri, "README.md");
+    const manual = vscode.Uri.joinPath(rootUri, 'README.md');
     let manualExists = false;
     try {
       manualExists = Boolean((await vscode.workspace.fs.stat(manual)).type & vscode.FileType.File);
-      if (!manualExists) throw new Error("Vault README.md path is not a file.");
+      if (!manualExists) throw new Error('Vault README.md path is not a file.');
     } catch (error) {
-      if (!(error instanceof vscode.FileSystemError && error.code === "FileNotFound")) throw error;
+      if (!(error instanceof vscode.FileSystemError && error.code === 'FileNotFound')) throw error;
     }
     if (manualExists) {
-      preserved.push("README.md");
+      preserved.push('README.md');
     } else {
       const manualEdit = new vscode.WorkspaceEdit();
       manualEdit.createFile(manual, {
@@ -816,34 +816,34 @@ export async function activate(
         contents: Buffer.from(
           renderVaultReadme(
             manualText,
-            rootUri.path.slice(rootUri.path.lastIndexOf("/") + 1),
+            rootUri.path.slice(rootUri.path.lastIndexOf('/') + 1),
             inbox,
             notes,
             templatesName,
           ),
-          "utf8",
+          'utf8',
         ),
       });
       let manualCreated = false;
       try {
         manualCreated = await vscode.workspace.applyEdit(manualEdit);
       } catch (error) {
-        if (!(error instanceof vscode.FileSystemError && error.code === "FileExists")) throw error;
+        if (!(error instanceof vscode.FileSystemError && error.code === 'FileExists')) throw error;
       }
       if (!manualCreated) {
         const stat = await vscode.workspace.fs.stat(manual);
         if (!(stat.type & vscode.FileType.File))
-          throw new Error("Vault README.md path is not a file.");
-        preserved.push("README.md");
+          throw new Error('Vault README.md path is not a file.');
+        preserved.push('README.md');
       }
     }
-    for (const name of ["_template.md", "_fleeting.md", "_promotion.md"]) {
+    for (const name of ['_template.md', '_fleeting.md', '_promotion.md']) {
       const destination = vscode.Uri.joinPath(templateDirectory, name);
-      const template = vscode.Uri.joinPath(context.extensionUri, "templates", name);
+      const template = vscode.Uri.joinPath(context.extensionUri, 'templates', name);
       try {
         await vscode.workspace.fs.copy(template, destination, { overwrite: false });
       } catch (error) {
-        if (!(error instanceof vscode.FileSystemError && error.code === "FileExists")) throw error;
+        if (!(error instanceof vscode.FileSystemError && error.code === 'FileExists')) throw error;
         if (!((await vscode.workspace.fs.stat(destination)).type & vscode.FileType.File)) {
           throw new Error(`The vault's ${name} exists but is not a file.`, { cause: error });
         }
@@ -856,7 +856,7 @@ export async function activate(
       folders.length > 1
         ? vscode.ConfigurationTarget.WorkspaceFolder
         : vscode.ConfigurationTarget.Workspace;
-    const keys = ["root", "inbox", "notes", "templates"] as const;
+    const keys = ['root', 'inbox', 'notes', 'templates'] as const;
     const values = [root, inbox, notes, templatesName];
     const previous = keys.map((key) => {
       const inspected = config.inspect<string>(key);
@@ -889,14 +889,14 @@ export async function activate(
     tree.refresh();
     if (preserved.length)
       void vscode.window.showWarningMessage(
-        `Stemlink: Vault ready; existing ${preserved.join(", ")} ${preserved.length === 1 ? "was" : "were"} preserved.`,
+        `Stemlink: Vault ready; existing ${preserved.join(', ')} ${preserved.length === 1 ? 'was' : 'were'} preserved.`,
       );
-    else void vscode.window.showInformationMessage("Stemlink: Vault ready.");
+    else void vscode.window.showInformationMessage('Stemlink: Vault ready.');
   });
 
   async function askMetadata(
     purpose: string,
-    defaultTitle = "",
+    defaultTitle = '',
     defaultTags: string[] = [],
     reuse: { title: boolean; tags: boolean } = { title: false, tags: false },
     token?: vscode.CancellationToken,
@@ -906,18 +906,18 @@ export async function activate(
         ? defaultTitle
         : await vscode.window.showInputBox({
             title: purpose,
-            prompt: "Note title",
+            prompt: 'Note title',
             value: defaultTitle,
-            validateInput: (value) => (value.trim() ? undefined : "Enter a title."),
+            validateInput: (value) => (value.trim() ? undefined : 'Enter a title.'),
           });
     if (title === undefined || token?.isCancellationRequested) return undefined;
     const rawTags =
       reuse.tags && defaultTags.some((tag) => tag.trim())
-        ? defaultTags.join(", ")
+        ? defaultTags.join(', ')
         : await vscode.window.showInputBox({
             title: purpose,
-            prompt: "Tags (comma-separated, optional)",
-            value: defaultTags.join(", "),
+            prompt: 'Tags (comma-separated, optional)',
+            value: defaultTags.join(', '),
           });
     if (rawTags === undefined) return undefined;
     return {
@@ -926,7 +926,7 @@ export async function activate(
         reuse.tags && defaultTags.some((tag) => tag.trim())
           ? defaultTags
           : rawTags
-              .split(",")
+              .split(',')
               .map((tag) => tag.trim())
               .filter(Boolean),
     };
@@ -939,19 +939,19 @@ export async function activate(
   ): Promise<vscode.Uri> {
     const base = `${timestamp(new Date())}-${slug(title)}`;
     for (let suffix = 1; ; suffix++) {
-      const uri = vscode.Uri.joinPath(directory, `${base}${suffix === 1 ? "" : `-${suffix}`}.md`);
+      const uri = vscode.Uri.joinPath(directory, `${base}${suffix === 1 ? '' : `-${suffix}`}.md`);
       try {
         await vscode.workspace.fs.stat(uri);
         continue;
       } catch (error) {
-        if (!(error instanceof vscode.FileSystemError && error.code === "FileNotFound"))
+        if (!(error instanceof vscode.FileSystemError && error.code === 'FileNotFound'))
           throw error;
       }
       const edit = new vscode.WorkspaceEdit();
       edit.createFile(uri, { overwrite: false, ignoreIfExists: false });
       edit.insert(uri, new vscode.Position(0, 0), text);
       if (!(await vscode.workspace.applyEdit(edit)))
-        throw new Error("Could not create the note; no existing file was overwritten.");
+        throw new Error('Could not create the note; no existing file was overwritten.');
       const doc = await vscode.workspace.openTextDocument(uri);
       if (!(await doc.save())) throw new Error(`Created ${uri.path} but could not save it.`);
       return uri;
@@ -960,57 +960,57 @@ export async function activate(
 
   async function addFleetingNote(vault: Vault): Promise<void> {
     if (!vscode.workspace.isTrusted)
-      throw new Error("Trust the workspace before creating a capture.");
+      throw new Error('Trust the workspace before creating a capture.');
     registeredVault(vault);
     const destination = vault.paths.inbox.toString();
     let headline: string | undefined;
     if (
       vscode.workspace
-        .getConfiguration("stemlink", vault.paths.root)
-        .get<boolean>("promptForCaptureHeadline", true)
+        .getConfiguration('stemlink', vault.paths.root)
+        .get<boolean>('promptForCaptureHeadline', true)
     ) {
       headline = await vscode.window.showInputBox({
-        title: "Capture headline",
+        title: 'Capture headline',
         prompt: `Describe this fleeting thought for ${tree.vaultLabel(vault)}.`,
-        validateInput: (value) => (value.trim() ? undefined : "Enter a headline."),
+        validateInput: (value) => (value.trim() ? undefined : 'Enter a headline.'),
       });
       if (headline === undefined) return;
       headline = headline.trim();
     }
     if (vault.paths.inbox.toString() !== destination)
       throw new Error("The vault's inbox folder changed; try again.");
-    const template = vscode.Uri.joinPath(vault.paths.templates, "_fleeting.md");
-    const legacyTemplate = vscode.Uri.joinPath(vault.paths.notes, "_fleeting.md");
+    const template = vscode.Uri.joinPath(vault.paths.templates, '_fleeting.md');
+    const legacyTemplate = vscode.Uri.joinPath(vault.paths.notes, '_fleeting.md');
     let text: string;
     try {
-      text = Buffer.from(await vscode.workspace.fs.readFile(template)).toString("utf8");
+      text = Buffer.from(await vscode.workspace.fs.readFile(template)).toString('utf8');
     } catch (error) {
-      if (!(error instanceof vscode.FileSystemError && error.code === "FileNotFound")) throw error;
+      if (!(error instanceof vscode.FileSystemError && error.code === 'FileNotFound')) throw error;
       try {
-        text = Buffer.from(await vscode.workspace.fs.readFile(legacyTemplate)).toString("utf8");
+        text = Buffer.from(await vscode.workspace.fs.readFile(legacyTemplate)).toString('utf8');
       } catch (legacyError) {
-        if (legacyError instanceof vscode.FileSystemError && legacyError.code === "FileNotFound") {
+        if (legacyError instanceof vscode.FileSystemError && legacyError.code === 'FileNotFound') {
           const choice = await vscode.window.showWarningMessage(
             `Stemlink: Fleeting template not found at ${template.path} or ${legacyTemplate.path}.`,
-            "Use bundled template once",
+            'Use bundled template once',
           );
-          if (choice !== "Use bundled template once") return;
+          if (choice !== 'Use bundled template once') return;
           text = Buffer.from(
             await vscode.workspace.fs.readFile(
-              vscode.Uri.joinPath(context.extensionUri, "templates", "_fleeting.md"),
+              vscode.Uri.joinPath(context.extensionUri, 'templates', '_fleeting.md'),
             ),
-          ).toString("utf8");
+          ).toString('utf8');
         } else throw legacyError;
       }
     }
     if (!vscode.workspace.isTrusted)
-      throw new Error("Trust the workspace before creating a capture.");
+      throw new Error('Trust the workspace before creating a capture.');
     registeredVault(vault);
     if (vault.paths.inbox.toString() !== destination)
       throw new Error("The vault's inbox folder changed; try again.");
     if (!((await vscode.workspace.fs.stat(vault.paths.inbox)).type & vscode.FileType.Directory))
       throw new Error("The vault's inbox path is not a folder.");
-    const name = headline ? slug(headline).slice(0, 48).replace(/-+$/g, "") : "capture";
+    const name = headline ? slug(headline).slice(0, 48).replace(/-+$/g, '') : 'capture';
     const uri = await createFile(
       vault.paths.inbox,
       name,
@@ -1019,16 +1019,16 @@ export async function activate(
     tree.refresh();
     await vscode.window.showTextDocument(uri);
   }
-  command("stemlink.addFleetingNote", async () => {
+  command('stemlink.addFleetingNote', async () => {
     await addFleetingNote(requireActiveVault());
   });
-  command("stemlink.newFleetingNote", async (item?: Item) => {
+  command('stemlink.newFleetingNote', async (item?: Item) => {
     await addFleetingNote(itemVault(item));
   });
 
   function registeredVault(vault: Vault): Vault {
     if (vaults.get(vault.paths.root.toString()) !== vault)
-      throw new Error("The selected vault is no longer available.");
+      throw new Error('The selected vault is no longer available.');
     return vault;
   }
 
@@ -1037,11 +1037,11 @@ export async function activate(
     void vscode.window
       .showInformationMessage(
         `Stemlink: Created note in ${tree.vaultLabel(vault)} is not shown by the active tag filter.`,
-        "Clear tag filter",
+        'Clear tag filter',
       )
       .then((choice) => {
         if (
-          choice === "Clear tag filter" &&
+          choice === 'Clear tag filter' &&
           selectedVault === vault &&
           vaults.get(vault.paths.root.toString()) === vault
         ) {
@@ -1053,18 +1053,18 @@ export async function activate(
   }
 
   function itemVault(item?: Item): Vault {
-    if (item?.kind !== "vault" || !item.vault)
-      throw new Error("Select a vault from its context menu.");
+    if (item?.kind !== 'vault' || !item.vault)
+      throw new Error('Select a vault from its context menu.');
     return registeredVault(item.vault);
   }
 
   async function addNote(vault: Vault): Promise<void> {
-    if (!vscode.workspace.isTrusted) throw new Error("Trust the workspace before creating a note.");
+    if (!vscode.workspace.isTrusted) throw new Error('Trust the workspace before creating a note.');
     registeredVault(vault);
     const destination = vault.paths.notes.toString();
     const metadata = await askMetadata(`New permanent note: ${vault.paths.root.fsPath}`);
     if (!metadata) return;
-    if (!vscode.workspace.isTrusted) throw new Error("Trust the workspace before creating a note.");
+    if (!vscode.workspace.isTrusted) throw new Error('Trust the workspace before creating a note.');
     registeredVault(vault);
     if (vault.paths.notes.toString() !== destination)
       throw new Error("The vault's notes folder changed; try again.");
@@ -1078,45 +1078,45 @@ export async function activate(
     await vscode.window.showTextDocument(uri);
     explainFilteredCreation(vault, uri);
   }
-  command("stemlink.addNote", async () => {
+  command('stemlink.addNote', async () => {
     await addNote(requireActiveVault());
   });
-  command("stemlink.newPermanentNote", async (item?: Item) => {
+  command('stemlink.newPermanentNote', async (item?: Item) => {
     await addNote(itemVault(item));
   });
 
-  async function noteSource(item: Item | undefined, kind: "capture" | "note") {
+  async function noteSource(item: Item | undefined, kind: 'capture' | 'note') {
     if (!vscode.workspace.isTrusted)
       throw new Error(`Trust the workspace before changing a ${kind}.`);
     const uri = item?.uri;
     const vault = uri ? vaultFor(uri) : undefined;
-    const name = uri?.path.slice(uri.path.lastIndexOf("/") + 1) ?? "";
-    const description = kind === "capture" ? "inbox Markdown capture" : "permanent Markdown note";
+    const name = uri?.path.slice(uri.path.lastIndexOf('/') + 1) ?? '';
+    const description = kind === 'capture' ? 'inbox Markdown capture' : 'permanent Markdown note';
     if (
       !uri ||
       !vault ||
-      !directChild(uri, kind === "capture" ? vault.paths.inbox : vault.paths.notes) ||
-      !uri.path.endsWith(".md") ||
+      !directChild(uri, kind === 'capture' ? vault.paths.inbox : vault.paths.notes) ||
+      !uri.path.endsWith('.md') ||
       isExcludedNoteFile(name)
     ) {
       throw new Error(
-        `Select a${kind === "capture" ? "n" : ""} ${description} from its context menu.`,
+        `Select a${kind === 'capture' ? 'n' : ''} ${description} from its context menu.`,
       );
     }
     if (!((await vscode.workspace.fs.stat(uri)).type & vscode.FileType.File))
-      throw new Error(`Select a${kind === "capture" ? "n" : ""} ${description} file.`);
+      throw new Error(`Select a${kind === 'capture' ? 'n' : ''} ${description} file.`);
     const doc = await vscode.workspace.openTextDocument(uri);
     return { uri, vault, name, doc };
   }
-  const captureSource = (item?: Item) => noteSource(item, "capture");
+  const captureSource = (item?: Item) => noteSource(item, 'capture');
 
   const suggestedCaptureTitle = (name: string) =>
     name
       .slice(0, -3)
-      .replace(/^\d{12}-/, "")
-      .replace(/-/g, " ");
+      .replace(/^\d{12}-/, '')
+      .replace(/-/g, ' ');
 
-  async function editMetadata(item: Item | undefined, kind: "capture" | "note") {
+  async function editMetadata(item: Item | undefined, kind: 'capture' | 'note') {
     const { uri, doc } = await noteSource(item, kind);
     const wasDirty = doc.isDirty;
     const snapshot = doc.getText();
@@ -1125,7 +1125,7 @@ export async function activate(
     const existing = captureMetadata(snapshot);
     const metadata = await askMetadata(
       `Edit metadata: ${uri.fsPath}`,
-      existing.title ?? "",
+      existing.title ?? '',
       existing.tags,
     );
     if (!metadata) return;
@@ -1133,7 +1133,7 @@ export async function activate(
     const currentBytes = Buffer.from(await vscode.workspace.fs.readFile(uri));
     if (doc.version !== version || !currentBytes.equals(originalBytes))
       throw new Error(
-        `${kind === "capture" ? "Capture" : "Note"} changed while editing metadata; try again.`,
+        `${kind === 'capture' ? 'Capture' : 'Note'} changed while editing metadata; try again.`,
       );
     const edit = new vscode.WorkspaceEdit();
     edit.replace(
@@ -1145,44 +1145,44 @@ export async function activate(
       throw new Error(`Could not update ${kind} metadata.`);
     if (!wasDirty && !(await doc.save()))
       throw new Error(
-        `${kind === "capture" ? "Capture" : "Note"} metadata was updated in the editor but could not be saved.`,
+        `${kind === 'capture' ? 'Capture' : 'Note'} metadata was updated in the editor but could not be saved.`,
       );
     tree.refresh();
   }
-  command("stemlink.editCaptureMetadata", async (item?: Item, selection?: Item[]) => {
-    if (selection && selection.length > 1) throw new Error("Select one capture to edit metadata.");
-    await editMetadata(item, "capture");
+  command('stemlink.editCaptureMetadata', async (item?: Item, selection?: Item[]) => {
+    if (selection && selection.length > 1) throw new Error('Select one capture to edit metadata.');
+    await editMetadata(item, 'capture');
   });
-  command("stemlink.editNoteMetadata", async (item?: Item) => {
-    await editMetadata(item, "note");
+  command('stemlink.editNoteMetadata', async (item?: Item) => {
+    await editMetadata(item, 'note');
   });
 
   async function deleteCapture(item?: Item) {
     const { uri, name, doc } = await captureSource(item);
-    if (doc.isDirty) throw new Error("Save or revert unsaved capture changes before deletion.");
+    if (doc.isDirty) throw new Error('Save or revert unsaved capture changes before deletion.');
     const version = doc.version;
     const originalBytes = Buffer.from(await vscode.workspace.fs.readFile(uri));
     const choice = await vscode.window.showWarningMessage(
       `Delete capture "${name}"?`,
       {
         modal: true,
-        detail: "The capture will be deleted from the inbox.",
+        detail: 'The capture will be deleted from the inbox.',
       },
-      "Delete",
+      'Delete',
     );
-    if (choice !== "Delete") return;
+    if (choice !== 'Delete') return;
     await captureSource(item);
     const currentBytes = Buffer.from(await vscode.workspace.fs.readFile(uri));
     if (doc.isDirty || doc.version !== version || !currentBytes.equals(originalBytes))
-      throw new Error("Capture changed while confirming deletion; nothing was deleted.");
+      throw new Error('Capture changed while confirming deletion; nothing was deleted.');
     const deletion = new vscode.WorkspaceEdit();
     deletion.deleteFile(uri);
     if (!(await vscode.workspace.applyEdit(deletion)))
-      throw new Error("Capture could not be deleted.");
+      throw new Error('Capture could not be deleted.');
     tree.refresh();
   }
-  command("stemlink.discardCapture", async (item?: Item, selection?: Item[]) => {
-    if (selection && selection.length > 1) throw new Error("Select one capture to delete.");
+  command('stemlink.discardCapture', async (item?: Item, selection?: Item[]) => {
+    if (selection && selection.length > 1) throw new Error('Select one capture to delete.');
     await deleteCapture(item);
   });
 
@@ -1193,8 +1193,8 @@ export async function activate(
     batchTargets?: vscode.Uri[],
   ): Promise<boolean> {
     const key = item?.uri?.toString();
-    if (!key) throw new Error("Select an inbox Markdown capture from its context menu.");
-    if (promoting.has(key)) throw new Error("This capture is already being promoted.");
+    if (!key) throw new Error('Select an inbox Markdown capture from its context menu.');
+    if (promoting.has(key)) throw new Error('This capture is already being promoted.');
     promoting.add(key);
     try {
       return await performPromotion(item, token, batchTargets);
@@ -1216,19 +1216,19 @@ export async function activate(
     const existing = captureMetadata(snapshot);
     if (
       vscode.workspace
-        .getConfiguration("stemlink", vault.paths.root)
-        .get<boolean>("confirmPromotion", true)
+        .getConfiguration('stemlink', vault.paths.root)
+        .get<boolean>('confirmPromotion', true)
     ) {
       const answer = await vscode.window.showWarningMessage(
         `Promote capture "${name}"?`,
         { modal: true, detail: `Create a permanent note in ${vault.paths.notes.fsPath}.` },
-        "Promote",
+        'Promote',
       );
-      if (answer !== "Promote" || token?.isCancellationRequested) return false;
+      if (answer !== 'Promote' || token?.isCancellationRequested) return false;
     }
     const force = vscode.workspace
-      .getConfiguration("stemlink", vault.paths.root)
-      .get<boolean>("promptForPromotionMetadata", false);
+      .getConfiguration('stemlink', vault.paths.root)
+      .get<boolean>('promptForPromotionMetadata', false);
     const metadata = await askMetadata(
       `Promote to permanent note: ${uri.fsPath}`,
       existing.title?.trim() || suggestedCaptureTitle(name),
@@ -1242,20 +1242,20 @@ export async function activate(
       throw new Error("The capture's vault is no longer available.");
     const currentBytes = Buffer.from(await vscode.workspace.fs.readFile(uri));
     if (doc.version !== version || !currentBytes.equals(originalBytes))
-      throw new Error("Capture changed during promotion; try again.");
+      throw new Error('Capture changed during promotion; try again.');
     if (token?.isCancellationRequested) return false;
     if (doc.isDirty && !(await doc.save()))
-      throw new Error("Could not save the capture; promotion cancelled.");
+      throw new Error('Could not save the capture; promotion cancelled.');
     const savedBytes = Buffer.from(await vscode.workspace.fs.readFile(uri));
     if (doc.getText() !== snapshot)
-      throw new Error("Capture changed while saving; promotion cancelled.");
+      throw new Error('Capture changed while saving; promotion cancelled.');
     const text = promoteNote(snapshot, metadata.title, metadata.tags);
     const target = await createFile(vault.paths.notes, metadata.title, text);
     batchTargets?.push(target);
     try {
       const currentBytes = Buffer.from(await vscode.workspace.fs.readFile(uri));
       if (doc.getText() !== snapshot || !currentBytes.equals(savedBytes)) {
-        throw new Error("capture changed during promotion and was retained");
+        throw new Error('capture changed during promotion and was retained');
       }
       await vscode.workspace.fs.delete(uri);
     } catch (error) {
@@ -1273,18 +1273,18 @@ export async function activate(
     return true;
   }
   async function promoteBatch(items: Item[], token?: vscode.CancellationToken): Promise<void> {
-    if (dropping) throw new Error("A promotion batch is already running.");
+    if (dropping) throw new Error('A promotion batch is already running.');
     const captures = new Map<string, Item>();
     for (const item of items) {
-      if (!item.uri) throw new Error("Selected capture has no file.");
+      if (!item.uri) throw new Error('Selected capture has no file.');
       captures.set(item.uri.toString(), item);
     }
-    if (!captures.size) throw new Error("Select a capture to promote.");
+    if (!captures.size) throw new Error('Select a capture to promote.');
     const cancellation = new vscode.CancellationTokenSource();
     let subscription: vscode.Disposable | undefined;
     const targets: vscode.Uri[] = [];
     let completed = 0;
-    let outcome = "completed";
+    let outcome = 'completed';
     dropping = true;
     try {
       subscription = token?.onCancellationRequested(() => cancellation.cancel());
@@ -1296,7 +1296,7 @@ export async function activate(
       await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
-          title: "Promoting captures",
+          title: 'Promoting captures',
           cancellable: true,
         },
         async (progress, progressToken) => {
@@ -1306,7 +1306,7 @@ export async function activate(
           try {
             for (const item of captures.values()) {
               if (!(await promoteCapture(item, cancellation.token, targets))) {
-                outcome = "cancelled";
+                outcome = 'cancelled';
                 break;
               }
               completed++;
@@ -1321,7 +1321,7 @@ export async function activate(
         },
       );
     } catch (error) {
-      outcome = "failed";
+      outcome = 'failed';
       reportError(error);
     } finally {
       subscription?.dispose();
@@ -1330,8 +1330,8 @@ export async function activate(
       if (captures.size > 1) {
         const partial =
           targets.length > completed
-            ? " An additional permanent note was created; see the error for incomplete promotion details."
-            : "";
+            ? ' An additional permanent note was created; see the error for incomplete promotion details.'
+            : '';
         void vscode.window.showInformationMessage(
           `Stemlink: Promotion ${outcome}: ${completed} of ${captures.size} captures promoted; ${captures.size - completed} not fully promoted.${partial}`,
         );
@@ -1344,12 +1344,12 @@ export async function activate(
       }
     }
   }
-  command("stemlink.promote", async (item?: Item, selection?: Item[]) => {
+  command('stemlink.promote', async (item?: Item, selection?: Item[]) => {
     if (selection && selection.length > 1) await promoteBatch(selection);
     else await promoteCapture(item);
   });
 
-  command("stemlink.refresh", async () => {
+  command('stemlink.refresh', async () => {
     await queueDiscovery();
     const vault = activeVault();
     if (!vault) {
@@ -1376,13 +1376,13 @@ export async function activate(
         textPosition(finding.note.text, finding.end),
       );
       const severity =
-        finding.severity === "error"
+        finding.severity === 'error'
           ? vscode.DiagnosticSeverity.Error
-          : finding.severity === "warning"
+          : finding.severity === 'warning'
             ? vscode.DiagnosticSeverity.Warning
             : vscode.DiagnosticSeverity.Information;
       const diagnostic = new vscode.Diagnostic(range, finding.message, severity);
-      diagnostic.source = "Stemlink";
+      diagnostic.source = 'Stemlink';
       const list = grouped.get(finding.note.uri.toString()) ?? [];
       list.push(diagnostic);
       grouped.set(finding.note.uri.toString(), list);
@@ -1397,24 +1397,24 @@ export async function activate(
       findings.filter((finding) => finding.severity === severity).length;
     void vscode.window
       .showInformationMessage(
-        `Stemlink: ${vault.paths.root.fsPath}: ${count("error")} errors, ${count("warning")} warnings, ${count("info")} info across ${notes.length} permanent notes. Previous Stemlink validation results replaced.`,
-        "Show Problems",
+        `Stemlink: ${vault.paths.root.fsPath}: ${count('error')} errors, ${count('warning')} warnings, ${count('info')} info across ${notes.length} permanent notes. Previous Stemlink validation results replaced.`,
+        'Show Problems',
       )
       .then((answer) =>
-        answer === "Show Problems"
-          ? vscode.commands.executeCommand("workbench.actions.view.problems")
+        answer === 'Show Problems'
+          ? vscode.commands.executeCommand('workbench.actions.view.problems')
           : undefined,
       )
       .then(undefined, reportError);
   }
-  command("stemlink.checkReferences", async () => {
+  command('stemlink.checkReferences', async () => {
     await validateVault(requireActiveVault());
   });
-  command("stemlink.validateVault", async (item?: Item) => {
+  command('stemlink.validateVault', async (item?: Item) => {
     await validateVault(itemVault(item));
   });
 
-  const selector: vscode.DocumentSelector = [{ language: "markdown" }];
+  const selector: vscode.DocumentSelector = [{ language: 'markdown' }];
   const linkAt = (document: vscode.TextDocument, position: vscode.Position) => {
     const offset = document.offsetAt(position);
     return linksIn(document.getText()).find(
@@ -1461,12 +1461,12 @@ export async function activate(
         await vault.ensure();
         const link = linkAt(document, position);
         if (!link && !directChild(document.uri, vault.paths.notes)) return [];
-        const name = document.uri.path.slice(document.uri.path.lastIndexOf("/") + 1);
-        const stem = link?.stem ?? (name.endsWith(".md") ? name.slice(0, -3) : "");
+        const name = document.uri.path.slice(document.uri.path.lastIndexOf('/') + 1);
+        const stem = link?.stem ?? (name.endsWith('.md') ? name.slice(0, -3) : '');
         return vault.references(stem).map((ref) => {
           const prefix = ref.note.text.slice(0, ref.link.start);
-          const line = prefix.split("\n").length - 1;
-          const character = ref.link.start - (prefix.lastIndexOf("\n") + 1);
+          const line = prefix.split('\n').length - 1;
+          const character = ref.link.start - (prefix.lastIndexOf('\n') + 1);
           return new vscode.Location(ref.note.uri, new vscode.Position(line, character));
         });
       },
@@ -1484,7 +1484,7 @@ export async function activate(
           const vault = vaultFor(document.uri);
           if (!vault) return [];
           await vault.ensureNames();
-          const closes = line.slice(position.character).startsWith("]]");
+          const closes = line.slice(position.character).startsWith(']]');
           return vault.allTargets
             .filter((note) => !sameUri(note.uri, document.uri))
             .map((note) => {
@@ -1492,7 +1492,7 @@ export async function activate(
                 note.stem,
                 vscode.CompletionItemKind.Reference,
               );
-              item.insertText = `${note.stem}${closes ? "" : "]]"}`;
+              item.insertText = `${note.stem}${closes ? '' : ']]'}`;
               item.range = new vscode.Range(
                 position.line,
                 position.character - match[1].length,
@@ -1503,7 +1503,7 @@ export async function activate(
             });
         },
       },
-      "[",
+      '[',
     ),
   );
 
@@ -1513,12 +1513,12 @@ export async function activate(
         const vault = vaultFor(file.oldUri);
         if (
           vault &&
-          ((directChild(file.oldUri, vault.paths.notes) && file.oldUri.path.endsWith(".md")) ||
+          ((directChild(file.oldUri, vault.paths.notes) && file.oldUri.path.endsWith('.md')) ||
             sameUri(file.oldUri, vault.paths.notes) ||
             sameUri(file.oldUri, vault.paths.root))
         ) {
           void vscode.window.showWarningMessage(
-            "Stemlink: a permanent note or vault folder was renamed. References may be broken; run Validate vault.",
+            'Stemlink: a permanent note or vault folder was renamed. References may be broken; run Validate vault.',
           );
         }
       }
@@ -1535,10 +1535,10 @@ export async function activate(
       void queueDiscovery();
     }, 100);
   };
-  const markerWatcher = vscode.workspace.createFileSystemWatcher("**/.stemlink.json");
+  const markerWatcher = vscode.workspace.createFileSystemWatcher('**/.stemlink.json');
   const markerChanged = (uri: vscode.Uri) => {
     const folder = vscode.workspace.getWorkspaceFolder(uri);
-    const parent = uri.with({ path: uri.path.slice(0, uri.path.lastIndexOf("/")) });
+    const parent = uri.with({ path: uri.path.slice(0, uri.path.lastIndexOf('/')) });
     if (folder && (sameUri(parent, folder.uri) || directChild(parent, folder.uri)))
       scheduleDiscovery();
   };
@@ -1555,12 +1555,12 @@ export async function activate(
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (configuring) return;
       if (
-        ["root", "inbox", "notes", "templates"].some((key) =>
+        ['root', 'inbox', 'notes', 'templates'].some((key) =>
           event.affectsConfiguration(`stemlink.${key}`),
         )
       )
         scheduleDiscovery();
-      else if (event.affectsConfiguration("stemlink.enableRouterIndexes")) syncRouterIndexes();
+      else if (event.affectsConfiguration('stemlink.enableRouterIndexes')) syncRouterIndexes();
     }),
   );
   context.subscriptions.push(
