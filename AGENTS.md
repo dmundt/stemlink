@@ -13,6 +13,7 @@ Stemlink is a VS Code extension for local, plain-Markdown vaults. Start with [th
 Run the smallest relevant check, then escalate if needed.
 
 - Compile and type-check: `npm run compile`
+- Type-check without emitting files: `npm run typecheck`
 - Unit tests: `npm test`
 - VS Code host tests: `npm run test:integration`, `npm run test:multi-root`, and `npm run test:discovery`
 - Core and host coverage: `npm run test:coverage`
@@ -20,6 +21,8 @@ Run the smallest relevant check, then escalate if needed.
 - Build: `npm run build`
 
 Coverage and host tests require Node.js 22 or newer. Host tests use `STEMLINK_CODE_PATH` if set, a local Windows VS Code installation if available, or a downloaded stable build. Set `VSCODE_TEST_VERSION` to download a specific version.
+
+Run `npm ci` to install Git hooks. Pre-commit checks staged files; pre-push runs lint, type-checking, and unit tests. Run relevant host tests locally for extension behavior changes.
 
 ## Change rules
 
@@ -43,6 +46,7 @@ Coverage and host tests require Node.js 22 or newer. Host tests use `STEMLINK_CO
 ## GitHub Flow and releases
 
 - Use simple GitHub Flow for a single developer or small team: protected `main`, short-lived feature branches, and pull requests into `main`. Do not add a long-lived `develop` branch or require approving reviews; required checks must pass before merging.
+- Non-main branch pushes run a minimal build. Pull requests into `main` or release branches and releases run the full quality matrix.
 - Keep `main` deployable. Base each independent, short-lived feature branch on the latest published `main`; use a descriptive name. Keep unrelated changes separate and record dependencies on prerequisite branches.
 - Make changes on feature branches with behavior tests and directly related documentation. Preserve unrelated work. Never reset, discard, amend, rebase, force-push, or delete existing branches without explicit authorization.
 - Publish authorized feature branches to every applicable remote. Open pull requests into `main`; address requested reviews and merge only after required checks pass. Use merge commits.
