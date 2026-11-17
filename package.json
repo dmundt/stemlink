@@ -407,6 +407,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "npm run compile && node --test dist/test/*.test.js",
+    "test:host": "npm run compile && node --test --test-concurrency=1 dist/test/runIntegration.js dist/test/runMultiRoot.js dist/test/runDiscovery.js",
     "test:integration": "npm run compile && node dist/test/runIntegration.js",
     "test:restricted": "npm run compile && node dist/test/runIntegration.js --restricted",
     "test:multi-root": "npm run compile && node dist/test/runMultiRoot.js",
@@ -420,9 +421,9 @@
     "prepare": "husky"
   },
   "lint-staged": {
-    "*.{js,cjs,mjs,ts}": [
-      "eslint --max-warnings=0",
-      "prettier --write"
+    "*.{js,mjs,cjs,ts,tsx}": [
+      "prettier --write",
+      "eslint --max-warnings=0"
     ],
     "*.{json,jsonc,md,yaml,yml}": "prettier --write"
   },
@@ -438,7 +439,7 @@
     "eslint": "^10.0.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
-    "prettier": "^3.5.0",
+    "prettier": "^3.10.1",
     "typescript-eslint": "^8.0.0",
     "typescript": "^5.9.3"
   },

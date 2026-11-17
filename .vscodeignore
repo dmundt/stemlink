@@ -1,7 +1,13 @@
 src/**
+!dist/*.js
 dist/test/**
 docs/**
 AGENTS.md
+ARCHITECTURE.md
+CONTRIBUTING.md
+DEVELOPMENT.md
+SECURITY.md
+.nvmrc
 .github/**
 .husky/**
 .gitignore
@@ -12,6 +18,7 @@ AGENTS.md
 eslint.config.mjs
 zk/**
 example/**
+notes/**
 dist/**/*.map
 *.vsix
 node_modules/@types/**
