@@ -12,7 +12,12 @@ export default ts.config(
         'error',
         {
           paths: ['vscode'],
-          patterns: ['../platform/*', '../workbench/*'],
+          patterns: [
+            '../**/platform',
+            '../**/platform/**',
+            '../**/workbench',
+            '../**/workbench/**',
+          ],
         },
       ],
     },
@@ -24,7 +29,14 @@ export default ts.config(
         'error',
         {
           paths: ['vscode'],
-          patterns: ['../application/*', '../platform/*', '../workbench/*'],
+          patterns: [
+            '../**/application',
+            '../**/application/**',
+            '../**/platform',
+            '../**/platform/**',
+            '../**/workbench',
+            '../**/workbench/**',
+          ],
         },
       ],
     },

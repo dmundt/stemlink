@@ -419,9 +419,12 @@
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "npm run test:release && npm run test:shared && npm run compile && node --test dist/tests/*.test.js",
+    "test": "npm run test:release && npm run test:shared && npm run test:unit-runner && npm run test:mock && npm run compile && node scripts/run-unit-tests.mjs",
     "test:release": "node --test scripts/release.test.mjs",
     "test:shared": "node --test scripts/check-shared.test.mjs",
+    "test:unit-runner": "node --test scripts/run-unit-tests.test.mjs",
+    "test:mock": "vitest run",
+    "test:ui": "npm run build && node scripts/run-ui-tests.mjs",
     "check:shared": "node scripts/check-shared.mjs",
     "test:host": "npm run compile && node --test --test-concurrency=1 dist/tests/runIntegration.js dist/tests/runMultiRoot.js dist/tests/runDiscovery.js && node dist/tests/runIntegration.js --restricted",
     "test:integration": "npm run compile && node dist/tests/runIntegration.js",
@@ -457,9 +460,11 @@
     "eslint": "^10.0.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
+    "playwright-core": "^1.65.1",
     "prettier": "^3.10.1",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.0.0"
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^5.1.0"
   },
   "overrides": {
     "@vscode/vsce": {
