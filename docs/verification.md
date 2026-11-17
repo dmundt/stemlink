@@ -36,9 +36,17 @@ git push -u origin feat/example
 
 Open a pull request into `main`. The branch build runs install and build on non-main branch pushes. The pull request quality workflow runs the six required checks; merge with a merge commit only after they pass. Delete the feature branch only when deletion is authorized.
 
+For branch protection, require pull requests and all six `verify` matrix checks on `main` and `release/*`; block force-pushes and deletion, use zero required approvals, and configure no bypass actors. Dismissing stale approvals is optional when no approvals are required. The branch build is not a substitute for the required pull request checks.
+
 ## Release workflow
 
 Prepare release metadata on a branch and merge it into `main`. Follow the versioning and release validation steps in [project rules](../AGENTS.md#github-flow-and-releases). After a release is explicitly authorized, publish a GitHub release with a matching version tag. The release workflow checks the tag, runs the quality matrix, attaches the verified VSIX, and publishes it to the Marketplace. Pushing a tag alone does not publish a release.
+
+For example, after preparing version `0.2.0` and verifying the published `main` commit:
+
+```sh
+gh release create v0.2.0 --target main --prerelease --generate-notes
+```
 
 Core tests exercise metadata, promotion, references, audits, routing, and manual rendering. Host tests exercise commands, providers, custom paths, generated files, native selection, concurrent edits, error handling, and mocked filesystem behavior. Host runners launch with Workspace Trust disabled; they do not establish Restricted Mode behavior.
 
