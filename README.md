@@ -150,6 +150,6 @@ There is no note-count limit. The selected vault's reference index builds in the
 
 ## Local packaging
 
-Run `npm run package` or the **Package extension** VS Code task to build a local VSIX. Packaging compiles the extension but does not publish it. Install the resulting file with `code --install-extension stemlink-0.1.1.vsix`.
+Run `npm run package` or the **Package extension** VS Code task to build a local VSIX. Packaging compiles the extension but does not publish it. Install the resulting file with `code --install-extension stemlink-0.2.0.vsix`.
 
 For development, validation, and release instructions, see [Development](DEVELOPMENT.md), [Contributing](CONTRIBUTING.md), and [Verification](docs/verification.md). Shared practices are in [Engineering Standards](docs/engineering-standards.md); system structure is in [Architecture](ARCHITECTURE.md). See [Security](SECURITY.md) for private vulnerability reporting.

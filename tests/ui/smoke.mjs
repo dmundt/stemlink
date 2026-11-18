@@ -15,12 +15,66 @@ export async function prepareWorkspace(workspace) {
   );
 }
 
-export async function exerciseWorkbench(page) {
+export async function exerciseWorkbench(page, within) {
   const activity = page.getByRole('tab', { name: /Stemlink/ });
-  await activity.waitFor({ timeout: 30_000 });
-  await activity.click();
+  await within(activity.waitFor({ timeout: 30_000 }), 45_000, 'Finding the Stemlink activity tab');
+  try {
+    await within(activity.click(), 45_000, 'Selecting the Stemlink activity tab');
+  } catch (error) {
+    let tabs;
+    try {
+      tabs = await within(
+        page.locator('[role="tab"]').evaluateAll((elements) =>
+          elements.map((element) => ({
+            label: element.getAttribute('aria-label'),
+            title: element.getAttribute('title'),
+            text: element.textContent?.trim(),
+          })),
+        ),
+        5_000,
+        'Reading activity tab diagnostics',
+      );
+    } catch (diagnosticError) {
+      let state;
+      try {
+        const session = await within(
+          page.context().newCDPSession(page),
+          5_000,
+          'Opening CDP session',
+        );
+        state = await within(
+          session.send('Runtime.evaluate', {
+            expression:
+              'JSON.stringify({visibility: document.visibilityState, focus: document.hasFocus()})',
+            returnByValue: true,
+          }),
+          5_000,
+          'Reading workbench state',
+        );
+        await within(session.detach(), 5_000, 'Closing CDP session');
+      } catch (stateError) {
+        throw new AggregateError(
+          [error, diagnosticError, stateError],
+          'Could not diagnose the activity tab',
+          { cause: stateError },
+        );
+      }
+      throw new AggregateError(
+        [error, diagnosticError],
+        `Could not diagnose the activity tab; workbench state: ${JSON.stringify(state)}`,
+        { cause: diagnosticError },
+      );
+    }
+    throw new Error(`Could not select the Stemlink activity tab: ${JSON.stringify(tabs)}`, {
+      cause: error,
+    });
+  }
   const note = page.getByRole('treeitem', { name: '202601011200-ui-fixture.md' });
-  await note.waitFor({ timeout: 30_000 });
-  await note.click();
-  await page.getByRole('tab', { name: /202601011200-ui-fixture\.md/ }).waitFor({ timeout: 30_000 });
+  await within(note.waitFor({ timeout: 30_000 }), 45_000, 'Finding the fixture note');
+  await within(note.click(), 45_000, 'Opening the fixture note');
+  await within(
+    page.getByRole('tab', { name: /202601011200-ui-fixture\.md/ }).waitFor({ timeout: 30_000 }),
+    45_000,
+    'Finding the fixture editor',
+  );
 }

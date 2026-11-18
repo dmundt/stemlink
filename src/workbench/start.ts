@@ -326,8 +326,8 @@ export async function activate(
     tree.onDidChangeTreeData(() => {
       void updateTreeViewTitles().catch(reportError);
       updateTreeViewMessages();
-      void syncVaultSelection().catch(reportError);
     }),
+    tree.onDidChangeVaults(() => void syncVaultSelection().catch(reportError)),
   );
   void updateTreeViewTitles().catch(reportError);
   updateTreeViewMessages();

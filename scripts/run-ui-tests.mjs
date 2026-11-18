@@ -32,6 +32,19 @@ executable ??= await downloadAndUnzipVSCode({
 });
 
 const temp = await mkdtemp(join(tmpdir(), `${manifest.name}-ui-`));
+async function within(operation, milliseconds, description) {
+  const controller = new globalThis.AbortController();
+  try {
+    return await Promise.race([
+      operation,
+      delay(milliseconds, undefined, { signal: controller.signal }).then(() => {
+        throw new Error(`${description} timed out.`);
+      }),
+    ]);
+  } finally {
+    controller.abort();
+  }
+}
 async function stopChild(child, exited) {
   if (child?.pid && child.exitCode === null && child.signalCode === null && !child.kill())
     throw new Error('Could not terminate the VS Code test process.');
@@ -111,7 +124,7 @@ try {
     }
   }
   if (!endpoint) throw new Error('VS Code did not publish its debugging endpoint.');
-  browser = await chromium.connectOverCDP(endpoint);
+  browser = await within(chromium.connectOverCDP(endpoint), 45_000, 'Connecting to VS Code');
   const context = browser.contexts()[0];
   if (!context) throw new Error('VS Code did not expose a workbench context.');
   let page;
@@ -122,14 +135,14 @@ try {
   }
   if (!page) throw new Error('VS Code workbench did not open.');
   await page.locator('.monaco-workbench').waitFor({ timeout: 30_000 });
-  await exerciseWorkbench(page);
+  await exerciseWorkbench(page, within);
   if (child.exitCode !== null || child.signalCode !== null)
     throw new Error('VS Code exited during the interactive test.');
 } catch (error) {
   errors.push(error);
 } finally {
   try {
-    if (browser) await browser.close();
+    if (browser) await within(browser.close(), 10_000, 'Closing the browser connection');
   } catch (error) {
     errors.push(error);
   }

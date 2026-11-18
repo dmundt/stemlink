@@ -2,7 +2,7 @@
   "name": "stemlink",
   "displayName": "Stemlink",
   "description": "Plain Markdown vault navigation and note management for Stemlink.",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "publisher": "dmundt",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -16,7 +16,7 @@
   },
   "homepage": "https://github.com/dmundt/stemlink#readme",
   "vsce": {
-    "preRelease": false
+    "preRelease": true
   },
   "engines": {
     "node": "^22.13.0 || >=24.0.0",
