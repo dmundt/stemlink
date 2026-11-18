@@ -18,6 +18,14 @@ export async function prepareWorkspace(workspace) {
 export async function exerciseWorkbench(page, within) {
   const activity = page.getByRole('tab', { name: /Stemlink/ });
   await within(activity.waitFor({ timeout: 30_000 }), 45_000, 'Finding the Stemlink activity tab');
+  const initialState = await within(
+    page.evaluate(() => ({
+      visibility: document.visibilityState,
+      focus: document.hasFocus(),
+    })),
+    5_000,
+    'Reading initial workbench state',
+  );
   try {
     await within(activity.click(), 45_000, 'Selecting the Stemlink activity tab');
   } catch (error) {
@@ -55,19 +63,20 @@ export async function exerciseWorkbench(page, within) {
       } catch (stateError) {
         throw new AggregateError(
           [error, diagnosticError, stateError],
-          'Could not diagnose the activity tab',
+          `Could not diagnose the activity tab; initial state: ${JSON.stringify(initialState)}`,
           { cause: stateError },
         );
       }
       throw new AggregateError(
         [error, diagnosticError],
-        `Could not diagnose the activity tab; workbench state: ${JSON.stringify(state)}`,
+        `Could not diagnose the activity tab; initial state: ${JSON.stringify(initialState)}; workbench state: ${JSON.stringify(state)}`,
         { cause: diagnosticError },
       );
     }
-    throw new Error(`Could not select the Stemlink activity tab: ${JSON.stringify(tabs)}`, {
-      cause: error,
-    });
+    throw new Error(
+      `Could not select the Stemlink activity tab: ${JSON.stringify({ initialState, tabs })}`,
+      { cause: error },
+    );
   }
   const note = page.getByRole('treeitem', { name: '202601011200-ui-fixture.md' });
   await within(note.waitFor({ timeout: 30_000 }), 45_000, 'Finding the fixture note');
