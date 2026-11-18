@@ -21,7 +21,7 @@
   "engines": {
     "node": "^22.13.0 || >=24.0.0",
     "npm": ">=10",
-    "vscode": "^1.90.0"
+    "vscode": "^1.95.0"
   },
   "categories": [
     "Other",
@@ -39,6 +39,7 @@
   ],
   "activationEvents": [
     "onStartupFinished",
+    "onLanguageModelTool:stemlink_getNoteLinks",
     "onLanguage:markdown",
     "onView:stemlink.vaults",
     "onView:stemlink.fleeting",
@@ -54,6 +55,36 @@
   },
   "contributes": {
     "markdown.markdownItPlugins": true,
+    "languageModelTools": [
+      {
+        "name": "stemlink_getNoteLinks",
+        "displayName": "Get Stemlink Note Links",
+        "toolReferenceName": "stemlinkNoteLinks",
+        "icon": "$(references)",
+        "canBeReferencedInPrompt": true,
+        "when": "isWorkspaceTrusted",
+        "userDescription": "Get inbound and outbound wiki links for a permanent note in a Stemlink vault.",
+        "modelDescription": "Read Stemlink's live link index for an exact permanent note stem. Returns up to 20 inbound and 20 outbound wiki-link occurrences with vault-relative source locations, never note bodies. If multiple vaults are discovered and no vault ID is provided, ask the user to choose one of the returned IDs, then retry with that ID. Do not guess the vault or use this tool to search note content.",
+        "inputSchema": {
+          "type": "object",
+          "required": [
+            "stem"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "stem": {
+              "type": "string",
+              "maxLength": 255,
+              "description": "Exact timestamped filename stem, such as 202601011200-design, without brackets or .md."
+            },
+            "vault": {
+              "type": "string",
+              "description": "Exact vault ID returned by this tool. Omit for a single vault or to ask for a choice."
+            }
+          }
+        }
+      }
+    ],
     "configuration": [
       {
         "title": "Vault Folders",
@@ -454,7 +485,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.0",
     "@types/node": "^22.0.0",
-    "@types/vscode": "~1.90.0",
+    "@types/vscode": "~1.95.0",
     "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^4.1.1",
     "esbuild": "^0.28.2",

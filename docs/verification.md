@@ -65,6 +65,13 @@ The host test checks each contributed Stemlink setting's resource scope and defa
 
 Nightly/manual validation runs dependency audit, formatting, coverage, and the host benchmark on Linux stable. Benchmark timings are observations, not enforced latency guarantees. Tests do not establish correctness for every filesystem, theme, platform configuration, or concurrent race.
 
-The manual-only **Compatibility Validation** workflow runs host, Restricted Mode, and interactive UI tests on Windows, macOS, and Linux against VS Code 1.90.0 and stable. It does not publish. Dispatch it after its workflow file exists on the default branch.
+The manual-only **Compatibility Validation** workflow runs host, Restricted Mode, and interactive UI tests on Windows, macOS, and Linux against VS Code 1.95.0 and stable. It does not publish. Dispatch it after its workflow file exists on the default branch.
+
+### Copilot link tool
+
+- Host tests verify tool listing, live unsaved links, occurrence limits, vault choice, missing notes, and Restricted Mode rejection. They do not invoke a model.
+- In Copilot Chat Agent mode, enable **Get Stemlink Note Links**, reference `#stemlinkNoteLinks`, and request a known synthetic stem. Deny the first approval and verify no results are shared; retry and approve. Check locations, unresolved outbound targets, and no note prose.
+- Open two fixture vaults with the same stem; verify the tool requests a vault choice before returning links and uses only the chosen vault on retry.
+- Repeat discovery, approval, and follow-up checks separately in the Agents window, if available. Record unavailable tools or sessions as unsupported by that test environment, not as passing. Use only synthetic notes.
 
 Before a release, follow the validation and authorization requirements in [project rules](../AGENTS.md#github-flow-and-releases). The [publish workflow](../.github/workflows/publish.yml) validates the release tag and uploads the packaged VSIX to both the GitHub Release and Marketplace.

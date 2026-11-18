@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add a read-only Copilot tool for exact note backlinks and outbound wiki links in trusted workspaces.
+- Require VS Code 1.95 or newer for the stable Language Model Tool API.
+
 ## 0.2.0 - 2026-11-18
 
 - Preserve vault selection while note views refresh.

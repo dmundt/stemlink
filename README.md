@@ -16,6 +16,8 @@
 
 ## Get started
 
+Requires desktop VS Code 1.95 or newer.
+
 1. Open a workspace folder and the **Stemlink** activity bar view.
 2. Run **Stemlink: Create vault**. Accept `notes/` containing `templates/`, `inbox/`, and `permanent/`, or choose your own names.
 3. Stemlink restores the last available vault or selects the first listed vault. Choose another under **Vaults** when needed. Use **New fleeting note** or **New permanent note**; right-click an inbox capture for **Promote to permanent note…**.
@@ -143,6 +145,12 @@ Related: [[202411130915-ids-as-timestamps]]
 - Run **Validate vault** to find broken links and other note issues in the Problems panel. Files starting with `_` are excluded from the check.
 
 Keep permanent filenames stable: renaming can break links. Stemlink warns about renames reported by VS Code, but cannot prevent all renames.
+
+### Look up links in Copilot Chat
+
+In a trusted workspace, enable **Get Stemlink Note Links** in Copilot Chat's Agent tool picker. Ask: `Use #stemlinkNoteLinks to list links for 202601011200-design.` If several vaults are open, choose one from the returned list and ask Copilot to retry.
+
+Approve sharing when VS Code asks. Results include vault identifiers, filenames, wiki-link targets, and source locations from the live index, including unsaved edits. Results never include note bodies or excerpts. The tool cannot edit notes. If the tool is unavailable in your session, use Stemlink's local References view.
 
 ## Large vaults
 

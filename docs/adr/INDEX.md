@@ -68,6 +68,8 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 
 ## Distribution
 
+- [074: Read-only Copilot link lookup](adr-074-copilot-link-lookup.md) — one native language model tool and VS Code 1.95 minimum.
+
 - [073: Bundle extension entry point](adr-073-extension-bundling.md) — esbuild output for packaging, with TypeScript compilation retained for tests.
 - [017: Build and publication](adr-017-build-and-publication.md) — historical delivery policy, superseded by ADR 070.
 - [034: Quality and publication alignment](adr-034-quality-and-publication-alignment.md) — historical quality and release ordering, superseded by ADR 070.

@@ -5,8 +5,8 @@
 - Node.js 22.13+ within major 22, or Node.js 24+; Node.js 23 is unsupported.
 - npm 10+; use npm bundled with a supported Node.js release and `npm ci`.
 - `engines.node` and `engines.npm` declare compatibility. npm normally warns rather than rejects incompatible engines; these fields are not an enforcement hook.
-- Desktop VS Code 1.90 or newer.
-- `@types/vscode` stays within 1.90.x to type-check against the minimum supported host API.
+- Desktop VS Code 1.95 or newer.
+- `@types/vscode` stays within 1.95.x to type-check against the minimum supported host API.
 
 ```sh
 npm ci
@@ -37,7 +37,7 @@ npm run test:ui
 - Run `npm run check:shared -- <peer-repository>` to compare shared engineering files against a local Prompteur checkout. Nightly validation compares against its published `main`.
 - Coverage floors: 95% lines, 91% branches, and 93% functions across emitted extension modules, including host execution.
 - Generated vault routers under `notes/**/INDEX.md` are excluded from Prettier; the extension owns their marked sections.
-- **Compatibility Validation** is manual-only. It runs host, Restricted Mode, and interactive UI tests on Windows, macOS, and Linux against VS Code 1.90.0 and stable, plus coverage on each platform with Node 22 and stable VS Code.
+- **Compatibility Validation** is manual-only. It runs host, Restricted Mode, and interactive UI tests on Windows, macOS, and Linux against VS Code 1.95.0 and stable, plus coverage on each platform with Node 22 and stable VS Code.
 - `npm run package` creates a local VSIX; it does not publish.
 
 ## Release
