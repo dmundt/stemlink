@@ -6,7 +6,7 @@ Read relevant Markdown files directly and follow their wiki-link stems. New temp
 Navigation only, not authoritative. Stemlink's in-memory note/reference index is authoritative for live vault state.
 
 - [Vault index](../INDEX.md)
-- [Inbox `inbox/` (4 captures)](../inbox/INDEX.md)
+- [Inbox `inbox/` (6 captures)](../inbox/INDEX.md)
 
 Markdown files: 2 (excludes INDEX.md and AGENTS.md).
 
