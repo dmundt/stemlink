@@ -3959,14 +3959,17 @@ async function testDynamicVaultFiles(
     showWorkspaceFolderPick: typeof vscode.window.showWorkspaceFolderPick;
     showWarningMessage: typeof vscode.window.showWarningMessage;
     showErrorMessage: typeof vscode.window.showErrorMessage;
+    showQuickPick: typeof vscode.window.showQuickPick;
   };
   const original = {
     showInputBox: api.showInputBox,
     showWorkspaceFolderPick: api.showWorkspaceFolderPick,
     showWarningMessage: api.showWarningMessage,
     showErrorMessage: api.showErrorMessage,
+    showQuickPick: api.showQuickPick,
   };
   const errors: string[] = [];
+  let conflictPrompts = 0;
   const originalInitialize = VaultRouterIndexes.prototype.initialize;
   const originalOffer = VaultAgentInstructions.prototype.offer;
   try {
@@ -3987,6 +3990,17 @@ async function testDynamicVaultFiles(
     await config.update('enableRouterIndexes', true, vscode.ConfigurationTarget.Workspace);
     await config.update('offerAgentInstructions', true, vscode.ConfigurationTarget.Workspace);
     api.showWorkspaceFolderPick = async () => folder;
+    api.showQuickPick = new Proxy(original.showQuickPick, {
+      apply: (_target, _thisArg, args: unknown[]) => {
+        const items = args[0] as { label: string }[];
+        const options = args[1] as { placeHolder?: string } | undefined;
+        assert.match(options?.placeHolder ?? '', /^Choose folder configuration for /);
+        const marker = items.find((item) => item.label === '.stemlink.json');
+        assert.ok(marker, 'vault conflict did not offer marker settings');
+        conflictPrompts++;
+        return Promise.resolve(marker);
+      },
+    });
     api.showWarningMessage = new Proxy(original.showWarningMessage, {
       apply: (_target, _thisArg, args: unknown[]) => {
         const message = String(args[0]);
@@ -4006,6 +4020,13 @@ async function testDynamicVaultFiles(
     for (const scenario of cases) {
       const templatesName = 'templates' in scenario ? scenario.templates : 'templates';
       if ('templates' in scenario) {
+        await config.update('inbox', 'temporary-captures', vscode.ConfigurationTarget.Workspace);
+        await within(
+          vscode.commands.executeCommand('stemlink.refresh'),
+          30_000,
+          'Resolving vault conflict',
+        );
+        assert.ok(conflictPrompts > 0, 'conflicting settings did not prompt');
         await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(folder.uri, scenario.root));
         for (const key of ['root', 'templates', 'inbox', 'notes'] as const) {
           await config.update(key, scenario[key], vscode.ConfigurationTarget.Workspace);
@@ -4273,6 +4294,7 @@ async function testDynamicVaultFiles(
     api.showWorkspaceFolderPick = original.showWorkspaceFolderPick;
     api.showWarningMessage = original.showWarningMessage;
     api.showErrorMessage = original.showErrorMessage;
+    api.showQuickPick = original.showQuickPick;
     await config.update('root', previous.root, vscode.ConfigurationTarget.Workspace);
     await config.update('inbox', previous.inbox, vscode.ConfigurationTarget.Workspace);
     await config.update('notes', previous.notes, vscode.ConfigurationTarget.Workspace);
