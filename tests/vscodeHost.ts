@@ -4018,7 +4018,11 @@ async function testDynamicVaultFiles(
         }
         return answer;
       };
-      await vscode.commands.executeCommand('stemlink.createVault');
+      await within(
+        vscode.commands.executeCommand('stemlink.createVault'),
+        30_000,
+        `Creating ${scenario.root}`,
+      );
       assert.equal(
         answers.length,
         0,
@@ -4113,7 +4117,11 @@ async function testDynamicVaultFiles(
         );
       }
       if ('templates' in scenario) {
-        await vscode.commands.executeCommand('stemlink.addFleetingNote');
+        await within(
+          vscode.commands.executeCommand('stemlink.addFleetingNote'),
+          30_000,
+          `Creating capture in ${scenario.root}`,
+        );
         assert.equal(
           vscode.window.activeTextEditor?.document.getText().replace(/\r\n/g, '\n'),
           (await readText(vscode.Uri.joinPath(templates, '_fleeting.md'))).replace(/\r\n/g, '\n'),
@@ -4151,7 +4159,11 @@ async function testDynamicVaultFiles(
         prompts.push(options?.title ?? '');
         return 'invalid-template-default';
       };
-      await vscode.commands.executeCommand('stemlink.createVault');
+      await within(
+        vscode.commands.executeCommand('stemlink.createVault'),
+        30_000,
+        'Validating template default',
+      );
       assert.deepEqual(prompts, ['Create vault: root folder']);
       assert.ok(errors.slice(errorCount).some((message) => message.includes('templates folder')));
       await assert.rejects(async () =>
@@ -4201,8 +4213,12 @@ async function testDynamicVaultFiles(
     const originalOpen = openApi.showOpenDialog;
     try {
       openApi.showOpenDialog = async () => [root];
-      await vscode.commands.executeCommand('stemlink.openVault');
-      await vscode.commands.executeCommand('stemlink.addFleetingNote');
+      await within(vscode.commands.executeCommand('stemlink.openVault'), 30_000, 'Opening vault');
+      await within(
+        vscode.commands.executeCommand('stemlink.addFleetingNote'),
+        30_000,
+        'Creating capture from mapped templates',
+      );
       assert.equal(
         vscode.window.activeTextEditor?.document.getText().replace(/\r\n/g, '\n'),
         captureText,

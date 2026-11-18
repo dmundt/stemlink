@@ -135,7 +135,7 @@ try {
   }
   if (!page) throw new Error('VS Code workbench did not open.');
   await page.locator('.monaco-workbench').waitFor({ timeout: 30_000 });
-  await within(exerciseWorkbench(page), 120_000, 'Interactive workbench test');
+  await exerciseWorkbench(page, within);
   if (child.exitCode !== null || child.signalCode !== null)
     throw new Error('VS Code exited during the interactive test.');
 } catch (error) {
