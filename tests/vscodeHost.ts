@@ -33,6 +33,20 @@ import {
   vaultManual,
 } from './coreScenarios';
 
+async function within(operation: PromiseLike<unknown>, milliseconds: number, label: string) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      operation,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out`)), milliseconds);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 async function waitFor(condition: () => boolean, message: string | (() => string)): Promise<void> {
   const deadline = Date.now() + 5000;
   while (!condition()) {
@@ -3217,19 +3231,8 @@ async function testOpenVault(
       (error: unknown) => error instanceof vscode.FileSystemError && error.code === 'FileNotFound',
     );
   };
-  const commandWithin = async (command: string, operation: string) => {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    try {
-      await Promise.race([
-        vscode.commands.executeCommand(command),
-        new Promise<never>((_, reject) => {
-          timer = setTimeout(() => reject(new Error(`${operation} timed out`)), 30_000);
-        }),
-      ]);
-    } finally {
-      if (timer) clearTimeout(timer);
-    }
-  };
+  const commandWithin = (command: string, operation: string) =>
+    within(vscode.commands.executeCommand(command), 30_000, operation);
   try {
     workspaceApi.getConfiguration = new Proxy(originalConfig, {
       apply: (target, thisArg, args: Parameters<typeof vscode.workspace.getConfiguration>) => {
@@ -4784,12 +4787,24 @@ export async function run(): Promise<void> {
   }
   if (process.env.STEMLINK_DISCOVERY === '1') {
     assert.ok(vaultView && vaultProvider, 'vault view was not captured during activation');
-    await testNativeVaultSelection(folder, vaultView, vaultProvider);
-    await testConfigurationRecovery(folder, vaultView, vaultProvider);
-    await testDiscovery(folder);
-    await testOpenVault(folder, extension.extensionUri);
-    await testFeatureSettings(folder);
-    await testDynamicVaultFiles(folder, extension.extensionUri);
+    await within(
+      testNativeVaultSelection(folder, vaultView, vaultProvider),
+      120_000,
+      'Native selection test',
+    );
+    await within(
+      testConfigurationRecovery(folder, vaultView, vaultProvider),
+      120_000,
+      'Configuration recovery test',
+    );
+    await within(testDiscovery(folder), 120_000, 'Discovery test');
+    await within(testOpenVault(folder, extension.extensionUri), 120_000, 'Open vault test');
+    await within(testFeatureSettings(folder), 120_000, 'Feature settings test');
+    await within(
+      testDynamicVaultFiles(folder, extension.extensionUri),
+      120_000,
+      'Dynamic vault files test',
+    );
     return;
   }
   if (process.env.STEMLINK_MULTI_ROOT === '1') {
