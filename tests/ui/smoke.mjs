@@ -18,7 +18,20 @@ export async function prepareWorkspace(workspace) {
 export async function exerciseWorkbench(page) {
   const activity = page.getByRole('tab', { name: /Stemlink/ });
   await activity.waitFor({ timeout: 30_000 });
-  await activity.click();
+  try {
+    await activity.click();
+  } catch (error) {
+    const tabs = await page.locator('[role="tab"]').evaluateAll((elements) =>
+      elements.map((element) => ({
+        label: element.getAttribute('aria-label'),
+        title: element.getAttribute('title'),
+        text: element.textContent?.trim(),
+      })),
+    );
+    throw new Error(`Could not select the Stemlink activity tab: ${JSON.stringify(tabs)}`, {
+      cause: error,
+    });
+  }
   const note = page.getByRole('treeitem', { name: '202601011200-ui-fixture.md' });
   await note.waitFor({ timeout: 30_000 });
   await note.click();
