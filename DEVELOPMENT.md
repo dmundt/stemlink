@@ -28,6 +28,7 @@ npm run test:ui
 
 - Pre-commit: `lint-staged` formats staged files and runs ESLint on staged JavaScript/TypeScript.
 - Pre-push: runs `npm run typecheck` and `npm test`.
+- `npm run build` type-checks and bundles `src/extension.ts` into `dist/extension.js` with esbuild. `vscode:prepublish` uses this build; `npm run compile` remains the TypeScript module output used by unit and host tests.
 - Unit tests are selected from current `tests/*.test.ts` sources, so obsolete compiled test files from another branch are not run.
 - `npm run test:mock` runs selected VS Code API mock tests; `npm test` includes them alongside the existing Node tests.
 - Host tests use VS Code and may download a stable build. Set `VSCODE_TEST_VERSION` to select a version or `STEMLINK_CODE_PATH` to use a local installation.
