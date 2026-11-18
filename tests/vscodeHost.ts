@@ -33,10 +33,14 @@ import {
   vaultManual,
 } from './coreScenarios';
 
-async function within(operation: PromiseLike<unknown>, milliseconds: number, label: string) {
+async function within<T>(
+  operation: PromiseLike<T>,
+  milliseconds: number,
+  label: string,
+): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    await Promise.race([
+    return await Promise.race([
       operation,
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new Error(`${label} timed out`)), milliseconds);
@@ -3963,7 +3967,23 @@ async function testDynamicVaultFiles(
     showErrorMessage: api.showErrorMessage,
   };
   const errors: string[] = [];
+  const originalInitialize = VaultRouterIndexes.prototype.initialize;
+  const originalOffer = VaultAgentInstructions.prototype.offer;
   try {
+    VaultRouterIndexes.prototype.initialize = function (paths) {
+      return within(
+        originalInitialize.call(this, paths),
+        20_000,
+        `Initializing ${paths.root.path}`,
+      );
+    };
+    VaultAgentInstructions.prototype.offer = function (paths) {
+      return within(
+        originalOffer.call(this, paths),
+        20_000,
+        `Offering instructions for ${paths.root.path}`,
+      );
+    };
     await config.update('enableRouterIndexes', true, vscode.ConfigurationTarget.Workspace);
     await config.update('offerAgentInstructions', true, vscode.ConfigurationTarget.Workspace);
     api.showWorkspaceFolderPick = async () => folder;
@@ -4247,6 +4267,8 @@ async function testDynamicVaultFiles(
       openApi.showOpenDialog = originalOpen;
     }
   } finally {
+    VaultRouterIndexes.prototype.initialize = originalInitialize;
+    VaultAgentInstructions.prototype.offer = originalOffer;
     api.showInputBox = original.showInputBox;
     api.showWorkspaceFolderPick = original.showWorkspaceFolderPick;
     api.showWarningMessage = original.showWarningMessage;
