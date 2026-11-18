@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.0 - 2026-11-18
+
 - Route wiki-link preview clicks through native Markdown navigation using source-relative links.
 - Fix cross-view drag promotion with serialized drag tokens, native duplicate MIME entries, and cancellation-token snapshots.
 - Add **New fleeting note** alongside **New permanent note** on vault rows, using the clicked vault without changing selection.
