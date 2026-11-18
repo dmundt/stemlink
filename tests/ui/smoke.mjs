@@ -35,9 +35,35 @@ export async function exerciseWorkbench(page, within) {
         'Reading activity tab diagnostics',
       );
     } catch (diagnosticError) {
-      throw new AggregateError([error, diagnosticError], 'Could not diagnose the activity tab', {
-        cause: diagnosticError,
-      });
+      let state;
+      try {
+        const session = await within(
+          page.context().newCDPSession(page),
+          5_000,
+          'Opening CDP session',
+        );
+        state = await within(
+          session.send('Runtime.evaluate', {
+            expression:
+              'JSON.stringify({visibility: document.visibilityState, focus: document.hasFocus()})',
+            returnByValue: true,
+          }),
+          5_000,
+          'Reading workbench state',
+        );
+        await within(session.detach(), 5_000, 'Closing CDP session');
+      } catch (stateError) {
+        throw new AggregateError(
+          [error, diagnosticError, stateError],
+          'Could not diagnose the activity tab',
+          { cause: stateError },
+        );
+      }
+      throw new AggregateError(
+        [error, diagnosticError],
+        `Could not diagnose the activity tab; workbench state: ${JSON.stringify(state)}`,
+        { cause: diagnosticError },
+      );
     }
     throw new Error(`Could not select the Stemlink activity tab: ${JSON.stringify(tabs)}`, {
       cause: error,

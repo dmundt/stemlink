@@ -3771,7 +3771,12 @@ async function testConfigurationRecovery(
     await vscode.commands.executeCommand('stemlink.selectVault', selectedRoot);
     await waitFor(
       () => view.selection[0]?.vault?.paths.root.toString() === selectedRoot.toString(),
-      'configuration recovery did not restore the test selection',
+      () =>
+        `configuration recovery did not restore the test selection: ${JSON.stringify({
+          expected: selectedRoot.toString(),
+          actual: view.selection.map((item) => item.vault?.paths.root.toString()),
+          visible: view.visible,
+        })}`,
     );
   }
 }
