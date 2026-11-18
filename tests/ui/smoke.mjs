@@ -19,9 +19,9 @@ export async function exerciseWorkbench(page, within) {
   const activity = page.getByRole('tab', { name: /Stemlink/ });
   await within(activity.waitFor({ timeout: 30_000 }), 45_000, 'Finding the Stemlink activity tab');
   const initialState = await within(
-    page.evaluate(() => ({
-      visibility: document.visibilityState,
-      focus: document.hasFocus(),
+    page.locator('html').evaluate(({ ownerDocument }) => ({
+      visibility: ownerDocument.visibilityState,
+      focus: ownerDocument.hasFocus(),
     })),
     5_000,
     'Reading initial workbench state',
