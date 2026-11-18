@@ -18,6 +18,7 @@ import {
 import { readVaultMarker, resolveVaultPaths, samePaths } from './discovery';
 import { VaultRouterIndexes } from './router';
 import { extendMarkdownPreview, MarkdownParser } from './preview';
+import { NoteLinksTool, noteLinksToolName } from './noteLinksTool';
 import { Item, VaultSection, VaultTree, VaultTreeSection } from './tree';
 import {
   Vault,
@@ -430,6 +431,9 @@ export async function activate(
       ? pendingRoot
       : undefined;
   await queueDiscovery(pendingOpen ? vscode.Uri.parse(pendingOpen) : undefined);
+  context.subscriptions.push(
+    vscode.lm.registerTool(noteLinksToolName, new NoteLinksTool(allVaults)),
+  );
   if (pendingOpen) {
     const vault = vaults.get(pendingOpen);
     if (vault && vscode.workspace.isTrusted) {

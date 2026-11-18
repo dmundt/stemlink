@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        vscode: ['1.90.0', stable]
+        vscode: ['1.95.0', stable]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     env:

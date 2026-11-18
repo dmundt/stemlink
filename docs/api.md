@@ -20,6 +20,12 @@ The [manifest](../package.json) contributes these user-facing commands:
 - References return incoming occurrences from the in-memory index. Completion suggests note stems while avoiding duplicate closing brackets.
 - The manual audit reports invalid filenames, metadata, malformed or missing links, and notes without incoming or outgoing references. Underscore-prefixed files are excluded.
 
+## Language Model Tool
+
+`stemlink_getNoteLinks` (`#stemlinkNoteLinks`) accepts an exact timestamped `stem` and an optional `vault` ID. Requires Workspace Trust and uses VS Code's tool confirmation. With multiple discovered vaults, omission returns `choose_vault` with session-local IDs, one-based workspace folder numbers, and workspace-relative vault roots. Retry with a returned ID; stale IDs never fall back to another vault.
+
+`match` returns up to 20 inbound and 20 outbound occurrences, with separate truncation flags, vault-relative file paths, and one-based lines and columns. Outbound entries include the target stem and whether it resolves in the same vault. Links come from the live index and may include unsaved edits. Results exclude note prose and absolute paths. Missing or changed scope and missing notes return `vault_not_found`, `vault_changed`, or `note_not_found`. The tool makes no edits, direct model calls, or MCP requests.
+
 ## Internal contracts
 
 - `Vault.ensureNames()` loads filename targets; `Vault.ensure()` and `Vault.refresh()` load note content and backlinks. `Vault.references()` reads the in-memory index.

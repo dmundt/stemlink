@@ -22,6 +22,7 @@ import {
 import { Item, VaultTree, VaultTreeSection } from '../src/workbench/tree';
 import { VaultRouterIndexes } from '../src/workbench/router';
 import { VaultAgentInstructions } from '../src/workbench/agentInstructions';
+import { NoteLinksTool, noteLinksToolName } from '../src/workbench/noteLinksTool';
 import {
   captureHeadlines,
   captureMetadataValidation,
@@ -4492,6 +4493,105 @@ async function testNativeVaultSelection(
   );
 }
 
+async function testNoteLinksTool(folder: vscode.WorkspaceFolder): Promise<void> {
+  await waitFor(
+    () => vscode.lm.tools.some(({ name }) => name === noteLinksToolName),
+    'Stemlink tool missing from VS Code',
+  );
+  const discovered = await discoverVaults(folder);
+  const vaults = (discovered.length ? discovered : [pathsFor(folder)]).map((paths) => {
+    const vault = new Vault(folder);
+    vault.selectPaths(paths);
+    return vault;
+  });
+  const active = [...vaults];
+  const tool = new NoteLinksTool(() => active);
+  const stem = '202601011200-note-1';
+  const cancellation = new vscode.CancellationTokenSource();
+  const query = async (input: { stem: string; vault?: string }) => {
+    const { content } = await tool.invoke(
+      { input, toolInvocationToken: undefined },
+      cancellation.token,
+    );
+    const part = content[0];
+    assert.ok(part instanceof vscode.LanguageModelTextPart);
+    assert.ok(!part.value.includes(folder.uri.path), 'tool disclosed the workspace path');
+    return JSON.parse(part.value);
+  };
+  try {
+    assert.ok(tool.prepareInvocation({ input: { stem } }, cancellation.token).confirmationMessages);
+    await assert.rejects(query({ stem: `${stem}\n` }), /exact Stemlink note stem/);
+    const initial = await query({ stem });
+    if (vaults.length > 1) {
+      assert.equal(initial.status, 'choose_vault');
+      assert.deepEqual(Object.keys(initial).sort(), ['status', 'vaults']);
+      const candidates = initial.vaults as { id: string; root: string }[];
+      const first = candidates.find(({ root }) => root === 'existing-vault');
+      const other = candidates.find(({ root }) => root === 'other-vault');
+      assert.ok(first && other);
+      assert.equal((await query({ stem, vault: first.id })).note, `stable/${stem}.md`);
+      assert.deepEqual((await query({ stem, vault: other.id })).inbound, []);
+      active.splice(
+        active.findIndex((vault) => vault.paths.root.path.endsWith('/other-vault')),
+        1,
+      );
+      assert.deepEqual(await query({ stem, vault: other.id }), { status: 'vault_not_found' });
+      return;
+    }
+
+    assert.equal(initial.status, 'match');
+    assert.deepEqual(
+      initial.inbound.map((link: { path: string }) => link.path),
+      ['permanent/202601011200-note-0.md'],
+    );
+    assert.equal((await query({ stem: '202601011200-missing' })).status, 'note_not_found');
+    const vault = vaults[0];
+    const incoming = vault.get('202601011200-note-0');
+    const note = vault.get(stem);
+    assert.ok(incoming && note);
+    const edit = new vscode.WorkspaceEdit();
+    const missing = '202601011200-missing';
+    const firstLine = new vscode.Position(0, 0);
+    edit.insert(incoming.uri, firstLine, `[[${stem}]]\n`.repeat(21));
+    edit.insert(
+      note.uri,
+      firstLine,
+      `private prose\n[[not-a-stem]]\n${`[[${missing}]]\n`.repeat(21)}`,
+    );
+    const documents = await Promise.all([
+      vscode.workspace.openTextDocument(incoming.uri),
+      vscode.workspace.openTextDocument(note.uri),
+    ]);
+    try {
+      assert.equal(await vscode.workspace.applyEdit(edit), true);
+      assert.ok(documents.every((document) => document.isDirty));
+      const live = await query({ stem });
+      assert.equal(live.status, 'match');
+      assert.deepEqual(live.truncated, { inbound: true, outbound: true });
+      assert.equal(live.inbound.length, 20);
+      assert.equal(live.outbound.length, 20);
+      assert.deepEqual(live.outbound[0], {
+        path: `permanent/${stem}.md`,
+        line: 3,
+        column: 1,
+        target: missing,
+        resolved: false,
+      });
+      assert.doesNotMatch(JSON.stringify(live), /private prose|not-a-stem/);
+    } finally {
+      for (const document of documents) {
+        await vscode.window.showTextDocument(document);
+        await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
+      }
+    }
+    cancellation.cancel();
+    await assert.rejects(query({ stem }), vscode.CancellationError);
+  } finally {
+    cancellation.dispose();
+    vaults.forEach((vault) => vault.dispose());
+  }
+}
+
 async function testRestrictedWorkspace(): Promise<void> {
   assert.equal(vscode.workspace.isTrusted, false, 'host did not start in Restricted Mode');
   const extension = vscode.extensions.getExtension('dmundt.stemlink');
@@ -4538,6 +4638,20 @@ async function testRestrictedWorkspace(): Promise<void> {
     const before = await snapshot(paths.root);
     await extension.activate();
     assert.ok(extension.isActive, 'extension did not activate in Restricted Mode');
+    const tool = new NoteLinksTool(() => {
+      assert.fail('Restricted Mode should not access the live index');
+    });
+    const input = { stem: '202601011200-note-1' };
+    const cancellation = new vscode.CancellationTokenSource();
+    try {
+      assert.throws(() => tool.prepareInvocation({ input }, cancellation.token), /Trust/);
+      await assert.rejects(
+        tool.invoke({ input, toolInvocationToken: undefined }, cancellation.token),
+        /Trust/,
+      );
+    } finally {
+      cancellation.dispose();
+    }
     await vscode.commands.executeCommand('stemlink.filterByTags');
     assert.ok(picker, 'tag picker did not open');
     assert.ok(picker.items.some((item) => item.label === 'test'));
@@ -4602,6 +4716,8 @@ export async function run(): Promise<void> {
   } finally {
     windowApi.createTreeView = originalCreateTreeView;
   }
+  if (process.env.STEMLINK_BENCHMARK !== '1' && process.env.STEMLINK_MULTI_ROOT !== '1')
+    await testNoteLinksTool(folder);
   const settingGroups = extension.packageJSON.contributes.configuration as {
     title: string;
     properties: Record<string, { default: string | boolean; scope: string }>;
