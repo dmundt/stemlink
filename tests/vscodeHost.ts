@@ -3217,6 +3217,19 @@ async function testOpenVault(
       (error: unknown) => error instanceof vscode.FileSystemError && error.code === 'FileNotFound',
     );
   };
+  const commandWithin = async (command: string, operation: string) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        vscode.commands.executeCommand(command),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`${operation} timed out`)), 30_000);
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  };
   try {
     workspaceApi.getConfiguration = new Proxy(originalConfig, {
       apply: (target, thisArg, args: Parameters<typeof vscode.workspace.getConfiguration>) => {
@@ -3540,7 +3553,7 @@ async function testOpenVault(
       Buffer.from(JSON.stringify({ version: 1, inbox: 'inbox', notes: 'notes' })),
     );
     chosen = incompleteRoot;
-    await vscode.commands.executeCommand('stemlink.openVault');
+    await commandWithin('stemlink.openVault', 'opening the incomplete vault');
     assert.match(instructionPrompts[1] ?? '', /vault root\/AGENTS\.md[\s\S]*inbox\/AGENTS\.md/);
     assert.match(
       instructionPrompts[1] ?? '',
@@ -3562,7 +3575,7 @@ async function testOpenVault(
     const bytes = await vscode.workspace.fs.readFile(marker);
     const warningCount = warnings;
     const instructionPromptCount = instructionPrompts.length;
-    await vscode.commands.executeCommand('stemlink.openVault');
+    await commandWithin('stemlink.openVault', 'reopening the incomplete vault');
     assert.equal(warnings, warningCount, 'existing marker prompted for replacement');
     assert.equal(
       instructionPrompts.length,
@@ -3580,13 +3593,13 @@ async function testOpenVault(
       'discoverable vault was added unnecessarily',
     );
     chosen = vscode.Uri.joinPath(folder.uri, 'other-vault');
-    await vscode.commands.executeCommand('stemlink.openVault');
+    await commandWithin('stemlink.openVault', 'opening the other vault');
     assert.equal(
       vscode.workspace.workspaceFolders?.length,
       1,
       'discoverable child was added unnecessarily',
     );
-    await vscode.commands.executeCommand('stemlink.addFleetingNote');
+    await commandWithin('stemlink.addFleetingNote', 'creating a capture in the other vault');
     assert.equal(
       (await vscode.workspace.fs.readDirectory(vscode.Uri.joinPath(chosen, 'inbox'))).filter(
         ([name]) => !isVaultInstructionFile(name),
