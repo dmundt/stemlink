@@ -33,10 +33,10 @@ import {
   vaultManual,
 } from './coreScenarios';
 
-async function waitFor(condition: () => boolean, message: string): Promise<void> {
+async function waitFor(condition: () => boolean, message: string | (() => string)): Promise<void> {
   const deadline = Date.now() + 5000;
   while (!condition()) {
-    if (Date.now() >= deadline) throw new Error(message);
+    if (Date.now() >= deadline) throw new Error(typeof message === 'string' ? message : message());
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
 }
@@ -44,7 +44,7 @@ async function waitFor(condition: () => boolean, message: string): Promise<void>
 async function waitForFileText(
   uri: vscode.Uri,
   condition: (text: string) => boolean,
-  message: string,
+  message: string | (() => string),
 ): Promise<void> {
   const deadline = Date.now() + 5000;
   while (true) {
@@ -54,7 +54,7 @@ async function waitForFileText(
     } catch (error) {
       if (!(error instanceof vscode.FileSystemError && error.code === 'FileNotFound')) throw error;
     }
-    if (Date.now() >= deadline) throw new Error(message);
+    if (Date.now() >= deadline) throw new Error(typeof message === 'string' ? message : message());
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
 }
@@ -4316,13 +4316,24 @@ async function testNativeVaultSelection(
   const second = rows?.find((item) => item.vault?.paths.root.toString() === secondRoot.toString());
   assert.ok(second, 'second vault row missing');
   let selectionChanged = false;
+  const observedSelections: string[][] = [];
   const selectionListener = view.onDidChangeSelection((event) => {
+    observedSelections.push(event.selection.map((item) => item.vault?.paths.root.toString() ?? ''));
     if (event.selection[0]?.vault?.paths.root.toString() === secondRoot.toString())
       selectionChanged = true;
   });
   try {
     await view.reveal(second, { select: true, focus: false });
-    await waitFor(() => selectionChanged, 'native selection event was not delivered');
+    await waitFor(
+      () => selectionChanged,
+      () =>
+        `native selection event was not delivered: ${JSON.stringify({
+          visible: view.visible,
+          current: view.selection.map((item) => item.vault?.paths.root.toString() ?? ''),
+          observed: observedSelections,
+          expected: secondRoot.toString(),
+        })}`,
+    );
   } finally {
     selectionListener.dispose();
   }
@@ -5781,7 +5792,16 @@ export async function run(): Promise<void> {
         await waitForFileText(
           notesIndex,
           (text) => text.includes('Markdown files: 3 (excludes INDEX.md and AGENTS.md)'),
-          'notes router did not update its count after an external note was added',
+          () =>
+            `notes router did not update its count after an external note was added: ${JSON.stringify(
+              {
+                dirty: notesDocument.isDirty,
+                documentHasExpectedCount: notesDocument
+                  .getText()
+                  .includes('Markdown files: 3 (excludes INDEX.md and AGENTS.md)'),
+                documentVersion: notesDocument.version,
+              },
+            )}`,
         );
         await waitForFileText(
           rootIndex,
