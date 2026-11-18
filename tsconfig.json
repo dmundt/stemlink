@@ -3,7 +3,7 @@
     "target": "ES2022",
     "module": "Node16",
     "moduleResolution": "Node16",
-    "rootDir": "src",
+    "rootDir": ".",
     "outDir": "dist",
     "strict": true,
     "esModuleInterop": true,
@@ -11,5 +11,5 @@
     "types": ["node", "vscode"],
     "sourceMap": true
   },
-  "include": ["src/**/*.ts"]
+  "include": ["extension.ts", "src/**/*.ts", "tests/**/*.ts"]
 }

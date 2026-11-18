@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parseDocument } from 'yaml';
-import { extendMarkdownPreview, MarkdownParser } from '../preview';
+import { extendMarkdownPreview, MarkdownParser } from '../src/workbench/preview';
 import {
   captureHeadlines,
   captureMetadataValidation,
@@ -29,7 +29,7 @@ import {
   routerIndexStart,
   slug,
   timestamp,
-} from '../core';
+} from '../src/core/documents';
 
 test('portable creation rejects Windows device basenames including extensions', () => {
   for (const name of [

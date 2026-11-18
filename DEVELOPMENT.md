@@ -23,16 +23,20 @@ npm test
 npm run build
 npm run format:check
 npm run test:host
+npm run test:ui
 ```
 
 - Pre-commit: `lint-staged` formats staged files and runs ESLint on staged JavaScript/TypeScript.
 - Pre-push: runs `npm run typecheck` and `npm test`.
+- Unit tests are selected from current `tests/*.test.ts` sources, so obsolete compiled test files from another branch are not run.
+- `npm run test:mock` runs selected VS Code API mock tests; `npm test` includes them alongside the existing Node tests.
 - Host tests use VS Code and may download a stable build. Set `VSCODE_TEST_VERSION` to select a version or `STEMLINK_CODE_PATH` to use a local installation.
+- `npm run test:ui` opens an isolated VS Code workspace and uses Playwright to select a real tree item and verify its editor tab. It uses the same host selection variables and opens a temporary loopback debugging endpoint; avoid running it on untrusted shared machines.
 - Coverage and the 10,000-note benchmark are available through `npm run test:coverage` and `npm run benchmark:integration`.
 - Run `npm run check:shared -- <peer-repository>` to compare shared engineering files against a local Prompteur checkout. Nightly validation compares against its published `main`.
 - Coverage floors: 95% lines, 91% branches, and 93% functions across emitted extension modules, including host execution.
 - Generated vault routers under `notes/**/INDEX.md` are excluded from Prettier; the extension owns their marked sections.
-- **Compatibility Validation** is manual-only. It runs host and Restricted Mode tests on Windows, macOS, and Linux against VS Code 1.90.0 and stable, plus coverage on each platform with Node 22 and stable VS Code.
+- **Compatibility Validation** is manual-only. It runs host, Restricted Mode, and interactive UI tests on Windows, macOS, and Linux against VS Code 1.90.0 and stable, plus coverage on each platform with Node 22 and stable VS Code.
 - `npm run package` creates a local VSIX; it does not publish.
 
 ## Release
@@ -68,7 +72,7 @@ Trusted Publishing must target `.github/workflows/publish.yml`; no publishing se
 ## CI
 
 - Feature branch push: install and build.
-- Pull request to `main`: install, lint, typecheck, unit tests, and host tests on stable VS Code.
+- Pull request to `main`: install, lint, typecheck, unit tests, host tests, and interactive UI smoke on stable VS Code.
 - Tag push `v*`: install, build, package, GitHub Release asset, and Marketplace publish.
 - Nightly/manual: audit, formatting, coverage, and the integration benchmark.
 - Manual compatibility: supported minimum/stable VS Code on three platforms, including Restricted Mode.

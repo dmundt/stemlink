@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { isExcludedNoteFile, linksIn, normalizeTags, noteTags } from './core';
-import { Vault, VaultNote, directChild, reportError, textPosition } from './vault';
+import { isExcludedNoteFile, linksIn, normalizeTags, noteTags } from '../core/documents';
+import { Vault, VaultNote, directChild, reportError, textPosition } from '../platform/vault';
 
 export type VaultSection = 'Vaults' | 'Fleeting' | 'Notes' | 'References';
 type Section = VaultSection | 'Inbound' | 'Outbound';
@@ -68,6 +68,8 @@ export class Item extends vscode.TreeItem {
 export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposable {
   private readonly emitter = new vscode.EventEmitter<Item | undefined>();
   readonly onDidChangeTreeData = this.emitter.event;
+  private readonly vaultsEmitter = new vscode.EventEmitter<void>();
+  readonly onDidChangeVaults = this.vaultsEmitter.event;
   private readonly subscriptions: vscode.Disposable[];
   private readonly vaultSubscriptions = new Map<Vault, vscode.Disposable>();
   private readonly vaultItems = new Map<Vault, Item>();
@@ -84,6 +86,7 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
   private readonly pendingTagCounts = new Set<Vault>();
   private disposed = false;
   private refreshTimer: ReturnType<typeof setTimeout> | undefined;
+  private previousVaults: readonly Vault[] = [];
 
   constructor(
     private readonly activeVault: () => Vault | undefined,
@@ -105,7 +108,12 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
   }
 
   syncVaults(): void {
-    const current = new Set(this.vaults());
+    const vaults = this.vaults();
+    const changed =
+      vaults.length !== this.previousVaults.length ||
+      vaults.some((vault, index) => vault !== this.previousVaults[index]);
+    this.previousVaults = [...vaults];
+    const current = new Set(vaults);
     for (const [vault, subscription] of this.vaultSubscriptions) {
       if (!current.has(vault)) {
         subscription.dispose();
@@ -136,6 +144,7 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
           }),
         );
     }
+    if (changed) this.vaultsEmitter.fire();
     this.refresh();
   }
 
@@ -605,6 +614,7 @@ export class VaultTree implements vscode.TreeDataProvider<Item>, vscode.Disposab
     this.tagDiagnostics?.dispose();
     this.subscriptions.forEach((item) => item.dispose());
     this.emitter.dispose();
+    this.vaultsEmitter.dispose();
   }
 }
 
@@ -619,7 +629,10 @@ export class VaultTreeSection implements vscode.TreeDataProvider<Item>, vscode.D
     private readonly section: VaultSection,
   ) {
     if (section === 'Vaults') this.getParent = () => undefined;
-    this.subscription = tree.onDidChangeTreeData(() => this.emitter.fire(undefined));
+    this.subscription =
+      section === 'Vaults'
+        ? tree.onDidChangeVaults(() => this.emitter.fire(undefined))
+        : tree.onDidChangeTreeData(() => this.emitter.fire(undefined));
   }
 
   getTreeItem(element: Item): vscode.TreeItem {

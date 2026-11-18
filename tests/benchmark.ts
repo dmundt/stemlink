@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
-import { auditNotes, linksIn, makeNote, NoteData } from '../core';
+import { auditNotes, linksIn, makeNote, NoteData } from '../src/core/documents';
 
 const count = 10_000;
 const start = performance.now();

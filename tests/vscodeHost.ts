@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 import * as os from 'node:os';
 import * as vscode from 'vscode';
-import { discoverVaults, readVaultMarker, resolveVaultPaths } from '../discovery';
+import { discoverVaults, readVaultMarker, resolveVaultPaths } from '../src/workbench/discovery';
 import {
   captureMetadata,
   isVaultInstructionFile,
@@ -10,7 +10,7 @@ import {
   renderVaultReadme,
   routerIndexName,
   routerIndexStart,
-} from '../core';
+} from '../src/core/documents';
 import {
   Vault,
   VaultConfigurationError,
@@ -18,10 +18,10 @@ import {
   pathsFor,
   sameUri,
   validFolderName,
-} from '../vault';
-import { Item, VaultTree, VaultTreeSection } from '../tree';
-import { VaultRouterIndexes } from '../router';
-import { VaultAgentInstructions } from '../agentInstructions';
+} from '../src/platform/vault';
+import { Item, VaultTree, VaultTreeSection } from '../src/workbench/tree';
+import { VaultRouterIndexes } from '../src/workbench/router';
+import { VaultAgentInstructions } from '../src/workbench/agentInstructions';
 import {
   captureHeadlines,
   captureMetadataValidation,
@@ -33,10 +33,28 @@ import {
   vaultManual,
 } from './coreScenarios';
 
-async function waitFor(condition: () => boolean, message: string): Promise<void> {
+async function within<T>(
+  operation: PromiseLike<T>,
+  milliseconds: number,
+  label: string,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out`)), milliseconds);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function waitFor(condition: () => boolean, message: string | (() => string)): Promise<void> {
   const deadline = Date.now() + 5000;
   while (!condition()) {
-    if (Date.now() >= deadline) throw new Error(message);
+    if (Date.now() >= deadline) throw new Error(typeof message === 'string' ? message : message());
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
 }
@@ -44,7 +62,7 @@ async function waitFor(condition: () => boolean, message: string): Promise<void>
 async function waitForFileText(
   uri: vscode.Uri,
   condition: (text: string) => boolean,
-  message: string,
+  message: string | (() => string),
 ): Promise<void> {
   const deadline = Date.now() + 5000;
   while (true) {
@@ -54,7 +72,7 @@ async function waitForFileText(
     } catch (error) {
       if (!(error instanceof vscode.FileSystemError && error.code === 'FileNotFound')) throw error;
     }
-    if (Date.now() >= deadline) throw new Error(message);
+    if (Date.now() >= deadline) throw new Error(typeof message === 'string' ? message : message());
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
 }
@@ -2729,7 +2747,7 @@ async function testDiscovery(folder: vscode.WorkspaceFolder): Promise<void> {
   });
   try {
     await vscode.commands.executeCommand('stemlink.addFleetingNote');
-    assert.equal(errors.length, 0, 'first vault was not automatically selected');
+    assert.equal(errors.length, 0, `capture failed: ${errors.join('; ')}`);
   } finally {
     errorApi.showErrorMessage = originalError;
   }
@@ -2761,7 +2779,7 @@ async function testDiscovery(folder: vscode.WorkspaceFolder): Promise<void> {
   assert.equal(
     captures.filter(([name]) => name.endsWith('.md')).length,
     1,
-    'discovered inbox was not used',
+    `discovered inbox was not used; active editor: ${vscode.window.activeTextEditor?.document.uri.toString()}`,
   );
   await vscode.commands.executeCommand('stemlink.selectVault', otherRoot);
   await vscode.window.showTextDocument(document);
@@ -3217,6 +3235,8 @@ async function testOpenVault(
       (error: unknown) => error instanceof vscode.FileSystemError && error.code === 'FileNotFound',
     );
   };
+  const commandWithin = (command: string, operation: string) =>
+    within(vscode.commands.executeCommand(command), 30_000, operation);
   try {
     workspaceApi.getConfiguration = new Proxy(originalConfig, {
       apply: (target, thisArg, args: Parameters<typeof vscode.workspace.getConfiguration>) => {
@@ -3540,7 +3560,7 @@ async function testOpenVault(
       Buffer.from(JSON.stringify({ version: 1, inbox: 'inbox', notes: 'notes' })),
     );
     chosen = incompleteRoot;
-    await vscode.commands.executeCommand('stemlink.openVault');
+    await commandWithin('stemlink.openVault', 'opening the incomplete vault');
     assert.match(instructionPrompts[1] ?? '', /vault root\/AGENTS\.md[\s\S]*inbox\/AGENTS\.md/);
     assert.match(
       instructionPrompts[1] ?? '',
@@ -3562,7 +3582,7 @@ async function testOpenVault(
     const bytes = await vscode.workspace.fs.readFile(marker);
     const warningCount = warnings;
     const instructionPromptCount = instructionPrompts.length;
-    await vscode.commands.executeCommand('stemlink.openVault');
+    await commandWithin('stemlink.openVault', 'reopening the incomplete vault');
     assert.equal(warnings, warningCount, 'existing marker prompted for replacement');
     assert.equal(
       instructionPrompts.length,
@@ -3580,13 +3600,13 @@ async function testOpenVault(
       'discoverable vault was added unnecessarily',
     );
     chosen = vscode.Uri.joinPath(folder.uri, 'other-vault');
-    await vscode.commands.executeCommand('stemlink.openVault');
+    await commandWithin('stemlink.openVault', 'opening the other vault');
     assert.equal(
       vscode.workspace.workspaceFolders?.length,
       1,
       'discoverable child was added unnecessarily',
     );
-    await vscode.commands.executeCommand('stemlink.addFleetingNote');
+    await commandWithin('stemlink.addFleetingNote', 'creating a capture in the other vault');
     assert.equal(
       (await vscode.workspace.fs.readDirectory(vscode.Uri.joinPath(chosen, 'inbox'))).filter(
         ([name]) => !isVaultInstructionFile(name),
@@ -3646,6 +3666,8 @@ async function testConfigurationRecovery(
   let settingsOpened = 0;
   let reconciliations = 0;
   const rows = (await provider.getChildren()) ?? [];
+  const selectedRoot = view.selection[0]?.vault?.paths.root;
+  assert.ok(selectedRoot, 'configuration recovery requires a selected vault');
   const markers = await Promise.all(
     rows.map(async (row) => {
       assert.ok(row.vault);
@@ -3746,6 +3768,16 @@ async function testConfigurationRecovery(
     api.showErrorMessage = originalError;
     commands.executeCommand = originalCommand;
     Vault.prototype.selectPaths = originalPaths;
+    await vscode.commands.executeCommand('stemlink.selectVault', selectedRoot);
+    await waitFor(
+      () => view.selection[0]?.vault?.paths.root.toString() === selectedRoot.toString(),
+      () =>
+        `configuration recovery did not restore the test selection: ${JSON.stringify({
+          expected: selectedRoot.toString(),
+          actual: view.selection.map((item) => item.vault?.paths.root.toString()),
+          visible: view.visible,
+        })}`,
+    );
   }
 }
 
@@ -3932,18 +3964,48 @@ async function testDynamicVaultFiles(
     showWorkspaceFolderPick: typeof vscode.window.showWorkspaceFolderPick;
     showWarningMessage: typeof vscode.window.showWarningMessage;
     showErrorMessage: typeof vscode.window.showErrorMessage;
+    showQuickPick: typeof vscode.window.showQuickPick;
   };
   const original = {
     showInputBox: api.showInputBox,
     showWorkspaceFolderPick: api.showWorkspaceFolderPick,
     showWarningMessage: api.showWarningMessage,
     showErrorMessage: api.showErrorMessage,
+    showQuickPick: api.showQuickPick,
   };
   const errors: string[] = [];
+  let conflictPrompts = 0;
+  const originalInitialize = VaultRouterIndexes.prototype.initialize;
+  const originalOffer = VaultAgentInstructions.prototype.offer;
   try {
+    VaultRouterIndexes.prototype.initialize = function (paths) {
+      return within(
+        originalInitialize.call(this, paths),
+        20_000,
+        `Initializing ${paths.root.path}`,
+      );
+    };
+    VaultAgentInstructions.prototype.offer = function (paths) {
+      return within(
+        originalOffer.call(this, paths),
+        20_000,
+        `Offering instructions for ${paths.root.path}`,
+      );
+    };
     await config.update('enableRouterIndexes', true, vscode.ConfigurationTarget.Workspace);
     await config.update('offerAgentInstructions', true, vscode.ConfigurationTarget.Workspace);
     api.showWorkspaceFolderPick = async () => folder;
+    api.showQuickPick = new Proxy(original.showQuickPick, {
+      apply: (_target, _thisArg, args: unknown[]) => {
+        const items = args[0] as { label: string }[];
+        const options = args[1] as { placeHolder?: string } | undefined;
+        assert.match(options?.placeHolder ?? '', /^Choose folder configuration for /);
+        const marker = items.find((item) => item.label === '.stemlink.json');
+        assert.ok(marker, 'vault conflict did not offer marker settings');
+        conflictPrompts++;
+        return Promise.resolve(marker);
+      },
+    });
     api.showWarningMessage = new Proxy(original.showWarningMessage, {
       apply: (_target, _thisArg, args: unknown[]) => {
         const message = String(args[0]);
@@ -3963,6 +4025,13 @@ async function testDynamicVaultFiles(
     for (const scenario of cases) {
       const templatesName = 'templates' in scenario ? scenario.templates : 'templates';
       if ('templates' in scenario) {
+        await config.update('inbox', 'temporary-captures', vscode.ConfigurationTarget.Workspace);
+        await within(
+          vscode.commands.executeCommand('stemlink.refresh'),
+          30_000,
+          'Resolving vault conflict',
+        );
+        assert.ok(conflictPrompts > 0, 'conflicting settings did not prompt');
         await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(folder.uri, scenario.root));
         for (const key of ['root', 'templates', 'inbox', 'notes'] as const) {
           await config.update(key, scenario[key], vscode.ConfigurationTarget.Workspace);
@@ -3995,7 +4064,11 @@ async function testDynamicVaultFiles(
         }
         return answer;
       };
-      await vscode.commands.executeCommand('stemlink.createVault');
+      await within(
+        vscode.commands.executeCommand('stemlink.createVault'),
+        30_000,
+        `Creating ${scenario.root}`,
+      );
       assert.equal(
         answers.length,
         0,
@@ -4090,7 +4163,11 @@ async function testDynamicVaultFiles(
         );
       }
       if ('templates' in scenario) {
-        await vscode.commands.executeCommand('stemlink.addFleetingNote');
+        await within(
+          vscode.commands.executeCommand('stemlink.addFleetingNote'),
+          30_000,
+          `Creating capture in ${scenario.root}`,
+        );
         assert.equal(
           vscode.window.activeTextEditor?.document.getText().replace(/\r\n/g, '\n'),
           (await readText(vscode.Uri.joinPath(templates, '_fleeting.md'))).replace(/\r\n/g, '\n'),
@@ -4128,7 +4205,11 @@ async function testDynamicVaultFiles(
         prompts.push(options?.title ?? '');
         return 'invalid-template-default';
       };
-      await vscode.commands.executeCommand('stemlink.createVault');
+      await within(
+        vscode.commands.executeCommand('stemlink.createVault'),
+        30_000,
+        'Validating template default',
+      );
       assert.deepEqual(prompts, ['Create vault: root folder']);
       assert.ok(errors.slice(errorCount).some((message) => message.includes('templates folder')));
       await assert.rejects(async () =>
@@ -4178,8 +4259,12 @@ async function testDynamicVaultFiles(
     const originalOpen = openApi.showOpenDialog;
     try {
       openApi.showOpenDialog = async () => [root];
-      await vscode.commands.executeCommand('stemlink.openVault');
-      await vscode.commands.executeCommand('stemlink.addFleetingNote');
+      await within(vscode.commands.executeCommand('stemlink.openVault'), 30_000, 'Opening vault');
+      await within(
+        vscode.commands.executeCommand('stemlink.addFleetingNote'),
+        30_000,
+        'Creating capture from mapped templates',
+      );
       assert.equal(
         vscode.window.activeTextEditor?.document.getText().replace(/\r\n/g, '\n'),
         captureText,
@@ -4208,10 +4293,13 @@ async function testDynamicVaultFiles(
       openApi.showOpenDialog = originalOpen;
     }
   } finally {
+    VaultRouterIndexes.prototype.initialize = originalInitialize;
+    VaultAgentInstructions.prototype.offer = originalOffer;
     api.showInputBox = original.showInputBox;
     api.showWorkspaceFolderPick = original.showWorkspaceFolderPick;
     api.showWarningMessage = original.showWarningMessage;
     api.showErrorMessage = original.showErrorMessage;
+    api.showQuickPick = original.showQuickPick;
     await config.update('root', previous.root, vscode.ConfigurationTarget.Workspace);
     await config.update('inbox', previous.inbox, vscode.ConfigurationTarget.Workspace);
     await config.update('notes', previous.notes, vscode.ConfigurationTarget.Workspace);
@@ -4316,13 +4404,24 @@ async function testNativeVaultSelection(
   const second = rows?.find((item) => item.vault?.paths.root.toString() === secondRoot.toString());
   assert.ok(second, 'second vault row missing');
   let selectionChanged = false;
+  const observedSelections: string[][] = [];
   const selectionListener = view.onDidChangeSelection((event) => {
+    observedSelections.push(event.selection.map((item) => item.vault?.paths.root.toString() ?? ''));
     if (event.selection[0]?.vault?.paths.root.toString() === secondRoot.toString())
       selectionChanged = true;
   });
   try {
     await view.reveal(second, { select: true, focus: false });
-    await waitFor(() => selectionChanged, 'native selection event was not delivered');
+    await waitFor(
+      () => selectionChanged,
+      () =>
+        `native selection event was not delivered: ${JSON.stringify({
+          visible: view.visible,
+          current: view.selection.map((item) => item.vault?.paths.root.toString() ?? ''),
+          observed: observedSelections,
+          expected: secondRoot.toString(),
+        })}`,
+    );
   } finally {
     selectionListener.dispose();
   }
@@ -4338,16 +4437,7 @@ async function testNativeVaultSelection(
   await vscode.window.showTextDocument(
     vscode.Uri.joinPath(firstRoot, 'stable', '202601011200-note-0.md'),
   );
-  let refreshes = 0;
-  const refreshed = provider.onDidChangeTreeData?.(() => {
-    refreshes++;
-  });
-  try {
-    await vscode.commands.executeCommand('stemlink.refresh');
-    await waitFor(() => refreshes > 0, 'vault tree did not refresh');
-  } finally {
-    refreshed?.dispose();
-  }
+  await vscode.commands.executeCommand('stemlink.refresh');
   await waitFor(
     () => view.selection[0]?.vault?.paths.root.toString() === secondRoot.toString(),
     'editor change or refresh cleared native vault selection',
@@ -4762,12 +4852,24 @@ export async function run(): Promise<void> {
   }
   if (process.env.STEMLINK_DISCOVERY === '1') {
     assert.ok(vaultView && vaultProvider, 'vault view was not captured during activation');
-    await testNativeVaultSelection(folder, vaultView, vaultProvider);
-    await testConfigurationRecovery(folder, vaultView, vaultProvider);
-    await testDiscovery(folder);
-    await testOpenVault(folder, extension.extensionUri);
-    await testFeatureSettings(folder);
-    await testDynamicVaultFiles(folder, extension.extensionUri);
+    await within(
+      testNativeVaultSelection(folder, vaultView, vaultProvider),
+      120_000,
+      'Native selection test',
+    );
+    await within(
+      testConfigurationRecovery(folder, vaultView, vaultProvider),
+      120_000,
+      'Configuration recovery test',
+    );
+    await within(testDiscovery(folder), 120_000, 'Discovery test');
+    await within(testOpenVault(folder, extension.extensionUri), 120_000, 'Open vault test');
+    await within(testFeatureSettings(folder), 120_000, 'Feature settings test');
+    await within(
+      testDynamicVaultFiles(folder, extension.extensionUri),
+      120_000,
+      'Dynamic vault files test',
+    );
     return;
   }
   if (process.env.STEMLINK_MULTI_ROOT === '1') {
@@ -5072,9 +5174,10 @@ export async function run(): Promise<void> {
   }
 
   const vault = new Vault(folder);
+  const treeVaults = [vault];
   const tree = new VaultTree(
     () => vault,
-    () => [vault],
+    () => treeVaults,
   );
   const sectionViews = (['Vaults', 'Fleeting', 'Notes', 'References'] as const).map(
     (section) => new VaultTreeSection(tree, section),
@@ -5083,6 +5186,26 @@ export async function run(): Promise<void> {
     started = performance.now();
     await vault.ensure();
     const independentIndexMs = performance.now() - started;
+    let vaultRefreshes = 0;
+    let noteRefreshes = 0;
+    const vaultRefreshListener = sectionViews[0].onDidChangeTreeData(() => vaultRefreshes++);
+    const noteRefreshListener = sectionViews[2].onDidChangeTreeData(() => noteRefreshes++);
+    const additionalVault = new Vault(folder);
+    try {
+      tree.refresh();
+      await waitFor(() => noteRefreshes > 0, 'note view did not refresh');
+      assert.equal(vaultRefreshes, 0, 'note refresh unnecessarily refreshed the vault rows');
+      treeVaults.push(additionalVault);
+      tree.syncVaults();
+      await waitFor(() => vaultRefreshes === 1, 'adding a vault did not refresh the vault rows');
+      treeVaults.pop();
+      tree.syncVaults();
+      await waitFor(() => vaultRefreshes === 2, 'removing a vault did not refresh the vault rows');
+    } finally {
+      vaultRefreshListener.dispose();
+      noteRefreshListener.dispose();
+      additionalVault.dispose();
+    }
     const sections = await tree.getChildren();
     assert.deepEqual(
       sections.map((item) => item.kind),
@@ -5781,7 +5904,16 @@ export async function run(): Promise<void> {
         await waitForFileText(
           notesIndex,
           (text) => text.includes('Markdown files: 3 (excludes INDEX.md and AGENTS.md)'),
-          'notes router did not update its count after an external note was added',
+          () =>
+            `notes router did not update its count after an external note was added: ${JSON.stringify(
+              {
+                dirty: notesDocument.isDirty,
+                documentHasExpectedCount: notesDocument
+                  .getText()
+                  .includes('Markdown files: 3 (excludes INDEX.md and AGENTS.md)'),
+                documentVersion: notesDocument.version,
+              },
+            )}`,
         );
         await waitForFileText(
           rootIndex,

@@ -6,7 +6,7 @@ import {
   reportError,
   sameUri,
   validFolderName,
-} from './vault';
+} from '../platform/vault';
 
 const markerName = '.stemlink.json';
 

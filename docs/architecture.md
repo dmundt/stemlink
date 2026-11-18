@@ -4,15 +4,16 @@ Stemlink is a VS Code extension for plain Markdown vaults. It uses native views,
 
 ## Components
 
-| File                                                | Responsibility                                                                                         |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| [core.ts](../src/core.ts)                           | VS Code-independent metadata, note creation and promotion, links, audits, manual and router rendering. |
-| [extension.ts](../src/extension.ts)                 | Activation, vault selection, commands, language providers, diagnostics, and workspace events.          |
-| [discovery.ts](../src/discovery.ts)                 | Marker parsing, workspace discovery, and marker/settings conflict selection.                           |
-| [vault.ts](../src/vault.ts)                         | Configured paths, in-memory note and backlink indexes, filesystem and document updates.                |
-| [tree.ts](../src/tree.ts)                           | Shared tree model and native Vaults, Fleeting, Notes, and References views.                            |
-| [router.ts](../src/router.ts)                       | Optional generated `INDEX.md` routing, file descriptions, and serialized refreshes.                    |
-| [agentInstructions.ts](../src/agentInstructions.ts) | Consent-based installation of missing vault `AGENTS.md` files.                                         |
+| Layer                             | Responsibility                                                                                      |
+| --------------------------------- | --------------------------------------------------------------------------------------------------- |
+| [core](../src/core)               | VS Code-independent metadata, note creation and promotion, links, audits, and rendering.            |
+| [application](../src/application) | VS Code-independent in-memory note and backlink index.                                              |
+| [platform](../src/platform)       | Vault paths, filesystem and document updates, and index integration.                                |
+| [workbench](../src/workbench)     | Activation, discovery, native views and providers, preview, routers, and agent-instruction prompts. |
+
+[extension.ts](../src/extension.ts) exports the workbench activation entry point.
+Core and application do not import VS Code; platform uses application and core,
+and workbench composes the platform and native UI.
 
 ## Data flow
 

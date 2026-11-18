@@ -2,7 +2,7 @@
   "name": "stemlink",
   "displayName": "Stemlink",
   "description": "Plain Markdown vault navigation and note management for Stemlink.",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "publisher": "dmundt",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -16,7 +16,7 @@
   },
   "homepage": "https://github.com/dmundt/stemlink#readme",
   "vsce": {
-    "preRelease": false
+    "preRelease": true
   },
   "engines": {
     "node": "^22.13.0 || >=24.0.0",
@@ -419,18 +419,21 @@
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "npm run test:release && npm run test:shared && npm run compile && node --test dist/test/*.test.js",
+    "test": "npm run test:release && npm run test:shared && npm run test:unit-runner && npm run test:mock && npm run compile && node scripts/run-unit-tests.mjs",
     "test:release": "node --test scripts/release.test.mjs",
     "test:shared": "node --test scripts/check-shared.test.mjs",
+    "test:unit-runner": "node --test scripts/run-unit-tests.test.mjs",
+    "test:mock": "vitest run",
+    "test:ui": "npm run build && node scripts/run-ui-tests.mjs",
     "check:shared": "node scripts/check-shared.mjs",
-    "test:host": "npm run compile && node --test --test-concurrency=1 dist/test/runIntegration.js dist/test/runMultiRoot.js dist/test/runDiscovery.js && node dist/test/runIntegration.js --restricted",
-    "test:integration": "npm run compile && node dist/test/runIntegration.js",
-    "test:restricted": "npm run compile && node dist/test/runIntegration.js --restricted",
-    "test:multi-root": "npm run compile && node dist/test/runMultiRoot.js",
-    "test:discovery": "npm run compile && node dist/test/runDiscovery.js",
-    "test:coverage": "npm run test:release && npm run compile && node --experimental-test-coverage --test --test-concurrency=1 --test-coverage-lines=95 --test-coverage-branches=91 --test-coverage-functions=93 --test-coverage-include=dist/*.js dist/test/core.test.js dist/test/runIntegration.js dist/test/runMultiRoot.js dist/test/runDiscovery.js dist/test/runRestricted.js",
-    "benchmark:integration": "npm run compile && node dist/test/runIntegration.js --benchmark",
-    "benchmark": "npm run compile && node dist/test/benchmark.js",
+    "test:host": "npm run compile && node --test --test-concurrency=1 dist/tests/runIntegration.js dist/tests/runMultiRoot.js dist/tests/runDiscovery.js && node dist/tests/runIntegration.js --restricted",
+    "test:integration": "npm run compile && node dist/tests/runIntegration.js",
+    "test:restricted": "npm run compile && node dist/tests/runIntegration.js --restricted",
+    "test:multi-root": "npm run compile && node dist/tests/runMultiRoot.js",
+    "test:discovery": "npm run compile && node dist/tests/runDiscovery.js",
+    "test:coverage": "npm run test:release && npm run compile && node --experimental-test-coverage --test --test-concurrency=1 --test-coverage-lines=95 --test-coverage-branches=91 --test-coverage-functions=93 --test-coverage-include=dist/extension.js --test-coverage-include=dist/src/extension.js --test-coverage-include=dist/src/core/*.js --test-coverage-include=dist/src/application/*.js --test-coverage-include=dist/src/platform/*.js --test-coverage-include=dist/src/workbench/*.js dist/tests/core.test.js dist/tests/noteIndex.test.js dist/tests/runIntegration.js dist/tests/runMultiRoot.js dist/tests/runDiscovery.js dist/tests/runRestricted.js",
+    "benchmark:integration": "npm run compile && node dist/tests/runIntegration.js --benchmark",
+    "benchmark": "npm run compile && node dist/tests/benchmark.js",
     "build": "npm run compile",
     "package": "vsce package",
     "vscode:prepublish": "npm run compile",
@@ -457,9 +460,11 @@
     "eslint": "^10.0.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
+    "playwright-core": "^1.65.1",
     "prettier": "^3.10.1",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.0.0"
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^5.1.0"
   },
   "overrides": {
     "@vscode/vsce": {
