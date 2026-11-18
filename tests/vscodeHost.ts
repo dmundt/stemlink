@@ -4349,16 +4349,7 @@ async function testNativeVaultSelection(
   await vscode.window.showTextDocument(
     vscode.Uri.joinPath(firstRoot, 'stable', '202601011200-note-0.md'),
   );
-  let refreshes = 0;
-  const refreshed = provider.onDidChangeTreeData?.(() => {
-    refreshes++;
-  });
-  try {
-    await vscode.commands.executeCommand('stemlink.refresh');
-    await waitFor(() => refreshes > 0, 'vault tree did not refresh');
-  } finally {
-    refreshed?.dispose();
-  }
+  await vscode.commands.executeCommand('stemlink.refresh');
   await waitFor(
     () => view.selection[0]?.vault?.paths.root.toString() === secondRoot.toString(),
     'editor change or refresh cleared native vault selection',
@@ -5083,9 +5074,10 @@ export async function run(): Promise<void> {
   }
 
   const vault = new Vault(folder);
+  const treeVaults = [vault];
   const tree = new VaultTree(
     () => vault,
-    () => [vault],
+    () => treeVaults,
   );
   const sectionViews = (['Vaults', 'Fleeting', 'Notes', 'References'] as const).map(
     (section) => new VaultTreeSection(tree, section),
@@ -5094,6 +5086,26 @@ export async function run(): Promise<void> {
     started = performance.now();
     await vault.ensure();
     const independentIndexMs = performance.now() - started;
+    let vaultRefreshes = 0;
+    let noteRefreshes = 0;
+    const vaultRefreshListener = sectionViews[0].onDidChangeTreeData(() => vaultRefreshes++);
+    const noteRefreshListener = sectionViews[2].onDidChangeTreeData(() => noteRefreshes++);
+    const additionalVault = new Vault(folder);
+    try {
+      tree.refresh();
+      await waitFor(() => noteRefreshes > 0, 'note view did not refresh');
+      assert.equal(vaultRefreshes, 0, 'note refresh unnecessarily refreshed the vault rows');
+      treeVaults.push(additionalVault);
+      tree.syncVaults();
+      await waitFor(() => vaultRefreshes === 1, 'adding a vault did not refresh the vault rows');
+      treeVaults.pop();
+      tree.syncVaults();
+      await waitFor(() => vaultRefreshes === 2, 'removing a vault did not refresh the vault rows');
+    } finally {
+      vaultRefreshListener.dispose();
+      noteRefreshListener.dispose();
+      additionalVault.dispose();
+    }
     const sections = await tree.getChildren();
     assert.deepEqual(
       sections.map((item) => item.kind),
