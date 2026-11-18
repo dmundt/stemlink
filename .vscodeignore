@@ -12,6 +12,7 @@ dist/vault.js
 dist/application/**
 dist/core/**
 dist/platform/**
+dist/src/**
 dist/workbench/**
 dist/test/**
 dist/tests/**
@@ -41,3 +42,4 @@ node_modules/typescript/**
 tsconfig.json
 *.tsbuildinfo
 .playwright-mcp/**
+vitest.config.mts

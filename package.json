@@ -434,9 +434,9 @@
     "test:coverage": "npm run test:release && npm run compile && node --experimental-test-coverage --test --test-concurrency=1 --test-coverage-lines=95 --test-coverage-branches=91 --test-coverage-functions=93 --test-coverage-include=dist/extension.js --test-coverage-include=dist/src/extension.js --test-coverage-include=dist/src/core/*.js --test-coverage-include=dist/src/application/*.js --test-coverage-include=dist/src/platform/*.js --test-coverage-include=dist/src/workbench/*.js dist/tests/core.test.js dist/tests/noteIndex.test.js dist/tests/runIntegration.js dist/tests/runMultiRoot.js dist/tests/runDiscovery.js dist/tests/runRestricted.js",
     "benchmark:integration": "npm run compile && node dist/tests/runIntegration.js --benchmark",
     "benchmark": "npm run compile && node dist/tests/benchmark.js",
-    "build": "npm run compile",
-    "package": "vsce package",
-    "vscode:prepublish": "npm run compile",
+    "build": "npm run typecheck && esbuild src/extension.ts --bundle --format=cjs --platform=node --target=es2022 --external:vscode --outfile=dist/extension.js --sourcemap --minify",
+    "package": "vsce package --no-dependencies",
+    "vscode:prepublish": "npm run build",
     "prepare": "husky"
   },
   "lint-staged": {
@@ -457,6 +457,7 @@
     "@types/vscode": "~1.90.0",
     "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^4.1.1",
+    "esbuild": "^0.28.2",
     "eslint": "^10.0.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",

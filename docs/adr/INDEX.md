@@ -68,6 +68,7 @@ Start here to find decisions relevant to a change. Read the linked ADRs for cont
 
 ## Distribution
 
+- [073: Bundle extension entry point](adr-073-extension-bundling.md) — esbuild output for packaging, with TypeScript compilation retained for tests.
 - [017: Build and publication](adr-017-build-and-publication.md) — historical delivery policy, superseded by ADR 070.
 - [034: Quality and publication alignment](adr-034-quality-and-publication-alignment.md) — historical quality and release ordering, superseded by ADR 070.
 - [070: Repository delivery](adr-070-repository-delivery.md) — lean GitHub Flow, manual compatibility checks, and explicit numeric release channels; coverage floors superseded by ADR 071.
