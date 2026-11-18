@@ -2729,7 +2729,7 @@ async function testDiscovery(folder: vscode.WorkspaceFolder): Promise<void> {
   });
   try {
     await vscode.commands.executeCommand('stemlink.addFleetingNote');
-    assert.equal(errors.length, 0, 'first vault was not automatically selected');
+    assert.equal(errors.length, 0, `capture failed: ${errors.join('; ')}`);
   } finally {
     errorApi.showErrorMessage = originalError;
   }
@@ -2761,7 +2761,7 @@ async function testDiscovery(folder: vscode.WorkspaceFolder): Promise<void> {
   assert.equal(
     captures.filter(([name]) => name.endsWith('.md')).length,
     1,
-    'discovered inbox was not used',
+    `discovered inbox was not used; active editor: ${vscode.window.activeTextEditor?.document.uri.toString()}`,
   );
   await vscode.commands.executeCommand('stemlink.selectVault', otherRoot);
   await vscode.window.showTextDocument(document);
@@ -3659,6 +3659,8 @@ async function testConfigurationRecovery(
   let settingsOpened = 0;
   let reconciliations = 0;
   const rows = (await provider.getChildren()) ?? [];
+  const selectedRoot = view.selection[0]?.vault?.paths.root;
+  assert.ok(selectedRoot, 'configuration recovery requires a selected vault');
   const markers = await Promise.all(
     rows.map(async (row) => {
       assert.ok(row.vault);
@@ -3759,6 +3761,11 @@ async function testConfigurationRecovery(
     api.showErrorMessage = originalError;
     commands.executeCommand = originalCommand;
     Vault.prototype.selectPaths = originalPaths;
+    await vscode.commands.executeCommand('stemlink.selectVault', selectedRoot);
+    await waitFor(
+      () => view.selection[0]?.vault?.paths.root.toString() === selectedRoot.toString(),
+      'configuration recovery did not restore the test selection',
+    );
   }
 }
 
