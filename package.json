@@ -495,8 +495,8 @@
     "playwright-core": "^1.65.1",
     "prettier": "^3.10.1",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.0.0",
-    "vitest": "^5.1.0"
+    "typescript-eslint": "^8.73.0",
+    "vitest": "^5.1.1"
   },
   "overrides": {
     "@vscode/vsce": {
